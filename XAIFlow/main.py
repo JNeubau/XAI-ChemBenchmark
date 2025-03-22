@@ -14,22 +14,25 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.dirname(os.getcwd()))
 
 from SHAP.shap_cross_validation import CrossValidationShapPipeline
+from SHAP_IQ.shapiq_cross_validation import CrossValidationShapIqPipeline
 
 
 def mainXaiFlow():
+    model = 'SHAP_IQ'
     parent_dir = os.path.dirname(os.getcwd())
     print("Parent directory:", parent_dir)
     
     maccs_fingerprints = os.path.join(parent_dir, 'data', 'maccs_merged.csv')
     smarts_mapping_path = os.path.join(parent_dir, 'data', 'maccs_smarts_mapping.json')
-    results_dir = os.path.join(parent_dir, 'results', 'battery', datetime.today().strftime("%d-%m-%Y"))
+    results_dir = os.path.join(parent_dir, 'results', 'battery', model, datetime.today().strftime("%d-%m-%Y"))
     
     data = pd.read_csv(maccs_fingerprints, index_col=0)
     print(data.head())
     os.makedirs(results_dir, exist_ok=True)
 
     folds = custom_data_kfold(data.drop(columns=['capacity_max']), data[['capacity_max']], 10)
-    cv_pipeline = CrossValidationShapPipeline(
+    # cv_pipeline = CrossValidationShapPipeline(
+    cv_pipeline = CrossValidationShapIqPipeline(
         X=data.drop(columns=['capacity_max', 'smiles']),
         y=data[['capacity_max']],
         folds=folds,
