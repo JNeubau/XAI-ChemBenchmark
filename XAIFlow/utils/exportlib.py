@@ -92,16 +92,17 @@ def save_data_to_excel_with_highlights(data, smiles_list, smarts_list, excel_fil
     - excel_file (str): The path to the Excel file where the data will be saved.
     """
     image_dir = os.path.dirname(os.getcwd()) + '\\png'
-    df = pd.DataFrame(data)
-
-    df['SMILES'] = smiles_list
-    df = df.sort_values(by=['SMILES', 'Feature'])
+    df = pd.DataFrame(data, columns=['Feature', 'SMARTS', 'Molecule'])
+    
+    df = df.sort_values(by=['Molecule', 'Feature'], ignore_index=True)
 
     with pd.ExcelWriter(excel_file, engine="xlsxwriter") as writer:
         df.to_excel(writer, index=False, sheet_name="Data", startrow=0, startcol=6)
         worksheet = writer.sheets["Data"]
 
-        for i, (smiles, smarts) in enumerate(zip(df['SMILES'], smarts_list)):
+        for i, row in df.iterrows():
+            smiles = row['Molecule']
+            smarts = row['SMARTS']
             mol = Chem.MolFromSmiles(smiles)
             match_smart = Chem.MolFromSmarts(smarts)
             if mol and match_smart:
@@ -110,11 +111,11 @@ def save_data_to_excel_with_highlights(data, smiles_list, smarts_list, excel_fil
                 highlight_atoms = [atom for match in mol.GetSubstructMatches(match_smart) for atom in match]
                 Draw.MolToFile(mol, img_path, highlightAtoms=highlight_atoms)
 
-                row = i + 1
+                row_num = i + 1
                 col = 0
-                worksheet.insert_image(row, col, img_path)
+                worksheet.insert_image(row_num, col, img_path)
 
-                worksheet.set_row(row, 250)
+                worksheet.set_row(row_num, 250)
     clean_up_png_files_from_dir(image_dir)
 
 
