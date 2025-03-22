@@ -8,7 +8,7 @@ from eval_metrics import EvalMetrics
 from data_split import custom_data_kfold
 from cross_validation import CrossValidationPipeline
 import shap
-from exportlib import save_data_to_excel
+from exportlib import save_data_to_excel_with_highlights
 
 def main ():
     print('Hello, world!')
@@ -94,22 +94,28 @@ def main ():
         non_zero_molecules = non_zero_molecules['smiles'].tolist()
         match_molecules[key].extend(non_zero_molecules)
 
-    # Prepare data for Excel export
+    # Prepare data for Excel export with highlights
     excel_data = {
         "Feature": [],
         "SMARTS": [],
         "Molecule": []
     }
+    smiles_list = []
+    smarts_list = []
+
     for key, smarts in smarts_top10.items():
         for molecule in match_molecules[key]:
             excel_data["Feature"].append(key)
             excel_data["SMARTS"].append(smarts)
             excel_data["Molecule"].append(molecule)
+            smiles_list.append(molecule)
+            smarts_list.append(smarts)
 
-    # Save to Excel using exportlib
-    excel_output_path = f'./results/battery/{date}/molecule_results.xlsx'
-    save_data_to_excel(excel_data, excel_data["Molecule"], excel_output_path)
-    print(f"Molecule results saved to {excel_output_path}")
+    # Save to Excel with highlights
+    time=datetime.now().strftime("%H-%M-%S")
+    excel_output_path = f'./results/battery/{date}/molecule_results_with_highlights_{date}_{time}.xlsx'
+    save_data_to_excel_with_highlights(excel_data, smiles_list, smarts_list, excel_output_path)
+    print(f"Molecule results with highlights saved to {excel_output_path}")
 
 
 

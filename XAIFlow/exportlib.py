@@ -42,3 +42,37 @@ def save_data_to_excel(data, smiles_list, excel_file):
                 worksheet.insert_image(row, col, img_path)
 
                 worksheet.set_row(row, 250)
+
+def save_data_to_excel_with_highlights(data, smiles_list, smarts_list, excel_file):
+    """
+    Save data to an Excel file with molecule images generated from SMILES strings and highlighted substructures.
+
+    Parameters:
+    - data (dict): A dictionary containing the data to be saved.
+                   Keys should be column names, and values should be lists of column data.
+    - smiles_list (list): A list of SMILES strings corresponding to the molecules.
+    - smarts_list (list): A list of SMARTS patterns to highlight in the molecules.
+    - excel_file (str): The path to the Excel file where the data will be saved.
+    """
+    df = pd.DataFrame(data)
+
+    with pd.ExcelWriter(excel_file, engine="xlsxwriter") as writer:
+        df.to_excel(writer, index=False, sheet_name="Data", startrow=0, startcol=6)
+
+        workbook = writer.book
+        worksheet = writer.sheets["Data"]
+
+        for i, (smiles, smarts) in enumerate(zip(smiles_list, smarts_list)):
+            mol = Chem.MolFromSmiles(smiles)
+            match_smart = Chem.MolFromSmarts(smarts)
+            if mol and match_smart:
+                os.makedirs("png", exist_ok=True)
+                img_path = f"png/mol_{i}.png"
+                highlight_atoms = [atom for match in mol.GetSubstructMatches(match_smart) for atom in match]
+                Draw.MolToFile(mol, img_path, highlightAtoms=highlight_atoms)
+
+                row = i + 1
+                col = 0
+                worksheet.insert_image(row, col, img_path)
+
+                worksheet.set_row(row, 250)
