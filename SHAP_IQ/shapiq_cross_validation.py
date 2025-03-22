@@ -84,10 +84,13 @@ class CrossValidationShapIqPipeline:
         """
         explainer = shapiq.TreeExplainer(model, index='SV')
         # explainer = shap.TreeExplainer(model)
-        shap_values =[explainer.explain_function(X_test.iloc[i:i+1]) for i in range(X_test.shape[0])]
-        # shap_values = explainer.shap_values(X_test)
+        print(X_test.head())
+        shap_values = []
+        new_X_test = X_test.to_numpy()
+        for i in range(new_X_test.shape[0]):
+            shap_value = explainer.explain(new_X_test[i])
+            shap_values.append(shap_value)
         return shap_values
-    # TODO: Change to shaiq
 
     def update_shap(self, model: object, X_test: pd.DataFrame):
         """

@@ -14,6 +14,8 @@ def explain_with_shaply_interactions():
         index="k-SII",
         max_order=4
     )
+    print(X[0])
+    print(X[0].shape)
     # explain the model's prediction for the first sample
     interaction_values = explainer.explain(X[0], budget=256)
     # analyse interaction values
@@ -42,11 +44,15 @@ def compute_shaply_values():
     model = RandomForestRegressor()
     model.fit(data, y)
     # data, model = ...  # get your data and model
-    explainer = shapiq.Explainer(
+    explainer = shapiq.TreeExplainer(
         model=model,
-        data=data,
+        # data=data,
         index="SV",  # Shapley values
     )
+    print(type(data))
+    print(data[0])
+    print(data[0].shape)
+    print(type(data[0]))
     shapley_values = explainer.explain(data[0])
     shapley_values.plot_force()
     # shapley_values.plot_force(feature_names=...)
