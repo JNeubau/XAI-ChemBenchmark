@@ -18,7 +18,7 @@ from SHAP_IQ.shapiq_cross_validation import CrossValidationShapIqPipeline
 
 
 def mainXaiFlow():
-    model = 'SHAP_IQ'
+    model = 'SHAP_IQ' # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
     parent_dir = os.path.dirname(os.getcwd())
     print("Parent directory:", parent_dir)
     
@@ -31,18 +31,9 @@ def mainXaiFlow():
     os.makedirs(results_dir, exist_ok=True)
 
     folds = custom_data_kfold(data.drop(columns=['capacity_max']), data[['capacity_max']], 10)
-    # cv_pipeline = CrossValidationShapPipeline(
-    cv_pipeline = CrossValidationShapIqPipeline(
-        X=data.drop(columns=['capacity_max', 'smiles']),
-        y=data[['capacity_max']],
-        folds=folds,
-        metrics=['smape', 'pairwise_accuracy_score', 'rmse', 'ndcg_score'],
-        save_dir='',
-        data_name='battery',
-        verbose=True
-    )
 
     # Train the model
+    cv_pipeline = select_pipeline(model, data, folds)
     results, scores, shap_values = cv_pipeline.train_pipeline('XGBReg')
     print("Results:", results)
 
@@ -76,6 +67,32 @@ def mainXaiFlow():
         
     excel_data, smiles_list, smarts_list = prepare_data_for_excel_export(match_molecules, smarts_top10)
     save_to_excel(excel_data, smiles_list, smarts_list, results_dir)
+
+
+def select_pipeline(model, data, folds):
+    match model:
+        case 'SHAP':
+            return CrossValidationShapPipeline(
+                X=data.drop(columns=['capacity_max', 'smiles']),
+                y=data[['capacity_max']],
+                folds=folds,
+                metrics=['smape', 'pairwise_accuracy_score', 'rmse', 'ndcg_score'],
+                save_dir='',
+                data_name='battery',
+                verbose=True
+            )
+        case 'SHAP_IQ':
+            return CrossValidationShapIqPipeline(
+                X=data.drop(columns=['capacity_max', 'smiles']),
+                y=data[['capacity_max']],
+                folds=folds,
+                metrics=['smape', 'pairwise_accuracy_score', 'rmse', 'ndcg_score'],
+                save_dir='',
+                data_name='battery',
+                verbose=True
+            )
+        case default:
+            raise ValueError("Model not selected.")
 
 
 def prepare_data_for_excel_export(match_molecules, smarts_top10):
