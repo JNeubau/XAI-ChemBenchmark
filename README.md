@@ -1,4 +1,5 @@
 # XAI-experiments
+Required: Python 3.10
 
 ## SHAP
 

@@ -1,8 +1,9 @@
 import pandas as pd
 from rdkit import Chem
 from rdkit.Chem import Draw
-import xlsxwriter
+# import xlsxwriter
 import os
+
 
 def save_data_to_excel(data, smiles_list, excel_file):
     """
@@ -26,8 +27,6 @@ def save_data_to_excel(data, smiles_list, excel_file):
 
     with pd.ExcelWriter(excel_file, engine="xlsxwriter") as writer:
         df.to_excel(writer, index=False, sheet_name="Data", startrow=0, startcol=6)
-
-        workbook = writer.book
         worksheet = writer.sheets["Data"]
 
         for i, smiles in enumerate(smiles_list):
@@ -42,6 +41,8 @@ def save_data_to_excel(data, smiles_list, excel_file):
                 worksheet.insert_image(row, col, img_path)
 
                 worksheet.set_row(row, 250)
+    clean_up_png_files_from_dir("png")
+    
 
 def save_data_to_excel_with_highlights(data, smiles_list, smarts_list, excel_file):
     """
@@ -54,20 +55,19 @@ def save_data_to_excel_with_highlights(data, smiles_list, smarts_list, excel_fil
     - smarts_list (list): A list of SMARTS patterns to highlight in the molecules.
     - excel_file (str): The path to the Excel file where the data will be saved.
     """
+    image_dir = os.path.dirname(os.getcwd()) + '\\png'
     df = pd.DataFrame(data)
 
     with pd.ExcelWriter(excel_file, engine="xlsxwriter") as writer:
         df.to_excel(writer, index=False, sheet_name="Data", startrow=0, startcol=6)
-
-        workbook = writer.book
         worksheet = writer.sheets["Data"]
 
         for i, (smiles, smarts) in enumerate(zip(smiles_list, smarts_list)):
             mol = Chem.MolFromSmiles(smiles)
             match_smart = Chem.MolFromSmarts(smarts)
             if mol and match_smart:
-                os.makedirs("png", exist_ok=True)
-                img_path = f"png/mol_{i}.png"
+                os.makedirs(image_dir, exist_ok=True)
+                img_path = image_dir + f"\\mol_{i}.png"
                 highlight_atoms = [atom for match in mol.GetSubstructMatches(match_smart) for atom in match]
                 Draw.MolToFile(mol, img_path, highlightAtoms=highlight_atoms)
 
@@ -76,3 +76,20 @@ def save_data_to_excel_with_highlights(data, smiles_list, smarts_list, excel_fil
                 worksheet.insert_image(row, col, img_path)
 
                 worksheet.set_row(row, 250)
+    clean_up_png_files_from_dir(image_dir)
+
+
+def clean_up_png_files_from_dir(dir_name):
+    """
+    Clean up the directory containing molecule images.
+    Will remove the dir if it is empty.
+
+    Parameters:
+    - dir_name (str): The directory containing the molecule images.
+    """
+    for file in os.listdir(dir_name):
+        if file.endswith(".png"):
+            os.remove(os.path.join(dir_name, file))
+    
+    if not os.listdir(dir_name):
+        os.rmdir(dir_name)

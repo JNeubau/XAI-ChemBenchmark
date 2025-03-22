@@ -7,14 +7,14 @@ import pandas as pd
 import shap
 import os
 from datetime import datetime
-from models import Models
-from eval_metrics import EvalMetrics
-from data_split import custom_data_split
+from XAIFlow.AI_models.models import Models
+from XAIFlow.AI_models.eval_metrics import EvalMetrics
+from XAIFlow.utils.data_split import custom_data_split
 
 
-class CrossValidationPipeline:
+class CrossValidationShapPipeline:
     """
-    Cross-validation pipeline class.
+    Cross-validation pipeline class for SHAP.
     """
 
     def __init__(

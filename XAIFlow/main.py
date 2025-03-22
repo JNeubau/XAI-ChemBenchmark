@@ -1,26 +1,35 @@
 import os
+import sys
 from datetime import datetime
 import pandas as pd
 import numpy as np
-# import shap
-from models import Models
-from eval_metrics import EvalMetrics
-from data_split import custom_data_kfold
-from cross_validation import CrossValidationPipeline
-import shap
-from exportlib import save_data_to_excel_with_highlights
+import json
+    
+from AI_models.models import Models
+from AI_models.eval_metrics import EvalMetrics
+from utils.data_split import custom_data_kfold
+from utils.exportlib import save_data_to_excel_with_highlights
 
-def main ():
-    print('Hello, world!')
-    # Load data
-    data = pd.read_csv('./data/maccs_merged.csv', index_col=0)
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(os.path.dirname(os.getcwd()))
+
+from SHAP.shap_cross_validation import CrossValidationShapPipeline
+
+
+def mainXaiFlow():
+    parent_dir = os.path.dirname(os.getcwd())
+    print("Parent directory:", parent_dir)
+    
+    maccs_fingerprints = os.path.join(parent_dir, 'data', 'maccs_merged.csv')
+    smarts_mapping_path = os.path.join(parent_dir, 'data', 'maccs_smarts_mapping.json')
+    results_dir = os.path.join(parent_dir, 'results', 'battery', datetime.today().strftime("%d-%m-%Y"))
+    
+    data = pd.read_csv(maccs_fingerprints, index_col=0)
     print(data.head())
+    os.makedirs(results_dir, exist_ok=True)
 
-    date = datetime.today().strftime("%d-%m-%Y")
-    os.makedirs(f'./results/battery/{date}', exist_ok=True)
-    print(date)
     folds = custom_data_kfold(data.drop(columns=['capacity_max']), data[['capacity_max']], 10)
-    cv_pipeline = CrossValidationPipeline(
+    cv_pipeline = CrossValidationShapPipeline(
         X=data.drop(columns=['capacity_max', 'smiles']),
         y=data[['capacity_max']],
         folds=folds,
@@ -30,41 +39,13 @@ def main ():
         verbose=True
     )
 
-    # # Create results directory
-    # date = datetime.today().strftime("%d-%m-%Y")
-    # os.makedirs(f'./results/battery/{date}', exist_ok=True)
-
-    # # Prepare data splits
-    # folds = custom_data_kfold(data.drop(columns=['capacity_max']), data[['capacity_max']], 10)
-
-    # # Initialize cross-validation pipeline
-    # cv_pipeline = CrossValidationPipeline(
-    #     X=data.drop(columns=['capacity_max', 'smiles']),
-    #     y=data[['capacity_max']],
-    #     folds=folds,
-    #     metrics=['smape', 'pairwise_accuracy_score', 'rmse', 'ndcg_score'],
-    #     save_dir='',
-    #     data_name='battery',
-    #     verbose=True
-    # )
-
     # Train the model
     results, scores, shap_values = cv_pipeline.train_pipeline('XGBReg')
-
-    # Display results
     print("Results:", results)
 
     # Explanations for the first fold
     test_f0 = data.loc[folds[0][1]]
     shap_f0 = shap_values[0]
-
-    # # Visualize SHAP summary plot
-    # shap.summary_plot(
-    #     shap_f0,
-    #     test_f0.drop(columns=['capacity_max', 'smiles']),
-    #     max_display=10,
-    #     show=True
-    # )
 
     # Identify top 10 features
     feature_names = test_f0.drop(columns=['capacity_max', 'smiles']).columns.tolist()
@@ -74,8 +55,7 @@ def main ():
     print("Top 10 Features:", top_10_feature_names)
 
     # Map features to SMARTS patterns
-    import json
-    with open('data/maccs_smarts_mapping.json', 'r') as f:
+    with open(smarts_mapping_path, 'r') as f:
         smarts_mapping = json.load(f)
 
     smarts_top10 = {
@@ -85,16 +65,17 @@ def main ():
     print("SMARTS Top 10:", smarts_top10)
 
     # Match molecules to SMARTS patterns
-    from rdkit import Chem
-    from rdkit.Chem import Draw
-
     match_molecules = {s: [] for s in smarts_top10.keys()}
     for key, value in smarts_top10.items():
         non_zero_molecules = test_f0[test_f0[key] == 1]
         non_zero_molecules = non_zero_molecules['smiles'].tolist()
         match_molecules[key].extend(non_zero_molecules)
+        
+    excel_data, smiles_list, smarts_list = prepare_data_for_excel_export(match_molecules, smarts_top10)
+    save_to_excel(excel_data, smiles_list, smarts_list, results_dir)
 
-    # Prepare data for Excel export with highlights
+
+def prepare_data_for_excel_export(match_molecules, smarts_top10):
     excel_data = {
         "Feature": [],
         "SMARTS": [],
@@ -110,14 +91,14 @@ def main ():
             excel_data["Molecule"].append(molecule)
             smiles_list.append(molecule)
             smarts_list.append(smarts)
+    return excel_data, smiles_list, smarts_list
 
-    # Save to Excel with highlights
-    time=datetime.now().strftime("%H-%M-%S")
-    excel_output_path = f'./results/battery/{date}/molecule_results_with_highlights_{date}_{time}.xlsx'
+
+def save_to_excel(excel_data, smiles_list, smarts_list, results_dir):
+    excel_output_path = results_dir + f'\\molecule_results_with_highlights_{datetime.now().strftime("%H-%M-%S")}.xlsx'
     save_data_to_excel_with_highlights(excel_data, smiles_list, smarts_list, excel_output_path)
     print(f"Molecule results with highlights saved to {excel_output_path}")
 
 
-
 if __name__ == '__main__':
-    main()
+    mainXaiFlow()
