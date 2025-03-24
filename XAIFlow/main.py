@@ -17,8 +17,8 @@ from SHAP.shap_cross_validation import CrossValidationShapPipeline
 from SHAP_IQ.shapiq_cross_validation import CrossValidationShapIqPipeline
 
 
-def mainXaiFlow():
-    model = 'SHAP' # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
+def mainXaiFlow(model):
+    print("Model: ", model)
     parent_dir = os.path.dirname(os.getcwd())
     print("Parent directory:", parent_dir)
     
@@ -131,4 +131,5 @@ def save_to_excel(excel_data, smiles_list, smarts_list, results_dir):
 
 
 if __name__ == '__main__':
-    mainXaiFlow()
+    model = ['SHAP', 'SHAP_IQ'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
+    [mainXaiFlow(m) for m in model]
