@@ -18,7 +18,7 @@ from SHAP_IQ.shapiq_cross_validation import CrossValidationShapIqPipeline
 
 
 def mainXaiFlow():
-    model = 'SHAP_IQ' # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
+    model = 'SHAP' # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
     parent_dir = os.path.dirname(os.getcwd())
     print("Parent directory:", parent_dir)
     
@@ -37,37 +37,47 @@ def mainXaiFlow():
     results, scores, shap_values = cv_pipeline.train_pipeline('XGBReg')
     print("Results:", results)
 
+
+#Loop for all folds
+    smarts_top_all = {}
+    match_molecules_all = {}
+    for i, fold in enumerate(folds):
+
     # Explanations for the first fold
-    test_f0 = data.loc[folds[0][1]]
-    shap_f0 = shap_values[0]
+        test_f = data.loc[fold[1]]
+        print("Fold:", i)
+        print("Test data shape:", test_f.head())
+        shap_f = shap_values[i]
 
     # Identify top 10 features
-    feature_names = test_f0.drop(columns=['capacity_max', 'smiles']).columns.tolist()
-    mean_abs_shap_values = np.mean(np.abs(shap_f0), axis=0)
-    top_10_indices = np.argsort(mean_abs_shap_values)[-10:][::-1]
-    top_10_feature_names = [feature_names[i] for i in top_10_indices]
-    print("Top 10 Features:", top_10_feature_names)
+        feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
+        mean_abs_shap_values = np.mean(np.abs(shap_f), axis=0)
+        top_10_indices = np.argsort(mean_abs_shap_values)[-10:][::-1]
+        top_10_feature_names = [feature_names[i] for i in top_10_indices]
+        print("Top 10 Features:", top_10_feature_names)
 
     # Map features to SMARTS patterns
-    with open(smarts_mapping_path, 'r') as f:
-        smarts_mapping = json.load(f)
+        with open(smarts_mapping_path, 'r') as f:
+            smarts_mapping = json.load(f)
 
-    smarts_top10 = {
-        feature: smarts_mapping[f'maccsfingerprint{int(feature.replace("maccsfingerprint", "")) + 1}'][0]
-        for feature in top_10_feature_names
-    }
-    print("SMARTS Top 10:", smarts_top10)
+        smarts_top10 = {
+            feature: smarts_mapping[f'maccsfingerprint{int(feature.replace("maccsfingerprint", "")) + 1}'][0]
+            for feature in top_10_feature_names
+        }
+        print("SMARTS Top 10:", smarts_top10)
 
-    # Match molecules to SMARTS patterns
-    match_molecules = {s: [] for s in smarts_top10.keys()}
-    for key, value in smarts_top10.items():
-        non_zero_molecules = test_f0[test_f0[key] == 1]
-        non_zero_molecules = non_zero_molecules['smiles'].tolist()
-        match_molecules[key].extend(non_zero_molecules)
-        
-    excel_data, smiles_list, smarts_list = prepare_data_for_excel_export(match_molecules, smarts_top10)
+        # Match molecules to SMARTS patterns
+        match_molecules = {s: [] for s in smarts_top10.keys()}
+        for key, value in smarts_top10.items():
+            non_zero_molecules = test_f[test_f[key] == 1]
+            non_zero_molecules = non_zero_molecules['smiles'].tolist()
+            match_molecules[key].extend(non_zero_molecules)
+
+        smarts_top_all.update(smarts_top10)
+        match_molecules_all.update(match_molecules)
+
+    excel_data, smiles_list, smarts_list = prepare_data_for_excel_export(match_molecules_all, smarts_top_all)
     save_to_excel(excel_data, smiles_list, smarts_list, results_dir)
-
 
 def select_pipeline(model, data, folds):
     match model:
@@ -95,7 +105,7 @@ def select_pipeline(model, data, folds):
             raise ValueError("Model not selected.")
 
 
-def prepare_data_for_excel_export(match_molecules, smarts_top10):
+def prepare_data_for_excel_export(match_molecules, smarts_top):
     excel_data = {
         "Feature": [],
         "SMARTS": [],
@@ -104,7 +114,7 @@ def prepare_data_for_excel_export(match_molecules, smarts_top10):
     smiles_list = []
     smarts_list = []
 
-    for key, smarts in smarts_top10.items():
+    for key, smarts in smarts_top.items():
         for molecule in match_molecules[key]:
             excel_data["Feature"].append(key)
             excel_data["SMARTS"].append(smarts)

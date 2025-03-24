@@ -8,7 +8,7 @@ import shap
 import os
 from datetime import datetime
 from XAIFlow.AI_models.models import Models
-from XAIFlow.AI_models.eval_metrics import EvalMetrics
+from XAIFlow.AI_models.eval_metrics import EvalMetrics, smape, rmse, mape
 from XAIFlow.utils.data_split import custom_data_split
 
 
@@ -62,7 +62,7 @@ class CrossValidationShapPipeline:
         :return: model with optimized parameters.
         """
         if self.hyperparam_opt:
-            scorer = make_scorer(mean_squared_error, greater_is_better=False)
+            scorer = make_scorer(smape, greater_is_better=False)
             folds = custom_data_split(X_train, y_train, train_size=0.6)
             opt = GridSearchCV(estimator=model, param_grid=param_grid, cv=folds, scoring=scorer, refit=True, n_jobs=-1,
                                return_train_score=True)
