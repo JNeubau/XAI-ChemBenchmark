@@ -37,46 +37,7 @@ def mainXaiFlow(model):
     results, scores, shap_values = cv_pipeline.train_pipeline('XGBReg')
     print("Results:", results)
 
-
-    # Loop for all folds
-    smarts_top_all = {}
-    match_molecules_all = {}
-    for i, fold in enumerate(folds):
-        # Explanations for the current fold
-        test_f = data.loc[fold[1]]
-        # print("Fold:", i)
-        # print("Test data shape:", fold[1])
-        shap_f = shap_values[i]
-        print("SHAP values:", shap_values[i])
-
-        # Process each array of SHAP values matched to all molecules
-        for molecule_idx, shap_array in enumerate(shap_f):
-            # Identify top 10 features for the current molecule
-            feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
-            abs_shap_values = np.abs(shap_array)
-            top_10_indices = np.argsort(abs_shap_values)[-10:][::-1]
-            top_10_feature_names = [feature_names[i] for i in top_10_indices]
-            # print(f"Molecule {list(fold[1])[molecule_idx]} - Top 10 Features:", top_10_feature_names)
-
-            # Map features to SMARTS patterns
-            with open(smarts_mapping_path, 'r') as f:
-                smarts_mapping = json.load(f)
-
-            smarts_top10 = {
-                feature: smarts_mapping[f'maccsfingerprint{int(feature.replace("maccsfingerprint", "")) + 1}'][0]
-                for feature in top_10_feature_names
-            }
-            # print(f"Molecule {list(fold[1])[molecule_idx]} - SMARTS Top 10:", smarts_top10)
-
-            # Match molecules to SMARTS patterns
-            match_molecules = {s: [] for s in smarts_top10.keys()}
-            for key, value in smarts_top10.items():
-                non_zero_molecules = test_f[test_f[key] == 1]
-                non_zero_molecules = non_zero_molecules['smiles'].tolist()
-                match_molecules[key].extend(non_zero_molecules)
-
-            smarts_top_all.update(smarts_top10)
-            match_molecules_all.update(match_molecules)
+    smarts_top_all, match_molecules_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation=True)
 
     excel_data, smiles_list, smarts_list = prepare_data_for_excel_export(match_molecules_all, smarts_top_all)
     save_to_excel(excel_data, smiles_list, smarts_list, results_dir)
@@ -132,6 +93,80 @@ def save_to_excel(excel_data, smiles_list, smarts_list, results_dir):
     print(f"Molecule results with highlights saved to {excel_output_path}")
 
 
+def process_folds_local(folds, data, shap_values, smarts_mapping_path):
+    smarts_top_all = {}
+    match_molecules_all = {}
+
+    for i, fold in enumerate(folds):
+        test_f = data.loc[fold[1]]
+        shap_f = shap_values[i]
+
+        for molecule_idx, shap_array in enumerate(shap_f):
+            feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
+            abs_shap_values = np.abs(shap_array)
+            top_10_indices = np.argsort(abs_shap_values)[-10:][::-1]
+            top_10_feature_names = [feature_names[i] for i in top_10_indices]
+
+            with open(smarts_mapping_path, 'r') as f:
+                smarts_mapping = json.load(f)
+
+            smarts_top10 = {
+                feature: smarts_mapping[f'maccsfingerprint{int(feature.replace("maccsfingerprint", "")) + 1}'][0]
+                for feature in top_10_feature_names
+            }
+
+            match_molecules = {s: [] for s in smarts_top10.keys()}
+            for key, value in smarts_top10.items():
+                non_zero_molecules = test_f[test_f[key] == 1]
+                non_zero_molecules = non_zero_molecules['smiles'].tolist()
+                match_molecules[key].extend(non_zero_molecules)
+
+            smarts_top_all.update(smarts_top10)
+            match_molecules_all.update(match_molecules)
+
+    return smarts_top_all, match_molecules_all
+
+
+def process_folds_global(folds, data, shap_values, smarts_mapping_path):
+    smarts_top_all = {}
+    match_molecules_all = {}
+
+    for i, fold in enumerate(folds):
+        test_f = data.loc[fold[1]]
+        shap_f = shap_values[i]
+
+        feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
+        mean_abs_shap_values = np.mean(np.abs(shap_f), axis=0)
+        top_10_indices = np.argsort(mean_abs_shap_values)[-10:][::-1]
+        top_10_feature_names = [feature_names[i] for i in top_10_indices]
+
+        with open(smarts_mapping_path, 'r') as f:
+            smarts_mapping = json.load(f)
+
+        smarts_top10 = {
+            feature: smarts_mapping[f'maccsfingerprint{int(feature.replace("maccsfingerprint", "")) + 1}'][0]
+            for feature in top_10_feature_names
+        }
+
+        match_molecules = {s: [] for s in smarts_top10.keys()}
+        for key, value in smarts_top10.items():
+            non_zero_molecules = test_f[test_f[key] == 1]
+            non_zero_molecules = non_zero_molecules['smiles'].tolist()
+            match_molecules[key].extend(non_zero_molecules)
+
+        smarts_top_all.update(smarts_top10)
+        match_molecules_all.update(match_molecules)
+
+    return smarts_top_all, match_molecules_all
+
+
+def process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation=True):
+    if local_explanation:
+        return process_folds_local(folds, data, shap_values, smarts_mapping_path)
+    else:
+        return process_folds_global(folds, data, shap_values, smarts_mapping_path)
+
+
 if __name__ == '__main__':
-    model = ['SHAP']#, 'SHAP_IQ'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
+    model = ['SHAP', 'SHAP_IQ'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
     [mainXaiFlow(m) for m in model]
