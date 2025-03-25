@@ -17,14 +17,18 @@ from SHAP.shap_cross_validation import CrossValidationShapPipeline
 from SHAP_IQ.shapiq_cross_validation import CrossValidationShapIqPipeline
 
 
-def mainXaiFlow(model):
+def mainXaiFlow(model, local_explanation=True):
     print("Model: ", model)
     parent_dir = os.path.dirname(os.getcwd())
     print("Parent directory:", parent_dir)
     
     maccs_fingerprints = os.path.join(parent_dir, 'data', 'maccs_merged.csv')
     smarts_mapping_path = os.path.join(parent_dir, 'data', 'maccs_smarts_mapping.json')
-    results_dir = os.path.join(parent_dir, 'results', 'battery', model, datetime.today().strftime("%d-%m-%Y"))
+    if local_explanation:
+        explenation_type = 'local'
+    else:
+        explenation_type = 'global'
+    results_dir = os.path.join(parent_dir, 'results', 'battery', model, explenation_type, datetime.today().strftime("%d-%m-%Y"))
     
     data = pd.read_csv(maccs_fingerprints, index_col=0)
     print(data.head())
@@ -37,10 +41,11 @@ def mainXaiFlow(model):
     results, scores, shap_values = cv_pipeline.train_pipeline('XGBReg')
     print("Results:", results)
 
-    smarts_top_all, match_molecules_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation=True)
+    smarts_top_all, match_molecules_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation)
 
     excel_data, smiles_list, smarts_list = prepare_data_for_excel_export(match_molecules_all, smarts_top_all)
     save_to_excel(excel_data, smiles_list, smarts_list, results_dir)
+
 
 def select_pipeline(model, data, folds):
     match model:
@@ -169,4 +174,5 @@ def process_folds(folds, data, shap_values, smarts_mapping_path, local_explanati
 
 if __name__ == '__main__':
     model = ['SHAP', 'SHAP_IQ'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
-    [mainXaiFlow(m) for m in model]
+    local_explanation = True
+    [mainXaiFlow(m, local_explanation) for m in model]
