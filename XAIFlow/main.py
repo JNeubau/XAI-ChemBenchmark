@@ -34,11 +34,11 @@ def mainXaiFlow(model, local_explanation=True):
     print(data.head())
     os.makedirs(results_dir, exist_ok=True)
 
-    folds = custom_data_kfold(data.drop(columns=['capacity_max']), data[['capacity_max']], 10)
+    folds = custom_data_kfold(data.drop(columns=['capacity_max']), data[['capacity_max']], 5)
 
     # Train the model
     cv_pipeline = select_pipeline(model, data, folds)
-    results, scores, shap_values = cv_pipeline.train_pipeline('XGBReg')
+    results, scores, shap_values = cv_pipeline.train_pipeline('RFReg')
     print("Results:", results)
 
     smarts_top_all, match_molecules_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation)
@@ -105,6 +105,7 @@ def process_folds_local(folds, data, shap_values, smarts_mapping_path):
     for i, fold in enumerate(folds):
         test_f = data.loc[fold[1]]
         shap_f = shap_values[i]
+        print("SHAP values shape:", shap_f)
 
         for molecule_idx, shap_array in enumerate(shap_f):
             feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
