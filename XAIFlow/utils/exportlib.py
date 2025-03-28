@@ -63,7 +63,13 @@ def save_data_to_excel_with_highlights_no_sort(data, smiles_list, smarts_list, e
         worksheet = writer.sheets["Data"]
 
         for i, (smiles, smarts) in enumerate(zip(smiles_list, smarts_list)):
-            mol = Chem.MolFromSmiles(smiles)
+
+            if not smiles or not smiles[0]:
+                continue
+            # print(smiles, smarts)
+            # print(type(smiles),smiles[0])
+            # print(type(smarts))
+            mol = Chem.MolFromSmiles(smiles[0])
             match_smart = Chem.MolFromSmarts(smarts)
             if mol and match_smart:
                 os.makedirs(image_dir, exist_ok=True)
