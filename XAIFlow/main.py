@@ -43,8 +43,8 @@ def mainXaiFlow(model, local_explanation=True):
 
     smarts_top_all, match_molecules_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation)
 
-    excel_data, smiles_list, smarts_list = prepare_data_for_excel_export(match_molecules_all, smarts_top_all)
-    save_to_excel(excel_data, smiles_list, smarts_list, results_dir)
+    excel_data = prepare_data_for_excel_export(match_molecules_all, smarts_top_all)
+    save_to_excel(excel_data, results_dir)
 
 
 def select_pipeline(model, data, folds):
@@ -75,12 +75,12 @@ def select_pipeline(model, data, folds):
 
 def prepare_data_for_excel_export(match_molecules, smarts_top):
     excel_data = {
-        "Feature": [],
+        "Fold_No": [],
+        "Smiles_key": [],
+        "Feature_key": [],
         "SMARTS": [],
         "Molecule": []
     }
-    smiles_list = []
-    smarts_list = []
 
     bbbb=0
     for key, smarts in smarts_top.items():
@@ -91,11 +91,11 @@ def prepare_data_for_excel_export(match_molecules, smarts_top):
             print("key:", key)
             print("molecule:", molecule)
             print("smarts:", smarts)
-            excel_data["Feature"].append(key)
+            excel_data["Fold_No"].append(key[0])
+            excel_data["Smiles_key"].append(key[1])
+            excel_data["Feature_key"].append(key[2])
             excel_data["SMARTS"].append(smarts)
             excel_data["Molecule"].append(molecule)
-            smiles_list.append(molecule)
-            smarts_list.append(smarts)
             bbbb+=1
 
     # for key, molecule in match_molecules.items():
@@ -106,12 +106,12 @@ def prepare_data_for_excel_export(match_molecules, smarts_top):
     #     smarts_list.append(smarts)
 
     print("bbbb:", bbbb)
-    return excel_data, smiles_list, smarts_list
+    return excel_data
 
 
-def save_to_excel(excel_data, smiles_list, smarts_list, results_dir):
+def save_to_excel(excel_data, results_dir):
     excel_output_path = results_dir + f'\\molecule_results_with_highlights_{datetime.now().strftime("%H-%M-%S")}.xlsx'
-    save_data_to_excel_with_highlights_no_sort(excel_data, smiles_list, smarts_list, excel_output_path)
+    save_data_to_excel_with_highlights(excel_data, excel_output_path)
     print(f"Molecule results with highlights saved to {excel_output_path}")
 
 
@@ -147,6 +147,7 @@ def process_folds_local(folds, data, shap_values, smarts_mapping_path):
             }
 
             match_molecules = {s: [] for s in smarts_top10.keys()}
+            molecules_statistics = {s: [] for s in smarts_top10.keys()}
             for key, value in smarts_top10.items():
                 # print("key:", key)
                 # print("key:", key[2])
@@ -207,6 +208,6 @@ def process_folds(folds, data, shap_values, smarts_mapping_path, local_explanati
 
 
 if __name__ == '__main__':
-    model = ['SHAP']#, 'SHAP_IQ'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
+    model = ['SHAP', 'SHAP_IQ'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
     local_explanation = True
     [mainXaiFlow(m, local_explanation) for m in model]

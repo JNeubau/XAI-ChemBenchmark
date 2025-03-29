@@ -85,7 +85,7 @@ def save_data_to_excel_with_highlights_no_sort(data, smiles_list, smarts_list, e
     clean_up_png_files_from_dir(image_dir)
     
     
-def save_data_to_excel_with_highlights(data, smiles_list, smarts_list, excel_file):
+def save_data_to_excel_with_highlights(data, excel_file):
     """
     Save data to an Excel file with molecule images generated from SMILES strings and highlighted substructures.
     The data will be sorted by SMILES and a specified feature.
@@ -93,14 +93,12 @@ def save_data_to_excel_with_highlights(data, smiles_list, smarts_list, excel_fil
     Parameters:
     - data (dict): A dictionary containing the data to be saved.
                    Keys should be column names, and values should be lists of column data.
-    - smiles_list (list): A list of SMILES strings corresponding to the molecules.
-    - smarts_list (list): A list of SMARTS patterns to highlight in the molecules.
     - excel_file (str): The path to the Excel file where the data will be saved.
     """
     image_dir = os.path.dirname(os.getcwd()) + '\\png'
-    df = pd.DataFrame(data, columns=['Feature', 'SMARTS', 'Molecule'])
     
-    df = df.sort_values(by=['Molecule', 'Feature'], ignore_index=True)
+    df = pd.DataFrame(data, columns=["Fold_No", 'Smiles_key', 'Feature_key', 'SMARTS', 'Molecule'])
+    df = df.sort_values(by=['Molecule', 'Feature_key'], ignore_index=True)
 
     with pd.ExcelWriter(excel_file, engine="xlsxwriter") as writer:
         df.to_excel(writer, index=False, sheet_name="Data", startrow=0, startcol=6)
