@@ -97,7 +97,9 @@ def save_data_to_excel_with_highlights(data, excel_file):
     """
     image_dir = os.path.dirname(os.getcwd()) + '\\png'
     
-    df = pd.DataFrame(data, columns=["Fold_No", 'Smiles_key', 'Feature_key', 'SMARTS', 'Molecule'])
+    df = pd.DataFrame(data, 
+                      columns=["Fold_No", 'Smiles_key', 'Feature_key', 
+                               'SMARTS', 'Molecule', 'Number_of_molecules', 'Number_where_important'])
     df = df.sort_values(by=['Molecule', 'Feature_key'], ignore_index=True)
 
     with pd.ExcelWriter(excel_file, engine="xlsxwriter") as writer:

@@ -41,9 +41,9 @@ def mainXaiFlow(model, local_explanation=True):
     results, scores, shap_values = cv_pipeline.train_pipeline('RFReg')
     print("Results:", results)
 
-    smarts_top_all, match_molecules_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation)
+    smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation)
 
-    excel_data = prepare_data_for_excel_export(match_molecules_all, smarts_top_all)
+    excel_data = prepare_data_for_excel_export(match_molecules_all, smarts_top_all, molecules_statistics_all)
     save_to_excel(excel_data, results_dir)
 
 
@@ -73,13 +73,15 @@ def select_pipeline(model, data, folds):
             raise ValueError("Model not selected.")
 
 
-def prepare_data_for_excel_export(match_molecules, smarts_top):
+def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statistics_all):
     excel_data = {
         "Fold_No": [],
         "Smiles_key": [],
         "Feature_key": [],
         "SMARTS": [],
-        "Molecule": []
+        "Molecule": [],
+        "Number_of_molecules": [],
+        "Number_where_important": []
     }
 
     bbbb=0
@@ -96,6 +98,8 @@ def prepare_data_for_excel_export(match_molecules, smarts_top):
             excel_data["Feature_key"].append(key[2])
             excel_data["SMARTS"].append(smarts)
             excel_data["Molecule"].append(molecule)
+            excel_data["Number_of_molecules"].append(molecules_statistics_all[key]["number_of_molecules"])
+            excel_data["Number_where_important"].append(molecules_statistics_all[key]["number_where_important"])
             bbbb+=1
 
     # for key, molecule in match_molecules.items():
@@ -118,6 +122,7 @@ def save_to_excel(excel_data, results_dir):
 def process_folds_local(folds, data, shap_values, smarts_mapping_path):
     smarts_top_all = {}
     match_molecules_all = {}
+    molecules_statistics_all = {}
     # aaaa=0
     for i, fold in enumerate(folds):
         # print("=====================================")
@@ -147,7 +152,9 @@ def process_folds_local(folds, data, shap_values, smarts_mapping_path):
             }
 
             match_molecules = {s: [] for s in smarts_top10.keys()}
-            molecules_statistics = {s: [] for s in smarts_top10.keys()}
+            molecules_statistics = {s: {"number_of_molecules": 0, "number_where_important": 0} 
+                                    for s in smarts_top10.keys()}
+            
             for key, value in smarts_top10.items():
                 # print("key:", key)
                 # print("key:", key[2])
@@ -156,20 +163,23 @@ def process_folds_local(folds, data, shap_values, smarts_mapping_path):
                 non_zero_molecules = test_f[test_f[key[2]] == 1]
                 non_zero_molecules = non_zero_molecules['smiles'].tolist()
                 match_molecules[key].extend(non_zero_molecules)
+                non_zero_count = len(non_zero_molecules)
+                molecules_statistics[key]["number_of_molecules"] = non_zero_count
                 # print("non_zero_molecules:", non_zero_molecules)
                 # print("match_molecules:", match_molecules)
 
-
             smarts_top_all.update(smarts_top10)
             match_molecules_all.update(match_molecules)
+            molecules_statistics_all.update(molecules_statistics)
     # print("aaaa:", aaaa)
 
-    return smarts_top_all, match_molecules_all
+    return smarts_top_all, match_molecules_all, molecules_statistics_all
 
 
 def process_folds_global(folds, data, shap_values, smarts_mapping_path):
     smarts_top_all = {}
     match_molecules_all = {}
+    molecules_statistics_all = {}  # Initialize molecules_statistics_all
 
     for i, fold in enumerate(folds):
         test_f = data.loc[fold[1]]
@@ -189,15 +199,21 @@ def process_folds_global(folds, data, shap_values, smarts_mapping_path):
         }
 
         match_molecules = {key: [] for key in smarts_top10.keys()}
+        molecules_statistics = {key: {"number_of_molecules": 0, "number_where_important": 0} 
+                                for key in smarts_top10.keys()}
+
         for key, value in smarts_top10.items():
             non_zero_molecules = test_f[test_f[key[2]] == 1]
             non_zero_molecules = non_zero_molecules['smiles'].tolist()
             match_molecules[key].extend(non_zero_molecules)
+            non_zero_count = len(non_zero_molecules)
+            molecules_statistics[key]["number_of_molecules"] = non_zero_count
 
         smarts_top_all.update(smarts_top10)
         match_molecules_all.update(match_molecules)
+        molecules_statistics_all.update(molecules_statistics)  # Update molecules_statistics_all
 
-    return smarts_top_all, match_molecules_all
+    return smarts_top_all, match_molecules_all, molecules_statistics_all
 
 
 def process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation=True):
