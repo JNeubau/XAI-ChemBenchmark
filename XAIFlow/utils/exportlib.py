@@ -99,8 +99,8 @@ def save_data_to_excel_with_highlights(data, excel_file):
     
     df = pd.DataFrame(data, 
                       columns=["Fold_No", 'Smiles_key', 'Feature_key', 
-                               'SMARTS', 'Molecule', 'Number_of_molecules', 'Number_where_important'])
-    df = df.sort_values(by=['Molecule', 'Feature_key'], ignore_index=True)
+                               'SMARTS', 'Molecule', 'number_of_molecules_where_fingerprint', 'Number_where_important'])
+    df = df.sort_values(by=['Molecule', 'Feature_key', 'Fold_No'], ignore_index=True)
 
     with pd.ExcelWriter(excel_file, engine="xlsxwriter") as writer:
         df.to_excel(writer, index=False, sheet_name="Data", startrow=0, startcol=6)

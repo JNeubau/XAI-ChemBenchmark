@@ -80,27 +80,45 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
         "Feature_key": [],
         "SMARTS": [],
         "Molecule": [],
-        "Number_of_molecules": [],
+        "number_of_molecules_where_fingerprint": [],
         "Number_where_important": []
     }
 
+    # bbbb=0
+    # for key, smarts in smarts_top.items():
+    #     # molecule = match_molecules[key]
+    #     print("=============smarts===============")
+    #     for molecule in match_molecules[key]:
+    #         print("=============molecule===============")
+    #         print("key:", key)
+    #         print("molecule:", molecule)
+    #         print("smarts:", smarts)
+    #         excel_data["Fold_No"].append(key[0])
+    #         excel_data["Smiles_key"].append(key[1])
+    #         excel_data["Feature_key"].append(key[2])
+    #         excel_data["SMARTS"].append(smarts)
+    #         excel_data["Molecule"].append(molecule)
+    #         excel_data["number_of_molecules_where_fingerprint"].append(molecules_statistics_all[key]["number_of_molecules_where_fingerprint"])
+    #         excel_data["Number_where_important"].append(molecules_statistics_all[key]["number_where_important"])
+    #         bbbb+=1
+            
     bbbb=0
     for key, smarts in smarts_top.items():
         # molecule = match_molecules[key]
-        print("=============smarts===============")
-        for molecule in match_molecules[key]:
-            print("=============molecule===============")
-            print("key:", key)
-            print("molecule:", molecule)
-            print("smarts:", smarts)
-            excel_data["Fold_No"].append(key[0])
-            excel_data["Smiles_key"].append(key[1])
-            excel_data["Feature_key"].append(key[2])
-            excel_data["SMARTS"].append(smarts)
-            excel_data["Molecule"].append(molecule)
-            excel_data["Number_of_molecules"].append(molecules_statistics_all[key]["number_of_molecules"])
-            excel_data["Number_where_important"].append(molecules_statistics_all[key]["number_where_important"])
-            bbbb+=1
+        # print("=============smarts===============")
+        # for molecule in match_molecules[key]:
+        print("=============molecule===============")
+        print("key:", key)
+        # print("molecule:", molecule)
+        print("smarts:", smarts)
+        excel_data["Fold_No"].append(key[0])
+        excel_data["Smiles_key"].append(key[1])
+        excel_data["Feature_key"].append(key[2])
+        excel_data["SMARTS"].append(smarts)
+        excel_data["Molecule"].append(key[1])
+        excel_data["number_of_molecules_where_fingerprint"].append(molecules_statistics_all[key]["number_of_molecules_where_fingerprint"])
+        excel_data["Number_where_important"].append(molecules_statistics_all[key]["number_where_important"])
+        bbbb+=1
 
     # for key, molecule in match_molecules.items():
     #     excel_data["Feature"].append(key)
@@ -152,19 +170,26 @@ def process_folds_local(folds, data, shap_values, smarts_mapping_path):
             }
 
             match_molecules = {s: [] for s in smarts_top10.keys()}
-            molecules_statistics = {s: {"number_of_molecules": 0, "number_where_important": 0} 
+            molecules_statistics = {s: {"number_of_molecules_where_fingerprint": 0, "number_where_important": 0} 
                                     for s in smarts_top10.keys()}
             
             for key, value in smarts_top10.items():
                 # print("key:", key)
                 # print("key:", key[2])
                 # print("value:", value)
-                # print("test_f:", test_f[test_f[key[2]] == 1])
+                # print("test_f:", test_f[test_f[key[2]] == 1]) 
+                # non_zero_molecules <- how many finderprints the molecule contains
+                # print(test_f)
+                # print("test_f:", test_f[key[2]])
                 non_zero_molecules = test_f[test_f[key[2]] == 1]
                 non_zero_molecules = non_zero_molecules['smiles'].tolist()
                 match_molecules[key].extend(non_zero_molecules)
-                non_zero_count = len(non_zero_molecules)
-                molecules_statistics[key]["number_of_molecules"] = non_zero_count
+                # count_mol_with_fingerprint = len(non_zero_molecules)
+                count_mol_with_fingerprint = test_f[key[2]].sum()
+                if key not in molecules_statistics_all:
+                    molecules_statistics[key]["number_of_molecules_where_fingerprint"] = count_mol_with_fingerprint
+                else:
+                    molecules_statistics[key]["number_of_molecules_where_fingerprint"] = molecules_statistics_all[key]["number_of_molecules_where_fingerprint"] + count_mol_with_fingerprint
                 # print("non_zero_molecules:", non_zero_molecules)
                 # print("match_molecules:", match_molecules)
 
@@ -199,7 +224,7 @@ def process_folds_global(folds, data, shap_values, smarts_mapping_path):
         }
 
         match_molecules = {key: [] for key in smarts_top10.keys()}
-        molecules_statistics = {key: {"number_of_molecules": 0, "number_where_important": 0} 
+        molecules_statistics = {key: {"number_of_molecules_where_fingerprint": 0, "number_where_important": 0} 
                                 for key in smarts_top10.keys()}
 
         for key, value in smarts_top10.items():
@@ -207,7 +232,7 @@ def process_folds_global(folds, data, shap_values, smarts_mapping_path):
             non_zero_molecules = non_zero_molecules['smiles'].tolist()
             match_molecules[key].extend(non_zero_molecules)
             non_zero_count = len(non_zero_molecules)
-            molecules_statistics[key]["number_of_molecules"] = non_zero_count
+            molecules_statistics[key]["number_of_molecules_where_fingerprint"] = non_zero_count
 
         smarts_top_all.update(smarts_top10)
         match_molecules_all.update(match_molecules)
