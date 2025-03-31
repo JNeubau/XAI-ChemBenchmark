@@ -42,10 +42,27 @@ def mainXaiFlow(model, local_explanation=True):
     print("Results:", results)
 
     smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation)
-
+    molecules_statistics_all = count_ones_in_columns(data, molecules_statistics_all)
+    
     excel_data = prepare_data_for_excel_export(match_molecules_all, smarts_top_all, molecules_statistics_all)
     save_to_excel(excel_data, results_dir)
 
+def count_ones_in_columns(maccs_fingerprints_data, molecules_statistics_all):
+    column_ones_count = maccs_fingerprints_data.sum(axis=0).to_dict()
+
+    for key in molecules_statistics_all.keys():
+        column_name = key[2]
+        if column_name in column_ones_count:
+            molecules_statistics_all[key]["number_of_molecules_where_fingerprint"] = column_ones_count[column_name]
+    return molecules_statistics_all
+
+# def count_ones_in_columns(maccs_fingerprints_data, molecules_statistics_all):
+#     for key in molecules_statistics_all.keys():
+#         column_name = key[2]
+#         if column_name in maccs_fingerprints_data.columns:
+#             count_ones = maccs_fingerprints_data[column_name].sum()
+#             molecules_statistics_all[key]["number_of_molecules_where_fingerprint"] = count_ones
+#     return molecules_statistics_all
 
 def select_pipeline(model, data, folds):
     match model:
@@ -184,12 +201,12 @@ def process_folds_local(folds, data, shap_values, smarts_mapping_path):
                 non_zero_molecules = test_f[test_f[key[2]] == 1]
                 non_zero_molecules = non_zero_molecules['smiles'].tolist()
                 match_molecules[key].extend(non_zero_molecules)
-                # count_mol_with_fingerprint = len(non_zero_molecules)
-                count_mol_with_fingerprint = test_f[key[2]].sum()
+                count_mol_with_fingerprint = len(non_zero_molecules)
+                # count_mol_with_fingerprint = test_f[key[2]].sum()
                 if key not in molecules_statistics_all:
-                    molecules_statistics[key]["number_of_molecules_where_fingerprint"] = count_mol_with_fingerprint
+                    molecules_statistics[key]["number_where_important"] = count_mol_with_fingerprint
                 else:
-                    molecules_statistics[key]["number_of_molecules_where_fingerprint"] = molecules_statistics_all[key]["number_of_molecules_where_fingerprint"] + count_mol_with_fingerprint
+                    molecules_statistics[key]["number_where_important"] = molecules_statistics_all[key]["number_where_important"] + count_mol_with_fingerprint
                 # print("non_zero_molecules:", non_zero_molecules)
                 # print("match_molecules:", match_molecules)
 
