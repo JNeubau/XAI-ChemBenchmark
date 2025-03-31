@@ -218,6 +218,54 @@ def process_folds_local(folds, data, shap_values, smarts_mapping_path):
 
     return smarts_top_all, match_molecules_all, molecules_statistics_all
 
+def process_folds_local_top_i(folds, data, shap_values, smarts_mapping_path, top_i=3):
+    smarts_top_all = {}
+    match_molecules_all = {}
+    molecules_statistics_all = {}
+    
+    for i, fold in enumerate(folds):
+        test_f = data.loc[fold[1]]
+        shap_f = shap_values[i]
+
+        for molecule_idx, shap_array in enumerate(shap_f):
+            feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
+            best_shap_values = np.argsort(shap_array)[-top_i:][::-1]
+            worst_shap_values = np.argsort(shap_array)[:top_i]
+            # abs_shap_values = np.abs(shap_array)
+            # top_10_indices = np.argsort(abs_shap_values)[-10:][::-1]
+            top_indices = [idx for idx in np.concatenate(best_shap_values, worst_shap_values)]
+            # top_10_indices = [idx for idx in top_10_indices if abs_shap_values[idx] != 0]
+            top_10_feature_names = [feature_names[i] for i in top_indices]
+            # top_10_feature_names = [feature_names[i] for i in top_10_indices]
+
+            with open(smarts_mapping_path, 'r') as f:
+                smarts_mapping = json.load(f)
+
+            smarts_top10 = {
+                (i, test_f.iloc[molecule_idx]['smiles'], feature): smarts_mapping[f'maccsfingerprint{int(feature.replace("maccsfingerprint", "")) + 1}'][0]
+                for feature in top_10_feature_names
+            }
+
+            match_molecules = {s: [] for s in smarts_top10.keys()}
+            molecules_statistics = {s: {"number_of_molecules_where_fingerprint": 0, "number_where_important": 0} 
+                                    for s in smarts_top10.keys()}
+            
+            for key, value in smarts_top10.items():
+                non_zero_molecules = test_f[test_f[key[2]] == 1]
+                non_zero_molecules = non_zero_molecules['smiles'].tolist()
+                match_molecules[key].extend(non_zero_molecules)
+                count_mol_with_fingerprint = len(non_zero_molecules)
+                if key not in molecules_statistics_all:
+                    molecules_statistics[key]["number_where_important"] = count_mol_with_fingerprint
+                else:
+                    molecules_statistics[key]["number_where_important"] = molecules_statistics_all[key]["number_where_important"] + count_mol_with_fingerprint
+
+            smarts_top_all.update(smarts_top10)
+            match_molecules_all.update(match_molecules)
+            molecules_statistics_all.update(molecules_statistics)
+
+    return smarts_top_all, match_molecules_all, molecules_statistics_all
+
 
 def process_folds_global(folds, data, shap_values, smarts_mapping_path):
     smarts_top_all = {}
@@ -262,7 +310,7 @@ def process_folds_global(folds, data, shap_values, smarts_mapping_path):
 
 def process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation=True):
     if local_explanation:
-        return process_folds_local(folds, data, shap_values, smarts_mapping_path)
+        return process_folds_local_top_i(folds, data, shap_values, smarts_mapping_path)
     else:
         return process_folds_global(folds, data, shap_values, smarts_mapping_path)
 
