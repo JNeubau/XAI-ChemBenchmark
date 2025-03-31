@@ -42,12 +42,12 @@ def mainXaiFlow(model, local_explanation=True):
     print("Results:", results)
 
     smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation)
-    molecules_statistics_all = count_ones_in_columns(data, molecules_statistics_all)
+    molecules_statistics_all = count_molecules_with_fingerprint(data, molecules_statistics_all)
     
     excel_data = prepare_data_for_excel_export(match_molecules_all, smarts_top_all, molecules_statistics_all)
     save_to_excel(excel_data, results_dir)
 
-def count_ones_in_columns(maccs_fingerprints_data, molecules_statistics_all):
+def count_molecules_with_fingerprint(maccs_fingerprints_data, molecules_statistics_all):
     column_ones_count = maccs_fingerprints_data.sum(axis=0).to_dict()
 
     for key in molecules_statistics_all.keys():
@@ -123,19 +123,19 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
     for key, smarts in smarts_top.items():
         # molecule = match_molecules[key]
         # print("=============smarts===============")
-        # for molecule in match_molecules[key]:
-        print("=============molecule===============")
-        print("key:", key)
-        # print("molecule:", molecule)
-        print("smarts:", smarts)
-        excel_data["Fold_No"].append(key[0])
-        excel_data["Smiles_key"].append(key[1])
-        excel_data["Feature_key"].append(key[2])
-        excel_data["SMARTS"].append(smarts)
-        excel_data["Molecule"].append(key[1])
-        excel_data["number_of_molecules_where_fingerprint"].append(molecules_statistics_all[key]["number_of_molecules_where_fingerprint"])
-        excel_data["Number_where_important"].append(molecules_statistics_all[key]["number_where_important"])
-        bbbb+=1
+        for molecule in match_molecules[key]:
+            print("=============molecule===============")
+            print("key:", key)
+            # print("molecule:", molecule)
+            print("smarts:", smarts)
+            excel_data["Fold_No"].append(key[0])
+            excel_data["Smiles_key"].append(key[1])
+            excel_data["Feature_key"].append(key[2])
+            excel_data["SMARTS"].append(smarts)
+            excel_data["Molecule"].append(molecule)
+            excel_data["number_of_molecules_where_fingerprint"].append(molecules_statistics_all[key]["number_of_molecules_where_fingerprint"])
+            excel_data["Number_where_important"].append(molecules_statistics_all[key]["number_where_important"])
+            bbbb+=1
 
     # for key, molecule in match_molecules.items():
     #     excel_data["Feature"].append(key)
@@ -174,6 +174,7 @@ def process_folds_local(folds, data, shap_values, smarts_mapping_path):
             feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
             abs_shap_values = np.abs(shap_array)
             top_10_indices = np.argsort(abs_shap_values)[-10:][::-1]
+            top_10_indices = [idx for idx in top_10_indices if abs_shap_values[idx] != 0]
             top_10_feature_names = [feature_names[i] for i in top_10_indices]
 
             # print("mol idx:", molecule_idx)
@@ -230,6 +231,7 @@ def process_folds_global(folds, data, shap_values, smarts_mapping_path):
         feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
         mean_abs_shap_values = np.mean(np.abs(shap_f), axis=0)
         top_10_indices = np.argsort(mean_abs_shap_values)[-10:][::-1]
+        top_10_indices = [idx for idx in top_10_indices if mean_abs_shap_values[idx] != 0]
         top_10_feature_names = [feature_names[i] for i in top_10_indices]
 
         with open(smarts_mapping_path, 'r') as f:
@@ -249,7 +251,7 @@ def process_folds_global(folds, data, shap_values, smarts_mapping_path):
             non_zero_molecules = non_zero_molecules['smiles'].tolist()
             match_molecules[key].extend(non_zero_molecules)
             non_zero_count = len(non_zero_molecules)
-            molecules_statistics[key]["number_of_molecules_where_fingerprint"] = non_zero_count
+            molecules_statistics[key]["number_where_important"] = non_zero_count
 
         smarts_top_all.update(smarts_top10)
         match_molecules_all.update(match_molecules)
