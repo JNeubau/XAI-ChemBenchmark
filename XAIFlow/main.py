@@ -98,7 +98,8 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
         "SMARTS": [],
         "Molecule": [],
         "number_of_molecules_where_fingerprint": [],
-        "Number_where_important": []
+        "Number_where_important": [],
+        "Shap_value": [],
     }
 
     # bbbb=0
@@ -135,6 +136,7 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
             excel_data["Molecule"].append(molecule)
             excel_data["number_of_molecules_where_fingerprint"].append(molecules_statistics_all[key]["number_of_molecules_where_fingerprint"])
             excel_data["Number_where_important"].append(molecules_statistics_all[key]["number_where_important"])
+            excel_data["Shap_value"].append(molecules_statistics_all[key]["shap_value"])
             bbbb+=1
 
     # for key, molecule in match_molecules.items():
@@ -188,7 +190,7 @@ def process_folds_local(folds, data, shap_values, smarts_mapping_path):
             }
 
             match_molecules = {s: [] for s in smarts_top10.keys()}
-            molecules_statistics = {s: {"number_of_molecules_where_fingerprint": 0, "number_where_important": 0} 
+            molecules_statistics = {s: {"number_of_molecules_where_fingerprint": 0, "number_where_important": 0, "shap_value": 0} 
                                     for s in smarts_top10.keys()}
             
             for key, value in smarts_top10.items():
@@ -233,7 +235,7 @@ def process_folds_local_top_i(folds, data, shap_values, smarts_mapping_path, top
             worst_shap_values = np.argsort(shap_array)[:top_i]
             # abs_shap_values = np.abs(shap_array)
             # top_10_indices = np.argsort(abs_shap_values)[-10:][::-1]
-            top_indices = [idx for idx in np.concatenate(best_shap_values, worst_shap_values)]
+            top_indices = [idx for idx in np.concatenate((best_shap_values, worst_shap_values))]
             # top_10_indices = [idx for idx in top_10_indices if abs_shap_values[idx] != 0]
             top_10_feature_names = [feature_names[i] for i in top_indices]
             # top_10_feature_names = [feature_names[i] for i in top_10_indices]
@@ -247,7 +249,7 @@ def process_folds_local_top_i(folds, data, shap_values, smarts_mapping_path, top
             }
 
             match_molecules = {s: [] for s in smarts_top10.keys()}
-            molecules_statistics = {s: {"number_of_molecules_where_fingerprint": 0, "number_where_important": 0} 
+            molecules_statistics = {s: {"number_of_molecules_where_fingerprint": 0, "number_where_important": 0, "shap_value": 0} 
                                     for s in smarts_top10.keys()}
             
             for key, value in smarts_top10.items():
@@ -259,6 +261,7 @@ def process_folds_local_top_i(folds, data, shap_values, smarts_mapping_path, top
                     molecules_statistics[key]["number_where_important"] = count_mol_with_fingerprint
                 else:
                     molecules_statistics[key]["number_where_important"] = molecules_statistics_all[key]["number_where_important"] + count_mol_with_fingerprint
+                molecules_statistics[key]["shap_value"] = shap_array[feature_names.index(key[2])]
 
             smarts_top_all.update(smarts_top10)
             match_molecules_all.update(match_molecules)
@@ -291,7 +294,7 @@ def process_folds_global(folds, data, shap_values, smarts_mapping_path):
         }
 
         match_molecules = {key: [] for key in smarts_top10.keys()}
-        molecules_statistics = {key: {"number_of_molecules_where_fingerprint": 0, "number_where_important": 0} 
+        molecules_statistics = {key: {"number_of_molecules_where_fingerprint": 0, "number_where_important": 0, "shap_value": 0} 
                                 for key in smarts_top10.keys()}
 
         for key, value in smarts_top10.items():
@@ -300,6 +303,7 @@ def process_folds_global(folds, data, shap_values, smarts_mapping_path):
             match_molecules[key].extend(non_zero_molecules)
             non_zero_count = len(non_zero_molecules)
             molecules_statistics[key]["number_where_important"] = non_zero_count
+            molecules_statistics[key]["shap_value"] = mean_abs_shap_values[feature_names.index(key[2])]
 
         smarts_top_all.update(smarts_top10)
         match_molecules_all.update(match_molecules)
