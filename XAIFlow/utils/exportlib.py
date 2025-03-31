@@ -3,6 +3,7 @@ from rdkit import Chem
 from rdkit.Chem import Draw
 # import xlsxwriter
 import os
+from matplotlib.colors import ColorConverter
 
 
 def save_data_to_excel(data, smiles_list, excel_file):
@@ -116,7 +117,16 @@ def save_data_to_excel_with_highlights(data, excel_file):
                 os.makedirs(image_dir, exist_ok=True)
                 img_path = image_dir + f"\\mol_{i}.png"
                 highlight_atoms = [atom for match in mol.GetSubstructMatches(match_smart) for atom in match]
-                Draw.MolToFile(mol, img_path, highlightAtoms=highlight_atoms)
+                shap_value = row['Shap_value']
+                if shap_value < 0:
+                    # highlight_colors = {atom: (1, 0, 0) for atom in highlight_atoms}  # Red for negative Shap_value
+                    color = 'lightcoral'
+                else:
+                    color = 'skyblue'
+                    # highlight_colors = {atom: (0, 0, 1) for atom in highlight_atoms}  # Blue for positive Shap_value
+                # Draw.MolToFile(mol, img_path, highlightAtoms=highlight_atoms, highlightAtomColors=highlight_colors)
+                img = Draw.MolToImage(mol, highlightAtoms=highlight_atoms, highlightColor=ColorConverter().to_rgb(color)) 
+                img.save(img_path)
 
                 row_num = i + 1
                 col = 0
