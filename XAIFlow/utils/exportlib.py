@@ -102,6 +102,8 @@ def save_data_to_excel_with_highlights(data, excel_file):
                       columns=["Fold_No", 'Smiles_key', 'Feature_key', 
                                'SMARTS', 'Molecule', 'number_of_molecules_where_fingerprint', 'Number_where_important',
                                'Shap_value'])
+    df['Shap_sign'] = df['Shap_value'].apply(lambda x: 'Positive' if x >= 0 else 'Negative')
+    df['Shap_value'] = df['Shap_value'].abs()
     df = df.sort_values(by=['Molecule', 'Feature_key', 'Fold_No'], ignore_index=True)
 
     with pd.ExcelWriter(excel_file, engine="xlsxwriter") as writer:
@@ -119,8 +121,7 @@ def save_data_to_excel_with_highlights(data, excel_file):
                 img_path_smt = image_dir + f"\\smt_{i}.png"
                 highlight_atoms = [atom for match in mol.GetSubstructMatches(match_smart) for atom in match]
                 shap_value = row['Shap_value']
-                if shap_value < 0:
-                    # highlight_colors = {atom: (1, 0, 0) for atom in highlight_atoms}  # Red for negative Shap_value
+                if row['Shap_sign'] == 'Negative':
                     color = 'lightcoral'
                 else:
                     color = 'skyblue'
@@ -136,7 +137,7 @@ def save_data_to_excel_with_highlights(data, excel_file):
                 col = 0
                 worksheet.insert_image(row_num, col, img_path)
                 col_smt = 6
-                worksheet.insert_image(row_num,col_smt, img_path_smt)
+                worksheet.insert_image(row_num, col_smt, img_path_smt)
 
                 worksheet.set_row(row_num, 250)
     clean_up_png_files_from_dir(image_dir)
