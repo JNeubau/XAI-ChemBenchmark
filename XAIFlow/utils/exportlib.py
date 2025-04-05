@@ -105,7 +105,7 @@ def save_data_to_excel_with_highlights(data, excel_file):
     df = df.sort_values(by=['Molecule', 'Feature_key', 'Fold_No'], ignore_index=True)
 
     with pd.ExcelWriter(excel_file, engine="xlsxwriter") as writer:
-        df.to_excel(writer, index=False, sheet_name="Data", startrow=0, startcol=6)
+        df.to_excel(writer, index=False, sheet_name="Data", startrow=0, startcol=13)
         worksheet = writer.sheets["Data"]
 
         for i, row in df.iterrows():
@@ -116,6 +116,7 @@ def save_data_to_excel_with_highlights(data, excel_file):
             if mol and match_smart:
                 os.makedirs(image_dir, exist_ok=True)
                 img_path = image_dir + f"\\mol_{i}.png"
+                img_path_smt = image_dir + f"\\smt_{i}.png"
                 highlight_atoms = [atom for match in mol.GetSubstructMatches(match_smart) for atom in match]
                 shap_value = row['Shap_value']
                 if shap_value < 0:
@@ -127,10 +128,15 @@ def save_data_to_excel_with_highlights(data, excel_file):
                 # Draw.MolToFile(mol, img_path, highlightAtoms=highlight_atoms, highlightAtomColors=highlight_colors)
                 img = Draw.MolToImage(mol, highlightAtoms=highlight_atoms, highlightColor=ColorConverter().to_rgb(color)) 
                 img.save(img_path)
+                
+                img = Draw.MolToImage(match_smart) 
+                img.save(img_path_smt)
 
                 row_num = i + 1
                 col = 0
                 worksheet.insert_image(row_num, col, img_path)
+                col_smt = 6
+                worksheet.insert_image(row_num,col_smt, img_path_smt)
 
                 worksheet.set_row(row_num, 250)
     clean_up_png_files_from_dir(image_dir)
