@@ -4,6 +4,7 @@ from rdkit.Chem import Draw
 # import xlsxwriter
 import os
 from matplotlib.colors import ColorConverter
+from io import BytesIO
 
 
 def save_data_to_excel(data, smiles_list, excel_file):
@@ -116,31 +117,30 @@ def save_data_to_excel_with_highlights(data, excel_file):
             mol = Chem.MolFromSmiles(smiles)
             match_smart = Chem.MolFromSmarts(smarts)
             if mol and match_smart:
-                os.makedirs(image_dir, exist_ok=True)
-                img_path = image_dir + f"\\mol_{i}.png"
-                img_path_smt = image_dir + f"\\smt_{i}.png"
                 highlight_atoms = [atom for match in mol.GetSubstructMatches(match_smart) for atom in match]
-                shap_value = row['Shap_value']
                 if row['Shap_sign'] == 'Negative':
                     color = 'lightcoral'
                 else:
-                    color = 'skyblue'
-                    # highlight_colors = {atom: (0, 0, 1) for atom in highlight_atoms}  # Blue for positive Shap_value
-                # Draw.MolToFile(mol, img_path, highlightAtoms=highlight_atoms, highlightAtomColors=highlight_colors)
-                img = Draw.MolToImage(mol, highlightAtoms=highlight_atoms, highlightColor=ColorConverter().to_rgb(color)) 
-                img.save(img_path)
+                    color = 'aquamarine'
                 
-                img = Draw.MolToImage(match_smart) 
-                img.save(img_path_smt)
+                img = Draw.MolToImage(mol, highlightAtoms=highlight_atoms, highlightColor=ColorConverter().to_rgb(color))
+                img_buffer = BytesIO()
+                img.save(img_buffer, format='PNG')
+                img_buffer.seek(0)
 
                 row_num = i + 1
                 col = 0
-                worksheet.insert_image(row_num, col, img_path)
-                col_smt = 6
-                worksheet.insert_image(row_num, col_smt, img_path_smt)
+                worksheet.insert_image(row_num, col, '', {'image_data': img_buffer})
 
+                img_smt = Draw.MolToImage(match_smart)
+                img_smt_buffer = BytesIO()
+                img_smt.save(img_smt_buffer, format='PNG')
+                img_smt_buffer.seek(0)
+
+                col_smt = 6
+                worksheet.insert_image(row_num, col_smt, '', {'image_data': img_smt_buffer})
                 worksheet.set_row(row_num, 250)
-    clean_up_png_files_from_dir(image_dir)
+    # clean_up_png_files_from_dir(image_dir)
 
 
 def clean_up_png_files_from_dir(dir_name):
