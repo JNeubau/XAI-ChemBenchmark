@@ -3,6 +3,8 @@ from rdkit import Chem
 from rdkit.Chem import Draw
 # import xlsxwriter
 import os
+from matplotlib.colors import ColorConverter
+from io import BytesIO
 
 
 def save_data_to_excel(data, smiles_list, excel_file):
@@ -63,7 +65,13 @@ def save_data_to_excel_with_highlights_no_sort(data, smiles_list, smarts_list, e
         worksheet = writer.sheets["Data"]
 
         for i, (smiles, smarts) in enumerate(zip(smiles_list, smarts_list)):
-            mol = Chem.MolFromSmiles(smiles)
+
+            if not smiles or not smiles[0]:
+                continue
+            # print(smiles, smarts)
+            # print(type(smiles),smiles[0])
+            # print(type(smarts))
+            mol = Chem.MolFromSmiles(smiles[0])
             match_smart = Chem.MolFromSmarts(smarts)
             if mol and match_smart:
                 os.makedirs(image_dir, exist_ok=True)
@@ -79,7 +87,7 @@ def save_data_to_excel_with_highlights_no_sort(data, smiles_list, smarts_list, e
     clean_up_png_files_from_dir(image_dir)
     
     
-def save_data_to_excel_with_highlights(data, smiles_list, smarts_list, excel_file):
+def save_data_to_excel_with_highlights(data, excel_file):
     """
     Save data to an Excel file with molecule images generated from SMILES strings and highlighted substructures.
     The data will be sorted by SMILES and a specified feature.
@@ -87,17 +95,20 @@ def save_data_to_excel_with_highlights(data, smiles_list, smarts_list, excel_fil
     Parameters:
     - data (dict): A dictionary containing the data to be saved.
                    Keys should be column names, and values should be lists of column data.
-    - smiles_list (list): A list of SMILES strings corresponding to the molecules.
-    - smarts_list (list): A list of SMARTS patterns to highlight in the molecules.
     - excel_file (str): The path to the Excel file where the data will be saved.
     """
     image_dir = os.path.dirname(os.getcwd()) + '\\png'
-    df = pd.DataFrame(data, columns=['Feature', 'SMARTS', 'Molecule'])
     
-    df = df.sort_values(by=['Molecule', 'Feature'], ignore_index=True)
+    df = pd.DataFrame(data, 
+                      columns=["Fold_No", 'Smiles_key', 'Feature_key', 
+                               'SMARTS', 'Molecule', 'number_of_molecules_where_fingerprint', 'Number_where_important',
+                               'feature_in_smiles','Shap_value'])
+    df['Shap_sign'] = df['Shap_value'].apply(lambda x: 'Positive' if x >= 0 else 'Negative')
+    df['Shap_value'] = df['Shap_value'].abs()
+    df = df.sort_values(by=['Molecule', 'Feature_key', 'Fold_No'], ignore_index=True)
 
     with pd.ExcelWriter(excel_file, engine="xlsxwriter") as writer:
-        df.to_excel(writer, index=False, sheet_name="Data", startrow=0, startcol=6)
+        df.to_excel(writer, index=False, sheet_name="Data", startrow=0, startcol=13)
         worksheet = writer.sheets["Data"]
 
         for i, row in df.iterrows():
@@ -106,17 +117,30 @@ def save_data_to_excel_with_highlights(data, smiles_list, smarts_list, excel_fil
             mol = Chem.MolFromSmiles(smiles)
             match_smart = Chem.MolFromSmarts(smarts)
             if mol and match_smart:
-                os.makedirs(image_dir, exist_ok=True)
-                img_path = image_dir + f"\\mol_{i}.png"
                 highlight_atoms = [atom for match in mol.GetSubstructMatches(match_smart) for atom in match]
-                Draw.MolToFile(mol, img_path, highlightAtoms=highlight_atoms)
+                if row['Shap_sign'] == 'Negative':
+                    color = 'lightcoral'
+                else:
+                    color = 'aquamarine'
+                
+                img = Draw.MolToImage(mol, highlightAtoms=highlight_atoms, highlightColor=ColorConverter().to_rgb(color))
+                img_buffer = BytesIO()
+                img.save(img_buffer, format='PNG')
+                img_buffer.seek(0)
 
                 row_num = i + 1
                 col = 0
-                worksheet.insert_image(row_num, col, img_path)
+                worksheet.insert_image(row_num, col, '', {'image_data': img_buffer})
 
+                img_smt = Draw.MolToImage(match_smart)
+                img_smt_buffer = BytesIO()
+                img_smt.save(img_smt_buffer, format='PNG')
+                img_smt_buffer.seek(0)
+
+                col_smt = 6
+                worksheet.insert_image(row_num, col_smt, '', {'image_data': img_smt_buffer})
                 worksheet.set_row(row_num, 250)
-    clean_up_png_files_from_dir(image_dir)
+    # clean_up_png_files_from_dir(image_dir)
 
 
 def clean_up_png_files_from_dir(dir_name):
