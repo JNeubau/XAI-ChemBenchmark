@@ -227,19 +227,11 @@ def process_folds_global(folds, data, shap_values, smarts_mapping_path, top_i=10
     for i, fold in enumerate(folds):
         test_f = data.loc[fold[1]]
         shap_f = shap_values[i]
-        print('==================')
-        print("Fold number:", i)
-        print("Shap values:", shap_f)
         feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
         mean_abs_shap_values = np.mean(np.abs(shap_f), axis=0)
-        print("mean length of shap values:", len(mean_abs_shap_values))
-        print("Mean absolute SHAP values:", mean_abs_shap_values)
         top_i_indices = np.argsort(mean_abs_shap_values)[-top_i:][::-1]
-        print("Top 10 indices:", top_i_indices)
         top_i_indices = [idx for idx in top_i_indices if mean_abs_shap_values[idx] != 0]
-        print("Top 10 indices v2:", top_i_indices)
         top_i_feature_names = [feature_names[i] for i in top_i_indices]
-        print("Top 10 Features:", top_i_feature_names)
 
         with open(smarts_mapping_path, 'r') as f:
             smarts_mapping = json.load(f)
@@ -248,7 +240,7 @@ def process_folds_global(folds, data, shap_values, smarts_mapping_path, top_i=10
             (i, match_molecule_global(feature,test_f), feature): smarts_mapping[f'maccsfingerprint{int(feature.replace("maccsfingerprint", ""))+1}'][0]
             for feature in top_i_feature_names
         }
-        print("SMARTS Top 10:", smarts_topi)
+        # print("SMARTS Top 10:", smarts_topi)
 
         match_molecules = {key: [] for key in smarts_topi.keys()}
         molecules_statistics = {s: {
@@ -261,19 +253,16 @@ def process_folds_global(folds, data, shap_values, smarts_mapping_path, top_i=10
             "capacity_pred": 0
         } for s in smarts_topi.keys()}
 
-        # for key, value in smarts_top10.items():
-        #     molecules_statistics[key]["shap_value"] = mean_abs_shap_values[feature_names.index(key[2])]
-            # non_zero_molecules = test_f[test_f[key[2]] == 1]
-            # non_zero_molecules = non_zero_molecules['smiles'].tolist()
-            # # match_molecules[key].extend(non_zero_molecules)
-            # count_mol_with_fingerprint = len(non_zero_molecules)
-            # molecules_statistics[key]["number_where_important"] = len(non_zero_molecules)
-            # if key not in molecules_statistics_all:
-            #     molecules_statistics[key]["number_where_important"] = count_mol_with_fingerprint
-            # else:
-            #     molecules_statistics[key]["number_where_important"] = molecules_statistics_all[key]["number_where_important"] + count_mol_with_fingerprint
-            # molecules_statistics[key]["number_where_important"] = len(match_molecules[key])
-            # molecules_statistics[key]["feature_in_smiles"] = ''
+        for key in molecules_statistics.keys():
+            feature = key[2]
+            shap_values_for_feature = shap_f[:, feature_names.index(feature)]
+            capacity_values = test_f['capacity_max'].values
+            df = pd.DataFrame({
+                'shap_values': shap_values_for_feature,
+                'capacity_values': capacity_values
+            })
+            correlation = df.corr(method='spearman').loc['shap_values', 'capacity_values']
+            molecules_statistics[key]["shap_sign"] = f'Positive|{correlation}' if correlation > 0 else f'Negative|{correlation}'
 
         smarts_top_all.update(smarts_topi)
         match_molecules_all.update(match_molecules)
