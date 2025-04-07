@@ -126,6 +126,7 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
         "Number_where_important": [],
         'feature_in_smiles': [],
         "Shap_value": [],
+        "shap_sign": [],
         "Capacity Max": [],
         "Capacity Pred": [],
     }
@@ -144,6 +145,7 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
         excel_data["Number_where_important"].append(molecules_statistics_all[key]["number_where_important"])
         excel_data["feature_in_smiles"].append(molecules_statistics_all[key]["feature_in_smiles"])
         excel_data["Shap_value"].append(molecules_statistics_all[key]["shap_value"])
+        excel_data["shap_sign"].append(molecules_statistics_all[key]["shap_sign"])
         excel_data["Capacity Max"].append(molecules_statistics_all[key]["capacity_max"])
         excel_data["Capacity Pred"].append(molecules_statistics_all[key]["capacity_pred"])
         bbbb+=1
@@ -191,6 +193,7 @@ def process_folds_local(folds, data, shap_values, smarts_mapping_path, top_i=5):
                 "number_of_molecules_where_fingerprint": 0,
                 "number_where_important": 0,
                 "shap_value": 0,
+                "shap_sign": '',
                 "feature_in_smiles": False ,
                 "capacity_max": test_f.iloc[molecule_idx]['capacity_max'],
                 "capacity_pred": 0
@@ -205,7 +208,8 @@ def process_folds_local(folds, data, shap_values, smarts_mapping_path, top_i=5):
                 #     molecules_statistics[key]["number_where_important"] = count_mol_with_fingerprint
                 # else:
                 #     molecules_statistics[key]["number_where_important"] = molecules_statistics_all[key]["number_where_important"] + count_mol_with_fingerprint
-                molecules_statistics[key]["shap_value"] = shap_array[feature_names.index(key[2])]
+                molecules_statistics[key]["shap_value"] = abs(shap_array[feature_names.index(key[2])])
+                molecules_statistics[key]["shap_sign"] = 'Positive' if shap_array[feature_names.index(key[2])] >= 0 else 'Negative'
                 molecules_statistics[key]["feature_in_smiles"] = bool(data.loc[data['smiles'] == key[1], key[2]].values[0] == 1)
 
             smarts_top_all.update(smarts_top10)
@@ -251,6 +255,7 @@ def process_folds_global(folds, data, shap_values, smarts_mapping_path, top_i=10
             "number_of_molecules_where_fingerprint": 0,
             "number_where_important": 0,
             "shap_value": mean_abs_shap_values[feature_names.index(s[2])],
+            "shap_sign": '',
             "feature_in_smiles": True,
             "capacity_max": 0,
             "capacity_pred": 0
