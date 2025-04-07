@@ -118,19 +118,19 @@ def save_data_to_excel_with_highlights(data, excel_file):
             if mol and match_smart:
                 highlight_atoms = [atom for match in mol.GetSubstructMatches(match_smart) for atom in match]
                 
-                highlight_bonds = []
-                for match in mol.GetSubstructMatches(match_smart):
-                    for i in range(len(match) - 1):
-                        bond = mol.GetBondBetweenAtoms(match[i], match[i + 1])
-                        if bond:
-                            highlight_bonds.append(bond.GetIdx())
+                # highlight_bonds = []
+                # for match in mol.GetSubstructMatches(match_smart):
+                #     for i in range(len(match) - 1):
+                #         bond = mol.GetBondBetweenAtoms(match[i], match[i + 1])
+                #         if bond:
+                #             highlight_bonds.append(bond.GetIdx())
                             
                 if row['Shap_sign'] == 'Negative':
                     color = 'lightcoral'
                 else:
                     color = 'aquamarine'
                 
-                img = Draw.MolToImage(mol, highlightAtoms=highlight_atoms, highlightBonds=highlight_bonds, highlightColor=ColorConverter().to_rgb(color))
+                img = Draw.MolToImage(mol, highlightAtoms=highlight_atoms, highlightColor=ColorConverter().to_rgb(color))
                 img_buffer = BytesIO()
                 img.save(img_buffer, format='PNG')
                 img_buffer.seek(0)
