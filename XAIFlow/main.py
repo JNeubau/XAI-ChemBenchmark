@@ -237,7 +237,7 @@ def process_folds_global(folds, data, shap_values, smarts_mapping_path, top_i=10
             smarts_mapping = json.load(f)
 
         smarts_topi = {
-            (i, match_molecule_global(feature,test_f), feature): smarts_mapping[f'maccsfingerprint{int(feature.replace("maccsfingerprint", ""))+1}'][0]
+            (i, match_molecule_global(feature,test_f,data), feature): smarts_mapping[f'maccsfingerprint{int(feature.replace("maccsfingerprint", ""))+1}'][0]
             for feature in top_i_feature_names
         }
         # print("SMARTS Top 10:", smarts_topi)
@@ -271,11 +271,30 @@ def process_folds_global(folds, data, shap_values, smarts_mapping_path, top_i=10
     molecules_statistics_all = number_where_important_global(molecules_statistics_all,match_molecules_all)
     return smarts_top_all, match_molecules_all, molecules_statistics_all
 
-def match_molecule_global(feature,test_f):
-        non_zero_molecules = test_f[test_f[feature] == 1]
-        non_zero_molecules = non_zero_molecules['smiles'].tolist()
 
-        return non_zero_molecules[0] if non_zero_molecules else 'C'
+def match_molecule_global(feature, test_f, full_data):
+    """
+    Match a molecule based on the feature. If no match is found in the test fold,
+    search the entire dataset for a matching SMILES.
+
+    Parameters:
+    - feature: The feature to match.
+    - test_f: The test fold data.
+    - full_data: The entire dataset.
+
+    Returns:
+    - A matching SMILES string or 'C' if no match is found.
+    """
+    non_zero_molecules = test_f[test_f[feature] == 1]
+    non_zero_molecules = non_zero_molecules['smiles'].tolist()
+
+    if non_zero_molecules:
+        return non_zero_molecules[0]
+
+    non_zero_molecules_full = full_data[full_data[feature] == 1]
+    non_zero_molecules_full = non_zero_molecules_full['smiles'].tolist()
+
+    return non_zero_molecules_full[0] if non_zero_molecules_full else 'C'
 
 def number_where_important_global(molecules_statistics_all, match_molecules_all):
     feature_importance_count = {}

@@ -124,7 +124,7 @@ def save_data_to_excel_with_highlights(data, excel_file):
                 #         bond = mol.GetBondBetweenAtoms(match[i], match[i + 1])
                 #         if bond:
                 #             highlight_bonds.append(bond.GetIdx())
-                print(type(row['shap_sign']),row['shap_sign'])
+
                 if row['shap_sign'].split('|')[0] == 'Negative':
                     color = 'lightcoral'
                 else:
