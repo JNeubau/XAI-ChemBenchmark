@@ -39,8 +39,11 @@ def generate_shap_plots(shap_values, data, results_dir):
                 features = data.drop(columns=['capacity_max', 'smiles']).iloc[j]
                 feature_names = data.drop(columns=['capacity_max', 'smiles']).columns
 
-                # Linear plot
-                plt.figure().set_figheight(10)
+                # Create a figure for the plots
+                fig, axes = plt.subplots(2, 1, figsize=(8.27, 11.69))  # A4 size in inches (width x height)
+
+                # Linear plot (force plot)
+                force_plot_path = os.path.join(shap_dir, f"force_plot_{i}_{j}.png")
                 shap.force_plot(
                     base_value=0,  # Replace with actual base value if available
                     shap_values=shap_value,
@@ -49,12 +52,16 @@ def generate_shap_plots(shap_values, data, results_dir):
                     matplotlib=True,
                     show=False
                 )
-                plt.title(f"SHAP Linear Plot for SMILES: {smiles}", fontsize=10)
-                pdf.savefig()
+                plt.savefig(force_plot_path, bbox_inches='tight')
                 plt.close()
 
+                # Load the force plot image and display it in the first subplot
+                force_img = plt.imread(force_plot_path)
+                axes[0].imshow(force_img)
+                axes[0].axis('off')
+                axes[0].set_title(f"SHAP Plot for SMILES: {smiles}", fontsize=6)
+
                 # Waterfall plot
-                plt.figure().set_figheight(10)
                 shap.waterfall_plot(
                     shap.Explanation(
                         values=shap_value,
@@ -64,6 +71,11 @@ def generate_shap_plots(shap_values, data, results_dir):
                     ),
                     show=False
                 )
-                plt.title(f"SHAP Waterfall Plot for SMILES: {smiles}", fontsize=10)
-                pdf.savefig()
-                plt.close()
+                # axes[1].set_title(f"SHAP Waterfall Plot for SMILES: {smiles}", fontsize=10)
+
+                # Save the combined plots to the PDF
+                pdf.savefig(fig)
+                plt.close(fig)
+
+                # Remove the temporary force plot image
+                os.remove(force_plot_path)
