@@ -130,7 +130,11 @@ def save_data_to_excel_with_highlights(data, excel_file):
                 else:
                     color = 'aquamarine'
                 
-                img = Draw.MolToImage(mol, highlightAtoms=highlight_atoms, highlightColor=ColorConverter().to_rgb(color))
+                img = Draw.MolToImage(
+                    mol, 
+                    highlightAtoms=highlight_atoms, 
+                    # highlight_bonds=highlight_bonds, 
+                    highlightColor=ColorConverter().to_rgb(color))
                 img_buffer = BytesIO()
                 img.save(img_buffer, format='PNG')
                 img_buffer.seek(0)

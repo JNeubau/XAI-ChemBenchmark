@@ -14,6 +14,7 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.dirname(os.getcwd()))
 
 from SHAP.shap_cross_validation import CrossValidationShapPipeline
+from SHAP.shapplot import generate_shap_plots
 from SHAP_IQ.shapiq_cross_validation import CrossValidationShapIqPipeline
 
 
@@ -40,6 +41,9 @@ def mainXaiFlow(model, local_explanation=True):
     # Train the model
     cv_pipeline = select_pipeline(model, data, folds)
     results, scores, shap_values = cv_pipeline.train_pipeline('RFReg')
+    
+    if model == 'SHAP':
+        generate_shap_plots(shap_values, data, results_dir)
 
     smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation)
     # molecules_statistics_all = predict_capacity(cv_pipeline, smarts_top_all, molecules_statistics_all)
