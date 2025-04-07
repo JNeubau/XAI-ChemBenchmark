@@ -15,6 +15,7 @@ sys.path.append(os.path.dirname(os.getcwd()))
 
 from SHAP.shap_cross_validation import CrossValidationShapPipeline
 from SHAP_IQ.shapiq_cross_validation import CrossValidationShapIqPipeline
+from SHAP_IQ.shapiqplot import plot_shapiq
 
 
 def mainXaiFlow(model, local_explanation=True):
@@ -29,6 +30,7 @@ def mainXaiFlow(model, local_explanation=True):
     else:
         explenation_type = 'global'
     results_dir = os.path.join(parent_dir, 'results', 'battery', model, explenation_type, datetime.today().strftime("%d-%m-%Y"))
+    plots_dir = os.path.join(parent_dir, 'results', 'plots', model, datetime.today().strftime("%d-%m-%Y"))
     
     data = pd.read_csv(maccs_fingerprints, index_col=0)
     print(data.head())
@@ -41,16 +43,18 @@ def mainXaiFlow(model, local_explanation=True):
     cv_pipeline = select_pipeline(model, data, folds)
     results, scores, shap_values = cv_pipeline.train_pipeline('RFReg')
 
-    smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation)
-    # molecules_statistics_all = predict_capacity(cv_pipeline, smarts_top_all, molecules_statistics_all)
-    molecules_statistics_all = count_molecules_with_fingerprint(data, molecules_statistics_all)
-    molecules_statistics_all = count_important_features(data, molecules_statistics_all)
+    plot_shapiq(data, shap_values, plots_dir)
+
+    # smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation)
+    # # molecules_statistics_all = predict_capacity(cv_pipeline, smarts_top_all, molecules_statistics_all)
+    # molecules_statistics_all = count_molecules_with_fingerprint(data, molecules_statistics_all)
+    # molecules_statistics_all = count_important_features(data, molecules_statistics_all)
     
-    excel_data = prepare_data_for_excel_export(match_molecules_all, smarts_top_all, molecules_statistics_all)
-    save_molecules_to_excel(excel_data, results_dir)
+    # excel_data = prepare_data_for_excel_export(match_molecules_all, smarts_top_all, molecules_statistics_all)
+    # save_molecules_to_excel(excel_data, results_dir)
     
-    scores_data = create_dataframe_from_scores(scores, results)
-    save_scores_to_excel(scores_data, results_dir)
+    # scores_data = create_dataframe_from_scores(scores, results)
+    # save_scores_to_excel(scores_data, results_dir)
     
 
 def create_dataframe_from_scores(scores, results):
@@ -281,6 +285,6 @@ def process_folds(folds, data, shap_values, smarts_mapping_path, local_explanati
 
 
 if __name__ == '__main__':
-    model = ['SHAP', 'SHAP_IQ'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
+    model = ['SHAP_IQ'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
     local_explanation = True
     [mainXaiFlow(m, local_explanation) for m in model]

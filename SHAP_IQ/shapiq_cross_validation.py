@@ -84,7 +84,7 @@ class CrossValidationShapIqPipeline:
         """
         explainer = shapiq.TreeExplainer(model, index='SV', min_order=1, max_order=1)
         # explainer = shap.TreeExplainer(model)
-        print(X_test.head())
+        # print(X_test.head())
         shap_values = []
         new_X_test = X_test.to_numpy()
         for i in range(new_X_test.shape[0]):
@@ -93,13 +93,30 @@ class CrossValidationShapIqPipeline:
         shap_values = np.array(shap_values)
         return shap_values
 
+    def explain_model_interaction(self, model, X_test):
+        """
+        Explain the model interaction.
+        :param model: prediction model.
+        :param X_test: test data.
+        :return: shap values.
+        """
+        explainer = shapiq.TreeExplainer(model, index='SV', min_order=1, max_order=1)
+        # print(X_test.head())
+        shap_values = []
+        new_X_test = X_test.to_numpy()
+        for i in range(new_X_test.shape[0]):
+            shap_value = explainer.explain(new_X_test[i])
+            shap_values.append(shap_value)
+        return shap_values
+
     def update_shap(self, model: object, X_test: pd.DataFrame):
         """
         Update shap values.
         :param model: prediction model.
         :param X_test: test data.
         """
-        shap_values = self.explain_model(model, X_test)
+        shap_values = self.explain_model_interaction(model, X_test)
+        # shap_values = self.explain_model(model, X_test)
         self.shap_values.append(shap_values)
 
     def eval_model(self, y_pred: np.array, y_test: np.array) -> dict:
