@@ -14,6 +14,7 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.dirname(os.getcwd()))
 
 from SHAP.shap_cross_validation import CrossValidationShapPipeline
+from SHAP.shapplot import generate_shap_plots
 from SHAP_IQ.shapiq_cross_validation import CrossValidationShapIqPipeline
 import SHAP_IQ.shapiqplot as plot_iq
 
@@ -41,6 +42,9 @@ def mainXaiFlow(model, local_explanation=True):
     # Train the model
     cv_pipeline = select_pipeline(model, data, folds)
     results, scores, shap_values = cv_pipeline.train_pipeline('RFReg')
+    
+    if model == 'SHAP':
+        generate_shap_plots(shap_values, data, results_dir)
 
     create_plots(parent_dir, data, shap_values, model)
 
@@ -138,6 +142,7 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
         "Number_where_important": [],
         'feature_in_smiles': [],
         "Shap_value": [],
+        "shap_sign": [],
         "Capacity Max": [],
         "Capacity Pred": [],
     }
@@ -156,6 +161,7 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
         excel_data["Number_where_important"].append(molecules_statistics_all[key]["number_where_important"])
         excel_data["feature_in_smiles"].append(molecules_statistics_all[key]["feature_in_smiles"])
         excel_data["Shap_value"].append(molecules_statistics_all[key]["shap_value"])
+        excel_data["shap_sign"].append(molecules_statistics_all[key]["shap_sign"])
         excel_data["Capacity Max"].append(molecules_statistics_all[key]["capacity_max"])
         excel_data["Capacity Pred"].append(molecules_statistics_all[key]["capacity_pred"])
         bbbb+=1
@@ -194,7 +200,7 @@ def process_folds_local(folds, data, shap_values, smarts_mapping_path, top_i=5):
                 smarts_mapping = json.load(f)
 
             smarts_top10 = {
-                (i, test_f.iloc[molecule_idx]['smiles'], feature): smarts_mapping[f'maccsfingerprint{int(feature.replace("maccsfingerprint", ""))}'][0]
+                (i, test_f.iloc[molecule_idx]['smiles'], feature): smarts_mapping[f'maccsfingerprint{int(feature.replace("maccsfingerprint", ""))+1}'][0]
                 for feature in top_10_feature_names
             }
 
@@ -203,6 +209,7 @@ def process_folds_local(folds, data, shap_values, smarts_mapping_path, top_i=5):
                 "number_of_molecules_where_fingerprint": 0,
                 "number_where_important": 0,
                 "shap_value": 0,
+                "shap_sign": '',
                 "feature_in_smiles": False ,
                 "capacity_max": test_f.iloc[molecule_idx]['capacity_max'],
                 "capacity_pred": 0
@@ -212,7 +219,13 @@ def process_folds_local(folds, data, shap_values, smarts_mapping_path, top_i=5):
                 non_zero_molecules = test_f[test_f[key[2]] == 1]
                 non_zero_molecules = non_zero_molecules['smiles'].tolist()
                 match_molecules[key].extend(non_zero_molecules)
-                molecules_statistics[key]["shap_value"] = shap_array[feature_names.index(key[2])]
+                # count_mol_with_fingerprint = len(non_zero_molecules)
+                # if key not in molecules_statistics_all:
+                #     molecules_statistics[key]["number_where_important"] = count_mol_with_fingerprint
+                # else:
+                #     molecules_statistics[key]["number_where_important"] = molecules_statistics_all[key]["number_where_important"] + count_mol_with_fingerprint
+                molecules_statistics[key]["shap_value"] = abs(shap_array[feature_names.index(key[2])])
+                molecules_statistics[key]["shap_sign"] = 'Positive' if shap_array[feature_names.index(key[2])] >= 0 else 'Negative'
                 molecules_statistics[key]["feature_in_smiles"] = bool(data.loc[data['smiles'] == key[1], key[2]].values[0] == 1)
 
             smarts_top_all.update(smarts_top10)
@@ -230,55 +243,91 @@ def process_folds_global(folds, data, shap_values, smarts_mapping_path, top_i=10
     for i, fold in enumerate(folds):
         test_f = data.loc[fold[1]]
         shap_f = shap_values[i]
-
         feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
         mean_abs_shap_values = np.mean(np.abs(shap_f), axis=0)
-        top_10_indices = np.argsort(mean_abs_shap_values)[-top_i:][::-1]
-        top_10_indices = [idx for idx in top_10_indices if mean_abs_shap_values[idx] != 0]
-        top_10_feature_names = [feature_names[i] for i in top_10_indices]
+        top_i_indices = np.argsort(mean_abs_shap_values)[-top_i:][::-1]
+        top_i_indices = [idx for idx in top_i_indices if mean_abs_shap_values[idx] != 0]
+        top_i_feature_names = [feature_names[i] for i in top_i_indices]
 
         with open(smarts_mapping_path, 'r') as f:
             smarts_mapping = json.load(f)
 
-        smarts_top10 = {
-            (i, match_molecule(feature,test_f), feature): smarts_mapping[f'maccsfingerprint{int(feature.replace("maccsfingerprint", ""))}'][0]
-            for feature in top_10_feature_names
+        smarts_topi = {
+            (i, match_molecule_global(feature,test_f,data), feature): smarts_mapping[f'maccsfingerprint{int(feature.replace("maccsfingerprint", ""))+1}'][0]
+            for feature in top_i_feature_names
         }
+        # print("SMARTS Top 10:", smarts_topi)
 
-        match_molecules = {key: [] for key in smarts_top10.keys()}
+        match_molecules = {key: [] for key in smarts_topi.keys()}
         molecules_statistics = {s: {
             "number_of_molecules_where_fingerprint": 0,
             "number_where_important": 0,
-            "shap_value": 0,
-            "feature_in_smiles": True 
-        } for s in smarts_top10.keys()}
+            "shap_value": mean_abs_shap_values[feature_names.index(s[2])],
+            "shap_sign": '',
+            "feature_in_smiles": True,
+            "capacity_max": 0,
+            "capacity_pred": 0
+        } for s in smarts_topi.keys()}
 
-        # for key, value in smarts_top10.items():
-            # non_zero_molecules = test_f[test_f[key[2]] == 1]
-            # non_zero_molecules = non_zero_molecules['smiles'].tolist()
-            # # match_molecules[key].extend(non_zero_molecules)
-            # count_mol_with_fingerprint = len(non_zero_molecules)
-            # molecules_statistics[key]["number_where_important"] = len(non_zero_molecules)
-            # if key not in molecules_statistics_all:
-            #     molecules_statistics[key]["number_where_important"] = count_mol_with_fingerprint
-            # else:
-            #     molecules_statistics[key]["number_where_important"] = molecules_statistics_all[key]["number_where_important"] + count_mol_with_fingerprint
-            
-            # molecules_statistics[key]["shap_value"] = mean_abs_shap_values[feature_names.index(key[2])]
-            # molecules_statistics[key]["feature_in_smiles"] = ''
+        for key in molecules_statistics.keys():
+            feature = key[2]
+            shap_values_for_feature = shap_f[:, feature_names.index(feature)]
+            capacity_values = test_f['capacity_max'].values
+            df = pd.DataFrame({
+                'shap_values': shap_values_for_feature,
+                'capacity_values': capacity_values
+            })
+            correlation = df.corr(method='spearman').loc['shap_values', 'capacity_values']
+            molecules_statistics[key]["shap_sign"] = f'Positive|{correlation}' if correlation > 0 else f'Negative|{correlation}'
 
-        smarts_top_all.update(smarts_top10)
+        smarts_top_all.update(smarts_topi)
         match_molecules_all.update(match_molecules)
         molecules_statistics_all.update(molecules_statistics)  # Update molecules_statistics_all
 
+    molecules_statistics_all = number_where_important_global(molecules_statistics_all,match_molecules_all)
     return smarts_top_all, match_molecules_all, molecules_statistics_all
 
-def match_molecule(feature,test_f):
-        non_zero_molecules = test_f[test_f[feature] == 1]
-        non_zero_molecules = non_zero_molecules['smiles'].tolist()
 
-        return non_zero_molecules[0] if non_zero_molecules else 'C'
+def match_molecule_global(feature, test_f, full_data):
+    """
+    Match a molecule based on the feature. If no match is found in the test fold,
+    search the entire dataset for a matching SMILES.
 
+    Parameters:
+    - feature: The feature to match.
+    - test_f: The test fold data.
+    - full_data: The entire dataset.
+
+    Returns:
+    - A matching SMILES string or 'C' if no match is found.
+    """
+    non_zero_molecules = test_f[test_f[feature] == 1]
+    non_zero_molecules = non_zero_molecules['smiles'].tolist()
+
+    if non_zero_molecules:
+        return non_zero_molecules[0]
+
+    non_zero_molecules_full = full_data[full_data[feature] == 1]
+    non_zero_molecules_full = non_zero_molecules_full['smiles'].tolist()
+
+    return non_zero_molecules_full[0] if non_zero_molecules_full else 'C'
+
+def number_where_important_global(molecules_statistics_all, match_molecules_all):
+    feature_importance_count = {}
+
+    # Count how many times each feature is important
+    for key in molecules_statistics_all.keys():
+        feature = key[2]
+        if feature not in feature_importance_count:
+            feature_importance_count[feature] = 0
+        feature_importance_count[feature] += 1
+
+    # Update all keys with the count of how many times their feature was important
+    for key in molecules_statistics_all.keys():
+        feature = key[2]
+        molecules_statistics_all[key]["number_where_important"] = feature_importance_count[feature]
+
+    return molecules_statistics_all
 
 def process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation=True):
     if local_explanation:
@@ -288,6 +337,6 @@ def process_folds(folds, data, shap_values, smarts_mapping_path, local_explanati
 
 
 if __name__ == '__main__':
-    model = ['SHAP_IQ'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
-    local_explanation = True
+    model = ['SHAP', 'SHAP_IQ'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
+    local_explanation = False
     [mainXaiFlow(m, local_explanation) for m in model]

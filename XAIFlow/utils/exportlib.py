@@ -100,10 +100,10 @@ def save_data_to_excel_with_highlights(data, excel_file):
     df = pd.DataFrame(data, 
                       columns=["Fold_No", 'Smiles_key', 'Feature_key', 
                                'SMARTS', 'Molecule', 'number_of_molecules_where_fingerprint', 'Number_where_important',
-                               'feature_in_smiles','Shap_value', 'Shap_sign',
+                               'feature_in_smiles','Shap_value', 'shap_sign',
                                'Capacity Max', 'Capacity Pred'])
-    df['Shap_sign'] = df['Shap_value'].apply(lambda x: 'Positive' if x >= 0 else 'Negative')
-    df['Shap_value'] = df['Shap_value'].abs()
+    # df['Shap_sign'] = df['Shap_value'].apply(lambda x: 'Positive' if x >= 0 else 'Negative')
+    # df['Shap_value'] = df['Shap_value'].abs()
     df = df.sort_values(by=['Molecule', 'Feature_key', 'Fold_No'], ignore_index=True)
 
     with pd.ExcelWriter(excel_file, engine="xlsxwriter") as writer:
@@ -118,19 +118,23 @@ def save_data_to_excel_with_highlights(data, excel_file):
             if mol and match_smart:
                 highlight_atoms = [atom for match in mol.GetSubstructMatches(match_smart) for atom in match]
                 
-                highlight_bonds = []
-                for match in mol.GetSubstructMatches(match_smart):
-                    for i in range(len(match) - 1):
-                        bond = mol.GetBondBetweenAtoms(match[i], match[i + 1])
-                        if bond:
-                            highlight_bonds.append(bond.GetIdx())
-                            
-                if row['Shap_sign'] == 'Negative':
+                # highlight_bonds = []
+                # for match in mol.GetSubstructMatches(match_smart):
+                #     for i in range(len(match) - 1):
+                #         bond = mol.GetBondBetweenAtoms(match[i], match[i + 1])
+                #         if bond:
+                #             highlight_bonds.append(bond.GetIdx())
+
+                if row['shap_sign'].split('|')[0] == 'Negative':
                     color = 'lightcoral'
                 else:
                     color = 'aquamarine'
                 
-                img = Draw.MolToImage(mol, highlightAtoms=highlight_atoms, highlightBonds=highlight_bonds, highlightColor=ColorConverter().to_rgb(color))
+                img = Draw.MolToImage(
+                    mol, 
+                    highlightAtoms=highlight_atoms, 
+                    # highlight_bonds=highlight_bonds, 
+                    highlightColor=ColorConverter().to_rgb(color))
                 img_buffer = BytesIO()
                 img.save(img_buffer, format='PNG')
                 img_buffer.seek(0)
