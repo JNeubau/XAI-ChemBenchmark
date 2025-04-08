@@ -15,7 +15,7 @@ sys.path.append(os.path.dirname(os.getcwd()))
 
 from SHAP.shap_cross_validation import CrossValidationShapPipeline
 from SHAP_IQ.shapiq_cross_validation import CrossValidationShapIqPipeline
-from SHAP_IQ.shapiqplot import plot_shapiq
+import SHAP_IQ.shapiqplot as plot_iq
 
 
 def mainXaiFlow(model, local_explanation=True):
@@ -30,7 +30,6 @@ def mainXaiFlow(model, local_explanation=True):
     else:
         explenation_type = 'global'
     results_dir = os.path.join(parent_dir, 'results', 'battery', model, explenation_type, datetime.today().strftime("%d-%m-%Y"))
-    plots_dir = os.path.join(parent_dir, 'results', 'plots', model, datetime.today().strftime("%d-%m-%Y"))
     
     data = pd.read_csv(maccs_fingerprints, index_col=0)
     print(data.head())
@@ -43,19 +42,26 @@ def mainXaiFlow(model, local_explanation=True):
     cv_pipeline = select_pipeline(model, data, folds)
     results, scores, shap_values = cv_pipeline.train_pipeline('RFReg')
 
-    plot_shapiq(data, shap_values, plots_dir, ['all'])
+    create_plots(parent_dir, data, shap_values, model)
 
-    # smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation)
-    # # molecules_statistics_all = predict_capacity(cv_pipeline, smarts_top_all, molecules_statistics_all)
-    # molecules_statistics_all = count_molecules_with_fingerprint(data, molecules_statistics_all)
-    # molecules_statistics_all = count_important_features(data, molecules_statistics_all)
+    smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation)
+    # molecules_statistics_all = predict_capacity(cv_pipeline, smarts_top_all, molecules_statistics_all)
+    molecules_statistics_all = count_molecules_with_fingerprint(data, molecules_statistics_all)
+    molecules_statistics_all = count_important_features(data, molecules_statistics_all)
     
-    # excel_data = prepare_data_for_excel_export(match_molecules_all, smarts_top_all, molecules_statistics_all)
-    # save_molecules_to_excel(excel_data, results_dir)
+    excel_data = prepare_data_for_excel_export(match_molecules_all, smarts_top_all, molecules_statistics_all)
+    save_molecules_to_excel(excel_data, results_dir)
     
-    # scores_data = create_dataframe_from_scores(scores, results)
-    # save_scores_to_excel(scores_data, results_dir)
+    scores_data = create_dataframe_from_scores(scores, results)
+    save_scores_to_excel(scores_data, results_dir)
     
+
+def create_plots(parent_dir, data, shap_values, model):
+    plots_dir = os.path.join(parent_dir, 'results', 'plots', model, datetime.today().strftime("%d-%m-%Y"))
+    if model == 'SHAP_IQ':
+        plot_iq.plot_shapiq_local(data, shap_values, plots_dir, ['all'])
+        plot_iq.plot_shapiq_fold(data, shap_values, plots_dir, ['bar'])
+
 
 def create_dataframe_from_scores(scores, results):
     df_scores = pd.DataFrame(scores)
@@ -206,11 +212,6 @@ def process_folds_local(folds, data, shap_values, smarts_mapping_path, top_i=5):
                 non_zero_molecules = test_f[test_f[key[2]] == 1]
                 non_zero_molecules = non_zero_molecules['smiles'].tolist()
                 match_molecules[key].extend(non_zero_molecules)
-                # count_mol_with_fingerprint = len(non_zero_molecules)
-                # if key not in molecules_statistics_all:
-                #     molecules_statistics[key]["number_where_important"] = count_mol_with_fingerprint
-                # else:
-                #     molecules_statistics[key]["number_where_important"] = molecules_statistics_all[key]["number_where_important"] + count_mol_with_fingerprint
                 molecules_statistics[key]["shap_value"] = shap_array[feature_names.index(key[2])]
                 molecules_statistics[key]["feature_in_smiles"] = bool(data.loc[data['smiles'] == key[1], key[2]].values[0] == 1)
 
