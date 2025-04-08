@@ -16,6 +16,7 @@ sys.path.append(os.path.dirname(os.getcwd()))
 from SHAP.shap_cross_validation import CrossValidationShapPipeline
 from SHAP.shapplot import generate_shap_plots
 from SHAP_IQ.shapiq_cross_validation import CrossValidationShapIqPipeline
+import SHAP_IQ.shapiqplot as plot_iq
 
 
 def mainXaiFlow(model, local_explanation=True):
@@ -45,6 +46,8 @@ def mainXaiFlow(model, local_explanation=True):
     if model == 'SHAP':
         generate_shap_plots(shap_values, data, results_dir)
 
+    create_plots(parent_dir, data, shap_values, model)
+
     smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation)
     # molecules_statistics_all = predict_capacity(cv_pipeline, smarts_top_all, molecules_statistics_all)
     molecules_statistics_all = count_molecules_with_fingerprint(data, molecules_statistics_all)
@@ -56,6 +59,13 @@ def mainXaiFlow(model, local_explanation=True):
     scores_data = create_dataframe_from_scores(scores, results)
     save_scores_to_excel(scores_data, results_dir)
     
+
+def create_plots(parent_dir, data, shap_values, model):
+    plots_dir = os.path.join(parent_dir, 'results', 'plots', model, datetime.today().strftime("%d-%m-%Y"))
+    if model == 'SHAP_IQ':
+        plot_iq.plot_shapiq_local(data, shap_values, plots_dir, ['all'])
+        plot_iq.plot_shapiq_fold(data, shap_values, plots_dir, ['bar'])
+
 
 def create_dataframe_from_scores(scores, results):
     df_scores = pd.DataFrame(scores)
@@ -113,7 +123,9 @@ def select_pipeline(model, data, folds):
                 metrics=['smape', 'pairwise_accuracy_score', 'rmse', 'ndcg_score'],
                 save_dir='',
                 data_name='battery',
-                verbose=True
+                verbose=True,
+                iq_min_order=1,
+                iq_max_order=1
             )
         case default:
             raise ValueError("Model not selected.")

@@ -28,6 +28,8 @@ class CrossValidationShapIqPipeline:
             data_name: str,
             hyperparam_opt: bool = True,
             verbose: bool = False,
+            iq_min_order: int = 1,
+            iq_max_order: int = 1,
     ):
         """
         Initialize the cross-validation pipeline.
@@ -51,6 +53,8 @@ class CrossValidationShapIqPipeline:
         self.hyperparam_opt = hyperparam_opt
         self.scores = None
         self.shap_values = None
+        self.iq_min_order = iq_min_order
+        self.iq_max_order = iq_max_order
 
     def tune_model(self, X_train: pd.DataFrame, y_train: pd.DataFrame, model: object,
                    param_grid: dict | None) -> object:
@@ -75,16 +79,16 @@ class CrossValidationShapIqPipeline:
         return model
 
     @staticmethod
-    def explain_model(model: object, X_test: pd.DataFrame) -> Iterable:
+    def explain_model(model: object, X_test: pd.DataFrame, min_order, max_order) -> Iterable:
         """
         Explain the model.
         :param model: prediction model.
         :param X_test: test data.
         :return: shap values.
         """
-        explainer = shapiq.TreeExplainer(model, index='SV', min_order=1, max_order=1)
+        explainer = shapiq.TreeExplainer(model, index='SV', min_order=min_order, max_order=max_order)
         # explainer = shap.TreeExplainer(model)
-        print(X_test.head())
+        # print(X_test.head())
         shap_values = []
         new_X_test = X_test.to_numpy()
         for i in range(new_X_test.shape[0]):
@@ -93,13 +97,30 @@ class CrossValidationShapIqPipeline:
         shap_values = np.array(shap_values)
         return shap_values
 
+    def explain_model_interaction(self, model, X_test, min_order, max_order):
+        """
+        Explain the model interaction.
+        :param model: prediction model.
+        :param X_test: test data.
+        :return: shap values.
+        """
+        explainer = shapiq.TreeExplainer(model, index='SV', min_order=min_order, max_order=max_order)
+        # print(X_test.head())
+        shap_values = []
+        new_X_test = X_test.to_numpy()
+        for i in range(new_X_test.shape[0]):
+            shap_value = explainer.explain(new_X_test[i])
+            shap_values.append(shap_value)
+        return shap_values
+
     def update_shap(self, model: object, X_test: pd.DataFrame):
         """
         Update shap values.
         :param model: prediction model.
         :param X_test: test data.
         """
-        shap_values = self.explain_model(model, X_test)
+        shap_values = self.explain_model_interaction(model, X_test, min_order=self.iq_min_order, max_order=self.iq_max_order)
+        # shap_values = self.explain_model(model, X_test, min_order=self.iq_min_order, max_order=self.iq_max_order)
         self.shap_values.append(shap_values)
 
     def eval_model(self, y_pred: np.array, y_test: np.array) -> dict:
