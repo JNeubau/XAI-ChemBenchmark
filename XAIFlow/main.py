@@ -43,7 +43,7 @@ def mainXaiFlow(model, local_explanation=True):
     cv_pipeline = select_pipeline(model, data, folds)
     results, scores, shap_values = cv_pipeline.train_pipeline('RFReg')
 
-    plot_shapiq(data, shap_values, plots_dir)
+    plot_shapiq(data, shap_values, plots_dir, ['all'])
 
     # smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation)
     # # molecules_statistics_all = predict_capacity(cv_pipeline, smarts_top_all, molecules_statistics_all)
@@ -113,7 +113,9 @@ def select_pipeline(model, data, folds):
                 metrics=['smape', 'pairwise_accuracy_score', 'rmse', 'ndcg_score'],
                 save_dir='',
                 data_name='battery',
-                verbose=True
+                verbose=True,
+                iq_min_order=1,
+                iq_max_order=1
             )
         case default:
             raise ValueError("Model not selected.")
