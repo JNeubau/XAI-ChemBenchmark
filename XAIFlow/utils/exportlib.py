@@ -106,7 +106,7 @@ def save_data_to_excel_with_highlights(data, excel_file):
     # df['Shap_value'] = df['Shap_value'].abs()
     df = df.sort_values(by=['Molecule', 'Feature_key', 'Fold_No'], ignore_index=True)
 
-    with pd.ExcelWriter(excel_file, engine="xlsxwriter") as writer:
+    with pd.ExcelWriter(excel_file, engine="xlsxwriter", mode='w') as writer:
         df.to_excel(writer, index=False, sheet_name="Data", startrow=0, startcol=13)
         worksheet = writer.sheets["Data"]
 

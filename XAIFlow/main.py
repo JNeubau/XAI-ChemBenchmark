@@ -14,7 +14,8 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.dirname(os.getcwd()))
 
 from SHAP.shap_cross_validation import CrossValidationShapPipeline
-from SHAP.shapplot import generate_shap_plots
+# from SHAP.shapplot import generate_shap_plots
+import SHAP.shapplot as plot_shap
 from SHAP_IQ.shapiq_cross_validation import CrossValidationShapIqPipeline
 import SHAP_IQ.shapiqplot as plot_iq
 
@@ -42,9 +43,6 @@ def mainXaiFlow(model, local_explanation=True):
     # Train the model
     cv_pipeline = select_pipeline(model, data, folds)
     results, scores, shap_values = cv_pipeline.train_pipeline('RFReg')
-    
-    if model == 'SHAP':
-        generate_shap_plots(shap_values, data, results_dir)
 
     create_plots(parent_dir, data, shap_values, model)
 
@@ -62,6 +60,8 @@ def mainXaiFlow(model, local_explanation=True):
 
 def create_plots(parent_dir, data, shap_values, model):
     plots_dir = os.path.join(parent_dir, 'results', 'plots', model, datetime.today().strftime("%d-%m-%Y"))
+    if model == 'SHAP':
+        plot_shap.generate_shap_plots(shap_values, data, plots_dir)
     if model == 'SHAP_IQ':
         plot_iq.plot_shapiq_local(data, shap_values, plots_dir, ['all'])
         plot_iq.plot_shapiq_fold(data, shap_values, plots_dir, ['bar'])
@@ -149,9 +149,9 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
             
     bbbb=0
     for key, smarts in smarts_top.items():
-        print("=============molecule===============")
-        print("key:", key)
-        print("smarts:", smarts)
+        # print("=============molecule===============")
+        # print("key:", key)
+        # print("smarts:", smarts)
         excel_data["Fold_No"].append(key[0])
         excel_data["Smiles_key"].append(key[1])
         excel_data["Feature_key"].append(key[2])
@@ -338,5 +338,5 @@ def process_folds(folds, data, shap_values, smarts_mapping_path, local_explanati
 
 if __name__ == '__main__':
     model = ['SHAP', 'SHAP_IQ'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
-    local_explanation = False
+    local_explanation = True
     [mainXaiFlow(m, local_explanation) for m in model]
