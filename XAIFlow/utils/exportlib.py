@@ -97,7 +97,6 @@ def save_data_to_excel_with_highlights_no_sort(data, smiles_list, smarts_list, e
     
     
 def save_data_to_excel_with_highlights(data, excel_file):
-def save_data_to_excel_with_highlights(data, excel_file):
     """
     Save data to an Excel file with molecule images generated from SMILES strings and highlighted substructures.
     The data will be sorted by SMILES and a specified feature.

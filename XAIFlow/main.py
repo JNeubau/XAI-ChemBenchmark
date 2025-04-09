@@ -134,7 +134,6 @@ def select_pipeline(model, data, folds):
 
 
 def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statistics_all):
-def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statistics_all):
     excel_data = {
         "Fold_No": [],
         "Smiles_key": [],
@@ -187,7 +186,6 @@ def save_scores_to_excel(scores_data, results_dir):
     print(f"Scores saved to {results_dir}")
     
 
-def process_folds_local(folds, data, shap_values, smarts_mapping_path, top_i=5):
 def process_folds_local(folds, data, shap_values, smarts_mapping_path, top_i=5):
     smarts_top_all = {}
     match_molecules_all = {}
@@ -245,10 +243,8 @@ def process_folds_local(folds, data, shap_values, smarts_mapping_path, top_i=5):
             molecules_statistics_all.update(molecules_statistics)
 
     return smarts_top_all, match_molecules_all, molecules_statistics_all
-    return smarts_top_all, match_molecules_all, molecules_statistics_all
 
 
-def process_folds_global(folds, data, shap_values, smarts_mapping_path, top_i=10):
 def process_folds_global(folds, data, shap_values, smarts_mapping_path, top_i=10):
     smarts_top_all = {}
     match_molecules_all = {}
