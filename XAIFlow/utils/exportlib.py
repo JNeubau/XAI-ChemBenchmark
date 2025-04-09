@@ -5,6 +5,8 @@ from rdkit.Chem import Draw
 import os
 from matplotlib.colors import ColorConverter
 from io import BytesIO
+from matplotlib.colors import ColorConverter
+from io import BytesIO
 
 
 def save_data_to_excel(data, smiles_list, excel_file):
@@ -72,6 +74,13 @@ def save_data_to_excel_with_highlights_no_sort(data, smiles_list, smarts_list, e
             # print(type(smiles),smiles[0])
             # print(type(smarts))
             mol = Chem.MolFromSmiles(smiles[0])
+
+            if not smiles or not smiles[0]:
+                continue
+            # print(smiles, smarts)
+            # print(type(smiles),smiles[0])
+            # print(type(smarts))
+            mol = Chem.MolFromSmiles(smiles[0])
             match_smart = Chem.MolFromSmarts(smarts)
             if mol and match_smart:
                 os.makedirs(image_dir, exist_ok=True)
@@ -87,6 +96,7 @@ def save_data_to_excel_with_highlights_no_sort(data, smiles_list, smarts_list, e
     clean_up_png_files_from_dir(image_dir)
     
     
+def save_data_to_excel_with_highlights(data, excel_file):
 def save_data_to_excel_with_highlights(data, excel_file):
     """
     Save data to an Excel file with molecule images generated from SMILES strings and highlighted substructures.
@@ -141,6 +151,15 @@ def save_data_to_excel_with_highlights(data, excel_file):
 
                 row_num = i + 1
                 col = 0
+                worksheet.insert_image(row_num, col, '', {'image_data': img_buffer})
+
+                img_smt = Draw.MolToImage(match_smart)
+                img_smt_buffer = BytesIO()
+                img_smt.save(img_smt_buffer, format='PNG')
+                img_smt_buffer.seek(0)
+
+                col_smt = 6
+                worksheet.insert_image(row_num, col_smt, '', {'image_data': img_smt_buffer})
                 worksheet.insert_image(row_num, col, '', {'image_data': img_buffer})
 
                 img_smt = Draw.MolToImage(match_smart)

@@ -134,7 +134,11 @@ def select_pipeline(model, data, folds):
 
 
 def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statistics_all):
+def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statistics_all):
     excel_data = {
+        "Fold_No": [],
+        "Smiles_key": [],
+        "Feature_key": [],
         "Fold_No": [],
         "Smiles_key": [],
         "Feature_key": [],
@@ -184,8 +188,10 @@ def save_scores_to_excel(scores_data, results_dir):
     
 
 def process_folds_local(folds, data, shap_values, smarts_mapping_path, top_i=5):
+def process_folds_local(folds, data, shap_values, smarts_mapping_path, top_i=5):
     smarts_top_all = {}
     match_molecules_all = {}
+    molecules_statistics_all = {}
     molecules_statistics_all = {}
     for i, fold in enumerate(folds):
         test_f = data.loc[fold[1]]
@@ -194,6 +200,8 @@ def process_folds_local(folds, data, shap_values, smarts_mapping_path, top_i=5):
         for molecule_idx, shap_array in enumerate(shap_f):
             feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
             abs_shap_values = np.abs(shap_array)
+            top_10_indices = np.argsort(abs_shap_values)[-top_i:][::-1]
+            top_10_indices = [idx for idx in top_10_indices if abs_shap_values[idx] != 0]
             top_10_indices = np.argsort(abs_shap_values)[-top_i:][::-1]
             top_10_indices = [idx for idx in top_10_indices if abs_shap_values[idx] != 0]
             top_10_feature_names = [feature_names[i] for i in top_10_indices]
@@ -219,6 +227,7 @@ def process_folds_local(folds, data, shap_values, smarts_mapping_path, top_i=5):
             
             for key, value in smarts_top10.items():
                 non_zero_molecules = test_f[test_f[key[2]] == 1]
+                non_zero_molecules = test_f[test_f[key[2]] == 1]
                 non_zero_molecules = non_zero_molecules['smiles'].tolist()
                 match_molecules[key].extend(non_zero_molecules)
                 # count_mol_with_fingerprint = len(non_zero_molecules)
@@ -233,13 +242,17 @@ def process_folds_local(folds, data, shap_values, smarts_mapping_path, top_i=5):
             smarts_top_all.update(smarts_top10)
             match_molecules_all.update(match_molecules)
             molecules_statistics_all.update(molecules_statistics)
+            molecules_statistics_all.update(molecules_statistics)
 
+    return smarts_top_all, match_molecules_all, molecules_statistics_all
     return smarts_top_all, match_molecules_all, molecules_statistics_all
 
 
 def process_folds_global(folds, data, shap_values, smarts_mapping_path, top_i=10):
+def process_folds_global(folds, data, shap_values, smarts_mapping_path, top_i=10):
     smarts_top_all = {}
     match_molecules_all = {}
+    molecules_statistics_all = {}  # Initialize molecules_statistics_all
     molecules_statistics_all = {}  # Initialize molecules_statistics_all
 
     for i, fold in enumerate(folds):
