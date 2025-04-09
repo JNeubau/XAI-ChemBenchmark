@@ -46,7 +46,7 @@ def generate_shap_plots_local(data, shap_values, plots_dir, plots_to_run=None):
                     )
                     plt.title(f"SHAP Force Plot for SMILES: {smiles}", fontsize=12)
                     pdf.savefig(bbox_inches='tight')
-                    plt.close()
+                    plt.close('all')
 
                 if 'waterfall' in plots_to_run:
                     # Generate SHAP waterfall plot
@@ -62,7 +62,7 @@ def generate_shap_plots_local(data, shap_values, plots_dir, plots_to_run=None):
                     )
                     plt.title(f"SHAP Waterfall Plot for SMILES: {smiles}", fontsize=12)
                     pdf.savefig(bbox_inches='tight')
-                    plt.close()
+                    plt.close('all')
 
 def generate_shap_plots_folds(data, shap_values, plots_dir, plots_to_run=None):
     """
@@ -92,12 +92,12 @@ def generate_shap_plots_folds(data, shap_values, plots_dir, plots_to_run=None):
             show=False
         )
         plt.savefig(os.path.join(plots_dir, f"shap_summary_plot_all_{datetime.now().strftime('%H_%M_%S')}.png"), bbox_inches='tight')
-        plt.close()
+        plt.close('all')
 
         # Generate SHAP summary plot for each fold
         for fold_idx, fold_shap_values in enumerate(shap_values):
-            print(f"Generating SHAP summary plot for fold {fold_idx}...")
-            print(f"Fold SHAP values: {fold_shap_values[fold_idx]}")
+            # print(f"Generating SHAP summary plot for fold {fold_idx}...")
+            # print(f"Fold SHAP values: {fold_shap_values[fold_idx]}")
             plt.figure(figsize=(8.27, 11.69))  # A4 size in inches (width x height)
             shap.summary_plot(
                 shap_values=fold_shap_values,
@@ -106,4 +106,4 @@ def generate_shap_plots_folds(data, shap_values, plots_dir, plots_to_run=None):
                 show=False
             )
             plt.savefig(os.path.join(plots_dir, f"shap_summary_plot_fold_{fold_idx}_{datetime.now().strftime('%H_%M_%S')}.png"), bbox_inches='tight')
-            plt.close()
+            plt.close('all')
