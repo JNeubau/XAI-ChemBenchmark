@@ -63,7 +63,8 @@ def mainXaiFlow(model, local_explanation=True):
 def create_plots(parent_dir, data, model, shap_values):
     plots_dir = os.path.join(parent_dir, 'results', 'plots', model, datetime.today().strftime("%d-%m-%Y"))
     if model == 'SHAP':
-        plot_shap.generate_shap_plots(shap_values, data, plots_dir)
+        plot_shap.generate_shap_plots_folds(data,shap_values, plots_dir,['all'])
+        plot_shap.generate_shap_plots_local(data, shap_values, plots_dir, ['force', 'waterfall'])
     if model == 'SHAP_IQ':
         plot_iq.plot_shapiq_local(data, shap_values, plots_dir, ['all'])
         plot_iq.plot_shapiq_fold(data, shap_values, plots_dir, ['bar'])
