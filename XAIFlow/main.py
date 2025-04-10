@@ -44,7 +44,8 @@ def mainXaiFlow(model, local_explanation=True):
     cv_pipeline = select_pipeline(model, data, folds)
     results, scores, shap_values = cv_pipeline.train_pipeline('RFReg')
     
-    create_plots(parent_dir, data, model, shap_values)   
+    plots_dir = os.path.join(parent_dir, 'results', 'plots', model, explenation_type, datetime.today().strftime("%d-%m-%Y"))
+    create_plots(plots_dir, data, model, shap_values)   
     if model == 'SHAP_IQ':
         shap_values = [np.array(shap_values[i]) for i in range(len(shap_values))]
         
@@ -60,8 +61,7 @@ def mainXaiFlow(model, local_explanation=True):
     save_scores_to_excel(scores_data, results_dir)
     
 
-def create_plots(parent_dir, data, model, shap_values):
-    plots_dir = os.path.join(parent_dir, 'results', 'plots', model, datetime.today().strftime("%d-%m-%Y"))
+def create_plots(plots_dir, data, model, shap_values):
     if model == 'SHAP':
         plot_shap.generate_shap_plots_folds(data,shap_values, plots_dir,['all'])
         plot_shap.generate_shap_plots_local(data, shap_values, plots_dir, ['force', 'waterfall'])
@@ -350,5 +350,5 @@ def process_folds(folds, data, shap_values, smarts_mapping_path, local_explanati
 
 if __name__ == '__main__':
     model = ['SHAP', 'SHAP_IQ'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
-    local_explanation = False
+    local_explanation = True
     [mainXaiFlow(m, local_explanation) for m in model]
