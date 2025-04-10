@@ -1,1 +1,2 @@
 from .shap_cross_validation import CrossValidationShapPipeline
+from .shapplot import generate_shap_plots_folds,generate_shap_plots_local

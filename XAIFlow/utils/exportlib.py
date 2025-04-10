@@ -5,6 +5,8 @@ from rdkit.Chem import Draw
 import os
 from matplotlib.colors import ColorConverter
 from io import BytesIO
+from matplotlib.colors import ColorConverter
+from io import BytesIO
 
 
 def save_data_to_excel(data, smiles_list, excel_file):
@@ -72,6 +74,13 @@ def save_data_to_excel_with_highlights_no_sort(data, smiles_list, smarts_list, e
             # print(type(smiles),smiles[0])
             # print(type(smarts))
             mol = Chem.MolFromSmiles(smiles[0])
+
+            if not smiles or not smiles[0]:
+                continue
+            # print(smiles, smarts)
+            # print(type(smiles),smiles[0])
+            # print(type(smarts))
+            mol = Chem.MolFromSmiles(smiles[0])
             match_smart = Chem.MolFromSmarts(smarts)
             if mol and match_smart:
                 os.makedirs(image_dir, exist_ok=True)
@@ -96,18 +105,17 @@ def save_data_to_excel_with_highlights(data, excel_file):
     - data (dict): A dictionary containing the data to be saved.
                    Keys should be column names, and values should be lists of column data.
     - excel_file (str): The path to the Excel file where the data will be saved.
-    """
-    image_dir = os.path.dirname(os.getcwd()) + '\\png'
-    
+    """    
     df = pd.DataFrame(data, 
                       columns=["Fold_No", 'Smiles_key', 'Feature_key', 
                                'SMARTS', 'Molecule', 'number_of_molecules_where_fingerprint', 'Number_where_important',
-                               'feature_in_smiles','Shap_value'])
-    df['Shap_sign'] = df['Shap_value'].apply(lambda x: 'Positive' if x >= 0 else 'Negative')
-    df['Shap_value'] = df['Shap_value'].abs()
+                               'feature_in_smiles','Shap_value', 'shap_sign',
+                               'Capacity Max', 'Capacity Pred'])
+    # df['Shap_sign'] = df['Shap_value'].apply(lambda x: 'Positive' if x >= 0 else 'Negative')
+    # df['Shap_value'] = df['Shap_value'].abs()
     df = df.sort_values(by=['Molecule', 'Feature_key', 'Fold_No'], ignore_index=True)
 
-    with pd.ExcelWriter(excel_file, engine="xlsxwriter") as writer:
+    with pd.ExcelWriter(excel_file, engine="xlsxwriter", mode='w') as writer:
         df.to_excel(writer, index=False, sheet_name="Data", startrow=0, startcol=13)
         worksheet = writer.sheets["Data"]
 
@@ -118,12 +126,24 @@ def save_data_to_excel_with_highlights(data, excel_file):
             match_smart = Chem.MolFromSmarts(smarts)
             if mol and match_smart:
                 highlight_atoms = [atom for match in mol.GetSubstructMatches(match_smart) for atom in match]
-                if row['Shap_sign'] == 'Negative':
+                
+                # highlight_bonds = []
+                # for match in mol.GetSubstructMatches(match_smart):
+                #     for i in range(len(match) - 1):
+                #         bond = mol.GetBondBetweenAtoms(match[i], match[i + 1])
+                #         if bond:
+                #             highlight_bonds.append(bond.GetIdx())
+
+                if row['shap_sign'].split('|')[0] == 'Negative':
                     color = 'lightcoral'
                 else:
                     color = 'aquamarine'
                 
-                img = Draw.MolToImage(mol, highlightAtoms=highlight_atoms, highlightColor=ColorConverter().to_rgb(color))
+                img = Draw.MolToImage(
+                    mol, 
+                    highlightAtoms=highlight_atoms, 
+                    # highlight_bonds=highlight_bonds, 
+                    highlightColor=ColorConverter().to_rgb(color))
                 img_buffer = BytesIO()
                 img.save(img_buffer, format='PNG')
                 img_buffer.seek(0)
@@ -139,8 +159,33 @@ def save_data_to_excel_with_highlights(data, excel_file):
 
                 col_smt = 6
                 worksheet.insert_image(row_num, col_smt, '', {'image_data': img_smt_buffer})
+                worksheet.insert_image(row_num, col, '', {'image_data': img_buffer})
+
+                img_smt = Draw.MolToImage(match_smart)
+                img_smt_buffer = BytesIO()
+                img_smt.save(img_smt_buffer, format='PNG')
+                img_smt_buffer.seek(0)
+
+                col_smt = 6
+                worksheet.insert_image(row_num, col_smt, '', {'image_data': img_smt_buffer})
                 worksheet.set_row(row_num, 250)
     # clean_up_png_files_from_dir(image_dir)
+    
+    
+def save_scores_to_excel_new_sheet(data, excel_file):
+    """
+    Save scores to a new sheet in an Excel file.
+
+    Parameters:
+    - data (dict): A dictionary containing the data to be saved.
+                   Keys should be column names, and values should be lists of column data.
+    - excel_file (str): The path to the Excel file where the data will be saved.
+    - sheet_name (str): The name of the new sheet to save the data.
+    """
+    df = pd.DataFrame(data)
+
+    with pd.ExcelWriter(excel_file, engine="xlsxwriter", mode='w') as writer:
+        df.to_excel(writer, index=True, sheet_name="Scores")
 
 
 def clean_up_png_files_from_dir(dir_name):

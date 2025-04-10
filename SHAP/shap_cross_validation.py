@@ -50,6 +50,7 @@ class CrossValidationShapPipeline:
         self.hyperparam_opt = hyperparam_opt
         self.scores = None
         self.shap_values = None
+        self.model = None
 
     def tune_model(self, X_train: pd.DataFrame, y_train: pd.DataFrame, model: object,
                    param_grid: dict | None) -> object:
@@ -184,6 +185,7 @@ class CrossValidationShapPipeline:
 
             # model training
             model.fit(X_train, y_train[y_train.columns[0]])
+            self.model = model
 
             y_pred = model.predict(X_test).flatten()
 
@@ -200,3 +202,12 @@ class CrossValidationShapPipeline:
             self.save_results(results, proper_model_name, model.get_params())
 
         return results, self.scores, self.shap_values
+    
+    def predict_capacity(self, X_input):
+        """
+        Predict capacity using the trained model.
+        :param X_input: input data for prediction.
+        :return: predicted values.
+        """        
+        prediction = self.model.predict(X_input)
+        return prediction

@@ -1,1 +1,2 @@
 from .shapiq_cross_validation import CrossValidationShapIqPipeline
+from .shapiqplot import plot_shapiq_fold, plot_shapiq_local
