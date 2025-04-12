@@ -3,6 +3,8 @@ import sys
 from datetime import datetime
 import pandas as pd
 import numpy as np
+import exmol
+import matplotlib.pyplot as plt
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.dirname(os.getcwd()))
@@ -40,11 +42,12 @@ def mainLimeFlow():
         verbose=True
     )
 
-    results, scores, lime_explanations = cv_pipeline.train_pipeline('RFReg')
+    results, scores, lime_explanations,cfs,samples = cv_pipeline.train_pipeline('RFReg')
     print("Results:", results)
     print("Scores:", scores)
     print("LIME explanations:", lime_explanations)
 
+    process_folds_local(folds, data, lime_explanations, samples)
     # smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds_local_lime(
     #     folds, data, lime_explanations, top_i=5
     # )
@@ -55,6 +58,17 @@ def mainLimeFlow():
     # excel_data = prepare_data_for_excel_export(match_molecules_all, smarts_top_all, molecules_statistics_all)
     # save_molecules_to_excel(excel_data, results_dir)
 
+def process_folds_local(folds,data, lime_explanation,samples):
+    print("Processing folds for local LIME...")
+
+    export_plots_exmol(samples)
+    print("Exported plots for exmol explanations.")
+
+def export_plots_exmol(sample_space):
+    # exmol.plot_descriptors(sample_space)
+    # plt.savefig("my_descriptor_plot.png", bbox_inches="tight")
+    # plt.close()
+    return 0
 
 # def process_folds_local_lime(folds, data, lime_explanations, top_i=5):
     # smarts_top_all = {}

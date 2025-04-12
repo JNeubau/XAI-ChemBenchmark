@@ -12,6 +12,7 @@ from XAIFlow.utils.data_split import custom_data_split
 import exmol
 # from exmol import explanation
 from rdkit import Chem
+import matplotlib.pyplot as plt
 
 
 class CrossValidationLIMEPipeline:
@@ -54,6 +55,7 @@ class CrossValidationLIMEPipeline:
         self.scores = None
         self.LIME_results = None
         self.cfs = None
+        self.samples = None
 
     def tune_model(self, X_train: pd.DataFrame, y_train: pd.DataFrame, model: object, param_grid: dict | None) -> object:
         """
@@ -98,6 +100,7 @@ class CrossValidationLIMEPipeline:
         self.scores = scores
         self.LIME_results = []
         self.cfs = []
+        self.samples = []
 
     def update_scores(self, model_scores: dict):
         """
@@ -156,61 +159,75 @@ class CrossValidationLIMEPipeline:
             smiles_index = list_smiles[list_smiles == smiles].index[0]
             maccs_array = X_test.iloc[smiles_index].values.reshape(1, -1)
             lables = X_test.columns
-            print(f"SMILES: {smiles}, MACCS array: {maccs_array}")
+            # print(f"SMILES: {smiles}, MACCS array: {maccs_array}")
 
-            print(f"Prediction: {model.predict(maccs_array).flatten()}")
+            # print(f"Prediction: {model.predict(maccs_array).flatten()}")
             return model.predict(maccs_array).flatten()
 
         for i, instance in X_test.iterrows():
-            if 'OB(O)' in list_smiles.iloc[i]:
-                continue
-            if 'K' in list_smiles.iloc[i]:
-                continue
-            if 'Mg' in list_smiles.iloc[i]:
-                continue
-            if 'Na' in list_smiles.iloc[i]:
-                continue
+            if i == 0:
+                if 'OB(O)' in list_smiles.iloc[i]:
+                    continue
+                if 'K' in list_smiles.iloc[i]:
+                    continue
+                if 'Mg' in list_smiles.iloc[i]:
+                    continue
+                if 'Na' in list_smiles.iloc[i]:
+                    continue
 
-            # instance_array = instance.values.reshape(1, -1)
-            smiles = list_smiles.iloc[i]
-            # explainer = exmol.Explanation(
-            #     predict_fn=local_predict_fn,
-            #     method="lime",
-            #     num_samples=1000,       # liczba wygenerowanych perturbacji
-            #     kernel_width=0.25       # parametr jądra
-            # )
-            # explanation_result = explainer.explain_instance(instance_array)
+                # instance_array = instance.values.reshape(1, -1)
+                smiles = list_smiles.iloc[i]
+                # explainer = exmol.Explanation(
+                #     predict_fn=local_predict_fn,
+                #     method="lime",
+                #     num_samples=1000,    
+                #     kernel_width=0.25     
+                # )
+                # explanation_result = explainer.explain_instance(instance_array)
 
-            samples = exmol.sample_space(
-                smiles, 
-                local_predict_fn, 
-                batched=False,
-                #preset='chemed',
-                num_samples=10,
-                use_selfies=False)
-            
-            # if samples != None:
-            print(f"Samples: {len(samples)}")
-            # cfs = exmol.cf_explain(samples)
-            # self.cfs.append(cfs)
-            # exmol.plot_cf(cfs)
+                samples = exmol.sample_space(
+                    smiles, 
+                    local_predict_fn, 
+                    batched=False,
+                    #preset='chemed',
+                    num_samples=200,
+                    use_selfies=False)
+                
+                # if samples != None:
+                print(f"Samples: {len(samples)}")
+                # cfs = exmol.cf_explain(samples)
+                # self.cfs.append(cfs)
+                plot_path = os.path.join(self.save_dir, f"explanation_instance_{i}_{datetime.now().strftime('%H_%M_%S')}.svg")
+                # exmol.plot_cf(cfs,output_file=plot_path)
 
-            beta=exmol.lime_explain(samples, descriptor_type='MACCS', return_beta=True)
-            # plot_path = os.path.join(self.save_dir, f"lime_explanation_instance_{i}.png")
-            # import skunk
+                # exmol.plot_cf(cfs)
+                self.samples.append(samples)
 
-            # svg = exmol.plot_descriptors(samples, return_svg=True)
-            # skunk.display(svg)
-            # svg = exmol.plot_utils.similarity_map_using_tstats(samples[0], return_svg=True)
-            # skunk.display(svg)           
-            # explanation_result = exmol.plot_descriptors(samples, output_file='MACCS.png')
+                beta=exmol.lime_explain(samples, descriptor_type='MACCS', return_beta=True)
+                # import skunk
+                # plt.figure(figsize=(10, 6), dpi=300)
+                print("Plotting descriptors...")
+                
+                try:
+                    exmol.plot_descriptors(samples, output_file=plot_path)
+                except Exception as e:
+                    print(f"An error occurred while plotting descriptors: {e}")
+                # print(f"Plot saved to {plot_path}")
+                # plt.savefig("my_descriptor_plot.png", bbox_inches="tight")
+                # plt.close()
 
-            # plot_path = os.path.join(self.save_dir, f"lime_explanation_instance_{i}.png")
-            # explanation_result.save_plot(plot_path)
+                # exmol.plot_descriptors(samples)
+                # skunk.display(svg)
+                # svg = exmol.plot_utils.similarity_map_using_tstats(samples[0], return_svg=True)
+                # skunk.display(svg)           
+                # explanation_result = exmol.plot_descriptors(samples, output_file='MACCS.png')
 
-            lime_explanations.append({"smiles": list_smiles.iloc[i], "explanation": beta})
+                # plot_path = os.path.join(self.save_dir, f"lime_explanation_instance_{i}.png")
+                # explanation_result.save_plot(plot_path)
 
-        return lime_explanations
+                lime_explanations.append(beta)
+
+        return lime_explanations, samples
 
     def train_pipeline(self, model_name: str, model_path: str | None = None) -> tuple:
         """
@@ -224,7 +241,7 @@ class CrossValidationLIMEPipeline:
 
         if self.verbose:
             print(f"Training model {proper_model_name}")
-        i=0
+        # i=0
         for fold in self.folds:
             train_idx, test_idx = fold
 
@@ -243,14 +260,14 @@ class CrossValidationLIMEPipeline:
             model_scores = self.eval_model(y_pred, y_test_numpy)
             self.update_scores(model_scores)
 
-            if i == 0:
-                LIME_explanations = self.generate_lime_explanations(model, X_test, smiles['smiles'])
-                self.LIME_results.append({"fold": fold, "explanations": LIME_explanations})
-            i+=1
+            # if i == 0:
+            LIME_explanations,samples = self.generate_lime_explanations(model, X_test, smiles['smiles'])
+            self.LIME_results.append({"fold": fold[1], "explanations": LIME_explanations})
+            # i+=1
 
         results = self.aggregate_scores()
 
         if len(self.save_dir) > 0:
             self.save_results(results, proper_model_name, model.get_params())
 
-        return results, self.scores, self.LIME_results
+        return results, self.scores, self.LIME_results, self.cfs, self.samples
