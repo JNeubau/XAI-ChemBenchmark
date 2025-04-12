@@ -190,8 +190,8 @@ class CrossValidationMMACEPipeline:
                     smiles, 
                     local_predict_fn, 
                     batched=False,
-                    preset='chemed',
-                    num_samples=200,
+                    # preset='chemed',
+                    num_samples=4,
                     quiet=True,
                     use_selfies=False)
             except Exception as e:
@@ -199,24 +199,30 @@ class CrossValidationMMACEPipeline:
                 continue
             
             print(f"Samples: {len(samples)}")
-            # cfs = exmol.cf_explain(samples)
-            # self.cfs.append(cfs)
+            cfs = exmol.cf_explain(
+                samples,
+                nmols=2
+                )
+            self.cfs.append(cfs)
             plot_path = os.path.join(
                 self.save_dir, 
                 f"explanation_fold_{fold}_instance_{i}_{datetime.now().strftime('%H_%M_%S')}.svg"
 )            # exmol.plot_cf(cfs,output_file=plot_path)
+            fig = plt.figure(figsize=(10, 10))  # Adjust the figure size as needed
 
-            # exmol.plot_cf(cfs)
-            self.samples.append(samples)
-
-            print("Plotting descriptors...")
             try:
-             print(f"Plotting descriptors for {smiles}...")
+                # Pass the figure to exmol.plot_cf
+                exmol.plot_cf(samples, fig=fig, mol_size=(200, 200), mol_fontsize=10)
+                # Save the figure
+                fig.savefig(plot_path, bbox_inches="tight")
+                print(f"Plot saved to {plot_path}")
             except Exception as e:
                 print(f"An error occurred while plotting descriptors: {e}")
-            # print(f"Plot saved to {plot_path}")
+            finally:
+                # Close the figure to free up memory
+                plt.close(fig)
 
-            MMACE_explanations.append('')
+            MMACE_explanations.append(cfs)
 
         return MMACE_explanations, samples
 

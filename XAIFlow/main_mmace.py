@@ -11,7 +11,7 @@ sys.path.append(os.path.dirname(os.getcwd()))
 
 from utils.data_split import custom_data_kfold
 from utils.exportlib import save_data_to_excel_with_highlights, save_scores_to_excel_new_sheet
-from MMACE.MMACE_cross_validation import CrossValidationMMACEPipeline
+from MMACE.mmace_cross_validation_pipeline import CrossValidationMMACEPipeline
 
 
 def mainMMACEFlow():
