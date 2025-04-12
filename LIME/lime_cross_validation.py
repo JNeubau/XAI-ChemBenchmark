@@ -144,7 +144,7 @@ class CrossValidationLIMEPipeline:
         with open(save_scores_path, "a", encoding="utf-8") as f:
             f.writelines(lines)
 
-    def generate_lime_explanations(self, model, X_test: pd.DataFrame, list_smiles: pd.Series):
+    def generate_lime_explanations(self, model, X_test: pd.DataFrame, list_smiles: pd.Series,fold: int = 0) -> tuple:
         """
         Generate LIME explanations using the exmol library.
         :param model: trained model.
@@ -155,35 +155,36 @@ class CrossValidationLIMEPipeline:
         lime_explanations = []
 
         def local_predict_fn(x):
+            # print(f"Local predict function called with x: {x}")
 
-            smiles_index = list_smiles[list_smiles == smiles].index[0]
-            maccs_array = X_test.iloc[smiles_index].values.reshape(1, -1)
-            lables = X_test.columns
-            # print(f"SMILES: {smiles}, MACCS array: {maccs_array}")
+            # Generate MACCS fingerprints for the input SMILES
+            fps = [list(Chem.MACCSkeys.GenMACCSKeys(Chem.MolFromSmiles(x)).ToBitString()) for smile in x]
+            fps_df = pd.DataFrame(fps, columns=[f'maccsfingerprint{i}' for i in range(1,len(fps[0])+1)])
 
-            # print(f"Prediction: {model.predict(maccs_array).flatten()}")
-            return model.predict(maccs_array).flatten()
+            # Load the MACCS merge file and filter columns based on selected keys
+            parent_dir = os.path.dirname(os.getcwd())
+            maccs_merge_path = os.path.join(parent_dir, 'data', 'maccs_merged.csv')
+
+            if not os.path.exists(maccs_merge_path):
+                raise FileNotFoundError(f"MACCS merge file not found: {maccs_merge_path}")
+
+            maccs_merge = pd.read_csv(maccs_merge_path)
+            maccs_merge = maccs_merge.loc[:, maccs_merge.columns.str.contains('maccs', case=False)]
+            selected_keys = maccs_merge.columns.tolist()
+
+            selected_keys = [key for key in selected_keys if key in fps_df.columns]
+
+            # Filter the fingerprints DataFrame to include only the selected keys
+            filtered_fps = fps_df[selected_keys]
+
+            # Convert the filtered DataFrame to a numpy array (maccs_array)
+            maccs_array = filtered_fps.to_numpy()
+            return model.predict(maccs_array[0].reshape(1,-1)).flatten()
 
         for i, instance in X_test.iterrows():
-            # if 'OB(O)' in list_smiles.iloc[i]:
-            #     continue
-            # if 'K' in list_smiles.iloc[i]:
-            #     continue
-            # if 'Mg' in list_smiles.iloc[i]:
-            #     continue
-            # if 'Na' in list_smiles.iloc[i]:
-            #     continue
 
-            # instance_array = instance.values.reshape(1, -1)
             smiles = list_smiles.iloc[i]
-            # explainer = exmol.Explanation(
-            #     predict_fn=local_predict_fn,
-            #     method="lime",
-            #     num_samples=1000,    
-            #     kernel_width=0.25     
-            # )
-            # explanation_result = explainer.explain_instance(instance_array)
-
+           
             try:
                 samples = exmol.sample_space(
                     smiles, 
@@ -191,42 +192,39 @@ class CrossValidationLIMEPipeline:
                     batched=False,
                     #preset='chemed',
                     num_samples=200,
+                    quiet=True,
                     use_selfies=False)
             except Exception as e:
                 print(f"An error occurred while sampling space: {e}")
                 continue
             
-            # if samples != None:
             print(f"Samples: {len(samples)}")
             # cfs = exmol.cf_explain(samples)
             # self.cfs.append(cfs)
-            plot_path = os.path.join(self.save_dir, f"explanation_instance_{i}_{datetime.now().strftime('%H_%M_%S')}.svg")
-            # exmol.plot_cf(cfs,output_file=plot_path)
+            plot_path = os.path.join(
+                self.save_dir, 
+                f"explanation_fold_{fold}_instance_{i}_{datetime.now().strftime('%H_%M_%S')}.svg"
+)            # exmol.plot_cf(cfs,output_file=plot_path)
 
             # exmol.plot_cf(cfs)
             self.samples.append(samples)
 
-            beta=exmol.lime_explain(samples, descriptor_type='MACCS', return_beta=True)
-            # import skunk
-            # plt.figure(figsize=(10, 6), dpi=300)
+            beta=exmol.lime_explain(
+                samples, 
+                descriptor_type='MACCS', 
+                return_beta=True
+                )
+           
             print("Plotting descriptors...")
-            
             try:
-                exmol.plot_descriptors(samples, output_file=plot_path)
+                exmol.plot_descriptors(
+                    samples,
+                    title = str(smiles),
+                    output_file=plot_path
+                    )
             except Exception as e:
                 print(f"An error occurred while plotting descriptors: {e}")
             # print(f"Plot saved to {plot_path}")
-            # plt.savefig("my_descriptor_plot.png", bbox_inches="tight")
-            # plt.close()
-
-            # exmol.plot_descriptors(samples)
-            # skunk.display(svg)
-            # svg = exmol.plot_utils.similarity_map_using_tstats(samples[0], return_svg=True)
-            # skunk.display(svg)           
-            # explanation_result = exmol.plot_descriptors(samples, output_file='MACCS.png')
-
-            # plot_path = os.path.join(self.save_dir, f"lime_explanation_instance_{i}.png")
-            # explanation_result.save_plot(plot_path)
 
             lime_explanations.append(beta)
 
@@ -244,7 +242,7 @@ class CrossValidationLIMEPipeline:
 
         if self.verbose:
             print(f"Training model {proper_model_name}")
-        # i=0
+        foldid=0
         for fold in self.folds:
             train_idx, test_idx = fold
 
@@ -264,9 +262,10 @@ class CrossValidationLIMEPipeline:
             self.update_scores(model_scores)
 
             # if i == 0:
-            LIME_explanations,samples = self.generate_lime_explanations(model, X_test, smiles['smiles'])
+            LIME_explanations,samples = self.generate_lime_explanations(model, X_test, smiles['smiles'], fold=foldid)
             self.LIME_results.append({"fold": fold[1], "explanations": LIME_explanations})
             # i+=1
+            foldid+=1
 
         results = self.aggregate_scores()
 
