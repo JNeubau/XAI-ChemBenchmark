@@ -165,26 +165,26 @@ class CrossValidationLIMEPipeline:
             return model.predict(maccs_array).flatten()
 
         for i, instance in X_test.iterrows():
-            if i == 0:
-                if 'OB(O)' in list_smiles.iloc[i]:
-                    continue
-                if 'K' in list_smiles.iloc[i]:
-                    continue
-                if 'Mg' in list_smiles.iloc[i]:
-                    continue
-                if 'Na' in list_smiles.iloc[i]:
-                    continue
+            # if 'OB(O)' in list_smiles.iloc[i]:
+            #     continue
+            # if 'K' in list_smiles.iloc[i]:
+            #     continue
+            # if 'Mg' in list_smiles.iloc[i]:
+            #     continue
+            # if 'Na' in list_smiles.iloc[i]:
+            #     continue
 
-                # instance_array = instance.values.reshape(1, -1)
-                smiles = list_smiles.iloc[i]
-                # explainer = exmol.Explanation(
-                #     predict_fn=local_predict_fn,
-                #     method="lime",
-                #     num_samples=1000,    
-                #     kernel_width=0.25     
-                # )
-                # explanation_result = explainer.explain_instance(instance_array)
+            # instance_array = instance.values.reshape(1, -1)
+            smiles = list_smiles.iloc[i]
+            # explainer = exmol.Explanation(
+            #     predict_fn=local_predict_fn,
+            #     method="lime",
+            #     num_samples=1000,    
+            #     kernel_width=0.25     
+            # )
+            # explanation_result = explainer.explain_instance(instance_array)
 
+            try:
                 samples = exmol.sample_space(
                     smiles, 
                     local_predict_fn, 
@@ -192,40 +192,43 @@ class CrossValidationLIMEPipeline:
                     #preset='chemed',
                     num_samples=200,
                     use_selfies=False)
-                
-                # if samples != None:
-                print(f"Samples: {len(samples)}")
-                # cfs = exmol.cf_explain(samples)
-                # self.cfs.append(cfs)
-                plot_path = os.path.join(self.save_dir, f"explanation_instance_{i}_{datetime.now().strftime('%H_%M_%S')}.svg")
-                # exmol.plot_cf(cfs,output_file=plot_path)
+            except Exception as e:
+                print(f"An error occurred while sampling space: {e}")
+                continue
+            
+            # if samples != None:
+            print(f"Samples: {len(samples)}")
+            # cfs = exmol.cf_explain(samples)
+            # self.cfs.append(cfs)
+            plot_path = os.path.join(self.save_dir, f"explanation_instance_{i}_{datetime.now().strftime('%H_%M_%S')}.svg")
+            # exmol.plot_cf(cfs,output_file=plot_path)
 
-                # exmol.plot_cf(cfs)
-                self.samples.append(samples)
+            # exmol.plot_cf(cfs)
+            self.samples.append(samples)
 
-                beta=exmol.lime_explain(samples, descriptor_type='MACCS', return_beta=True)
-                # import skunk
-                # plt.figure(figsize=(10, 6), dpi=300)
-                print("Plotting descriptors...")
-                
-                try:
-                    exmol.plot_descriptors(samples, output_file=plot_path)
-                except Exception as e:
-                    print(f"An error occurred while plotting descriptors: {e}")
-                # print(f"Plot saved to {plot_path}")
-                # plt.savefig("my_descriptor_plot.png", bbox_inches="tight")
-                # plt.close()
+            beta=exmol.lime_explain(samples, descriptor_type='MACCS', return_beta=True)
+            # import skunk
+            # plt.figure(figsize=(10, 6), dpi=300)
+            print("Plotting descriptors...")
+            
+            try:
+                exmol.plot_descriptors(samples, output_file=plot_path)
+            except Exception as e:
+                print(f"An error occurred while plotting descriptors: {e}")
+            # print(f"Plot saved to {plot_path}")
+            # plt.savefig("my_descriptor_plot.png", bbox_inches="tight")
+            # plt.close()
 
-                # exmol.plot_descriptors(samples)
-                # skunk.display(svg)
-                # svg = exmol.plot_utils.similarity_map_using_tstats(samples[0], return_svg=True)
-                # skunk.display(svg)           
-                # explanation_result = exmol.plot_descriptors(samples, output_file='MACCS.png')
+            # exmol.plot_descriptors(samples)
+            # skunk.display(svg)
+            # svg = exmol.plot_utils.similarity_map_using_tstats(samples[0], return_svg=True)
+            # skunk.display(svg)           
+            # explanation_result = exmol.plot_descriptors(samples, output_file='MACCS.png')
 
-                # plot_path = os.path.join(self.save_dir, f"lime_explanation_instance_{i}.png")
-                # explanation_result.save_plot(plot_path)
+            # plot_path = os.path.join(self.save_dir, f"lime_explanation_instance_{i}.png")
+            # explanation_result.save_plot(plot_path)
 
-                lime_explanations.append(beta)
+            lime_explanations.append(beta)
 
         return lime_explanations, samples
 
