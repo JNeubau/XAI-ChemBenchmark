@@ -104,7 +104,8 @@ class CrossValidationShapIqPipeline:
         :param X_test: test data.
         :return: shap values.
         """
-        explainer = shapiq.TreeExplainer(model, index='SV', min_order=min_order, max_order=max_order)
+        explainer = shapiq.TreeExplainer(model, index='k-SII', min_order=min_order, max_order=max_order)
+        # explainer = shapiq.TreeExplainer(model, index='SV', min_order=min_order, max_order=max_order)
         # print(X_test.head())
         shap_values = []
         new_X_test = X_test.to_numpy()

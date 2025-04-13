@@ -20,7 +20,8 @@ def plot_shapiq_local(data, shap_values, plots_dir, plots_to_run=None):
         return
     
     if 'all' in plots_to_run:
-        plots_to_run = ['force', 'waterfall']
+        # plots_to_run = ['force', 'waterfall']
+        plots_to_run = ['force', 'waterfall', 'upset', 'network']
         # plots_to_run = ['force', 'waterfall', 'bar', 'upset', 'network']
     
     os.makedirs(plots_dir, exist_ok=True)
@@ -72,7 +73,7 @@ def plot_shapiq_local(data, shap_values, plots_dir, plots_to_run=None):
                     
                 if 'network' in plots_to_run:
                     # Plot network plot
-                    plt.figure(figsize=(8, 6))
+                    plt.figure(figsize=(16, 12))
                     shapiq.plot.network_plot(
                         interaction_values=shap_val,
                         feature_names=feature_names,
