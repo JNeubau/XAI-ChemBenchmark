@@ -5,9 +5,19 @@ Required: Python 3.10
 Implemented
 
 ## SHAP-IQ
+* max order = 1
+
 Implemented
 
+* max order =< 2
+
+Implemented
+
+## LIME
+In progress
+
 ## MMACE
+In progress
 
 ## MEG
 
