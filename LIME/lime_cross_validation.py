@@ -155,11 +155,9 @@ class CrossValidationLIMEPipeline:
         lime_explanations = []
 
         def local_predict_fn(x):
-            # print(f"Local predict function called with x: {x}")
-
             # Generate MACCS fingerprints for the input SMILES
-            fps = [list(Chem.MACCSkeys.GenMACCSKeys(Chem.MolFromSmiles(x)).ToBitString()) for smile in x]
-            fps_df = pd.DataFrame(fps, columns=[f'maccsfingerprint{i}' for i in range(1,len(fps[0])+1)])
+            fps = [list(Chem.MACCSkeys.GenMACCSKeys(Chem.MolFromSmiles(x)).ToBitString())]
+            fps_df = pd.DataFrame(fps, columns=[f'maccsfingerprint{i}' for i in range(1, len(fps[0]) + 1)])
 
             # Load the MACCS merge file and filter columns based on selected keys
             parent_dir = os.path.dirname(os.getcwd())
@@ -177,9 +175,12 @@ class CrossValidationLIMEPipeline:
             # Filter the fingerprints DataFrame to include only the selected keys
             filtered_fps = fps_df[selected_keys]
 
-            # Convert the filtered DataFrame to a numpy array (maccs_array)
-            maccs_array = filtered_fps.to_numpy()
-            return model.predict(maccs_array[0].reshape(1,-1)).flatten()
+            # Convert the filtered DataFrame to a labeled DataFrame for prediction
+            labeled_fps = pd.DataFrame(filtered_fps, columns=selected_keys)
+            # print(f"Labeled MACCS DataFrame:\n{labeled_fps.head()}")
+
+            # Use the labeled DataFrame for prediction
+            return model.predict(labeled_fps).flatten()
 
         for i, instance in X_test.iterrows():
 
@@ -255,7 +256,9 @@ class CrossValidationLIMEPipeline:
             model = self.tune_model(X_train, y_train, model, param_grid)
 
             model.fit(X_train, y_train[y_train.columns[0]])
+            print(f"Fold {foldid} model fitted.{X_test}")
             y_pred = model.predict(X_test).flatten()
+            print(f"Fold {foldid} predictions: {y_pred}")
 
             y_test_numpy = y_test.to_numpy().flatten()
             model_scores = self.eval_model(y_pred, y_test_numpy)
