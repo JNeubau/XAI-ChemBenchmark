@@ -43,9 +43,9 @@ def mainLimeFlow():
     )
 
     results, scores, lime_explanations,cfs,samples = cv_pipeline.train_pipeline('RFReg')
-    print("Results:", results)
-    print("Scores:", scores)
-    print("LIME explanations:", lime_explanations)
+    # print("Results:", results)
+    # print("Scores:", scores)
+    # print("LIME explanations:", lime_explanations)
 
     process_folds_local(folds, data, lime_explanations, samples)
     # smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds_local_lime(

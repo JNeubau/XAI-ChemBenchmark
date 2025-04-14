@@ -196,7 +196,7 @@ class CrossValidationLIMEPipeline:
                     quiet=True,
                     use_selfies=False)
             except Exception as e:
-                print(f"An error occurred while sampling space: {e}")
+                print(f"An error occurred while sampling space: {e}, fold {fold}, instance {i},smiles {smiles}")
                 continue
             
             print(f"Samples: {len(samples)}")
@@ -224,7 +224,7 @@ class CrossValidationLIMEPipeline:
                     output_file=plot_path
                     )
             except Exception as e:
-                print(f"An error occurred while plotting descriptors: {e}")
+                print(f"An error occurred while plotting descriptors: {e}, fold {fold}, instance {i}, smiles {smiles}")
             # print(f"Plot saved to {plot_path}")
 
             lime_explanations.append(beta)
