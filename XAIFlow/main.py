@@ -21,7 +21,7 @@ import SHAP_IQ.shapiqplot as plot_iq
 
 
 def mainXaiFlow(model, local_explanation=True, max_order_iq=1):
-    if model == 'SHAP':
+    if model != 'SHAP_IQ':
         max_order_iq = 1
     print("Model: ", model)
     parent_dir = os.path.dirname(os.getcwd())
@@ -29,7 +29,9 @@ def mainXaiFlow(model, local_explanation=True, max_order_iq=1):
     
     maccs_fingerprints = os.path.join(parent_dir, 'data', 'maccs_merged.csv')
     smarts_mapping_path = os.path.join(parent_dir, 'data', 'maccs_smarts_mapping.json')
-    if local_explanation:
+    if max_order_iq > 1:
+        explenation_type = 'local_interactions'
+    elif local_explanation:
         explenation_type = 'local'
     else:
         explenation_type = 'global'
@@ -46,7 +48,7 @@ def mainXaiFlow(model, local_explanation=True, max_order_iq=1):
     results, scores, shap_values = cv_pipeline.train_pipeline('RFReg')
     
     plots_dir = os.path.join(parent_dir, 'results', 'plots', model, explenation_type, datetime.today().strftime("%d-%m-%Y"))
-    # create_plots(plots_dir, data, model, shap_values)   
+    create_plots(plots_dir, data, model, shap_values, max_order_iq)   
     
     if max_order_iq > 1: 
         smarts_top_all, molecules_statistics_all = process_folds_local_interactions(folds, data, shap_values, smarts_mapping_path, 10)
@@ -60,7 +62,10 @@ def mainXaiFlow(model, local_explanation=True, max_order_iq=1):
     molecules_statistics_all = count_important_features(data, molecules_statistics_all)
     
     excel_data = prepare_data_for_excel_export(match_molecules_all, smarts_top_all, molecules_statistics_all)
-    save_molecules_to_excel(excel_data, results_dir)
+    if model == 'SHAP_IQ' and max_order_iq > 1:
+        save_interactions_to_excel(excel_data, results_dir)
+    else:
+        save_molecules_to_excel(excel_data, results_dir)
     
     scores_data = create_dataframe_from_scores(scores, results)
     save_scores_to_excel(scores_data, results_dir)
@@ -77,6 +82,7 @@ def create_plots(plots_dir, data, model, shap_values, max_order_iq=1):
         else:
             plot_iq.plot_shapiq_local(data, shap_values, plots_dir, ['force', 'waterfall'])
             plot_iq.plot_shapiq_fold(data, shap_values, plots_dir, ['bar'])
+    print("Plots saved to: ", plots_dir)
 
 
 def create_dataframe_from_scores(scores, results):
@@ -266,7 +272,7 @@ def process_folds_local_interactions(folds, data, shap_values, smarts_mapping_pa
 
         for molecule_idx, shap_array in enumerate(shap_f):
             # dictionary, sorted list of tuples
-            dict_interactions, sorted_top_list_interaction = shap_array.get_top_k(top_i + 1, as_interaction_values=False)
+            _, sorted_top_list_interaction = shap_array.get_top_k(top_i + 1, as_interaction_values=False)
             sorted_top_list_interaction = sorted_top_list_interaction[1:]
             print(sorted_top_list_interaction)
             feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
