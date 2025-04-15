@@ -58,11 +58,61 @@ def mainLimeFlow():
     # excel_data = prepare_data_for_excel_export(match_molecules_all, smarts_top_all, molecules_statistics_all)
     # save_molecules_to_excel(excel_data, results_dir)
 
-def process_folds_local(folds,data, lime_explanation,samples):
+def process_folds_local(folds, data, lime_explanations, samples):
     print("Processing folds for local LIME...")
 
+    # Export plots for ExMol explanations
     export_plots_exmol(samples)
-    print("Exported plots for exmol explanations.")
+    print("Exported plots for ExMol explanations.")
+
+    # Save LIME explanations to Excel
+    save_lime_explanations_to_excel(folds, data, lime_explanations)
+    print("Saved LIME explanations to Excel.")
+
+
+def save_lime_explanations_to_excel(folds, data, lime_explanations):
+    """
+    Save LIME explanations to an Excel file for the given SMILES.
+    :param folds: List of cross-validation folds.
+    :param data: Original dataset.
+    :param lime_explanations: LIME explanations for each fold.
+    """
+    results_dir = os.path.join(os.getcwd(), "lime_results")
+    os.makedirs(results_dir, exist_ok=True)
+
+    excel_data = {
+        "Fold": [],
+        "SMILES": [],
+        "Descriptor Type": [],
+        "Beta Coefficients": [],
+    }
+
+    for fold_idx, fold_explanations in enumerate(lime_explanations):
+        test_indices = folds[fold_idx][1]
+        test_smiles = data.iloc[test_indices]["smiles"].values
+
+        # Ensure the number of explanations matches the number of test SMILES
+        num_explanations = len(fold_explanations["explanations"])
+        num_test_smiles = len(test_smiles)
+
+        if num_explanations != num_test_smiles:
+            print(f"Warning: Mismatch in explanations and test SMILES for fold {fold_idx}.")
+            min_length = min(num_explanations, num_test_smiles)
+        else:
+            min_length = num_explanations
+
+        for i in range(min_length):
+            explanation = fold_explanations["explanations"][i]
+            excel_data["Fold"].append(fold_idx)
+            excel_data["SMILES"].append(test_smiles[i])
+            excel_data["Descriptor Type"].append(explanation["descriptor_type"])
+            excel_data["Beta Coefficients"].append(explanation["beta"])
+
+    # Convert to DataFrame and save to Excel
+    df = pd.DataFrame(excel_data)
+    excel_path = os.path.join(results_dir, f"lime_explanations_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
+    df.to_excel(excel_path, index=False)
+    print(f"LIME explanations saved to {excel_path}")
 
 def export_plots_exmol(sample_space):
     # exmol.plot_descriptors(sample_space)
