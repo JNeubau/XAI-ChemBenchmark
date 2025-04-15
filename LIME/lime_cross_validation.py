@@ -144,15 +144,17 @@ class CrossValidationLIMEPipeline:
         with open(save_scores_path, "a", encoding="utf-8") as f:
             f.writelines(lines)
 
-    def generate_lime_explanations(self, model, X_test: pd.DataFrame, list_smiles: pd.Series,fold: int = 0) -> tuple:
+    def generate_lime_explanations(self, model, X_test: pd.DataFrame, list_smiles: pd.Series, fold: int = 0) -> tuple:
         """
-        Generate LIME explanations using the exmol library.
+        Generate LIME explanations using the exmol library for different descriptor types.
         :param model: trained model.
         :param X_test: test data.
-        :param list_smiles: series with SMILES string dla każdej instancji.
-        :return: lista słowników z wyjaśnieniami dla poszczególnych instancji.
+        :param list_smiles: series with SMILES strings for each instance.
+        :param fold: fold number for naming files.
+        :return: list of dictionaries with explanations for each instance.
         """
         lime_explanations = []
+        descriptor_types = ["Classic", "ECFP", "MACCS"]
 
         def local_predict_fn(x):
             # Generate MACCS fingerprints for the input SMILES
@@ -177,59 +179,52 @@ class CrossValidationLIMEPipeline:
 
             # Convert the filtered DataFrame to a labeled DataFrame for prediction
             labeled_fps = pd.DataFrame(filtered_fps, columns=selected_keys)
-            # print(f"Labeled MACCS DataFrame:\n{labeled_fps.head()}")
 
             # Use the labeled DataFrame for prediction
             return model.predict(labeled_fps).flatten()
 
         for i, instance in X_test.iterrows():
-
             smiles = list_smiles.iloc[i]
-           
+
             try:
                 samples = exmol.sample_space(
-                    smiles, 
-                    local_predict_fn, 
+                    smiles,
+                    local_predict_fn,
                     batched=False,
-                    #preset='chemed',
                     num_samples=200,
                     quiet=True,
-                    use_selfies=False)
+                    use_selfies=False
+                )
             except Exception as e:
-                print(f"An error occurred while sampling space: {e}, fold {fold}, instance {i},smiles {smiles}")
+                print(f"An error occurred while sampling space: {e}, fold {fold}, instance {i}, smiles {smiles}")
                 continue
-            
-            print(f"Samples: {len(samples)}")
-            # cfs = exmol.cf_explain(samples)
-            # self.cfs.append(cfs)
-            plot_path = os.path.join(
-                self.save_dir, 
-                f"explanation_fold_{fold}_instance_{i}_{datetime.now().strftime('%H_%M_%S')}.svg"
-)            # exmol.plot_cf(cfs,output_file=plot_path)
 
-            # exmol.plot_cf(cfs)
+            print(f"Samples: {len(samples)}")
             self.samples.append(samples)
 
-            beta=exmol.lime_explain(
-                samples, 
-                descriptor_type='MACCS', 
-                return_beta=True
-                )
-           
-            print("Plotting descriptors...")
-            try:
-                exmol.plot_descriptors(
-                    samples,
-                    title = str(smiles),
-                    output_file=plot_path
+            for desc_type in descriptor_types:
+                try:
+                    beta = exmol.lime_explain(samples, descriptor_type=desc_type, return_beta=True)
+                    desc_folder = os.path.join(self.save_dir, f"descriptors_{desc_type}")
+                    os.makedirs(desc_folder, exist_ok=True)
+
+                    plot_path = os.path.join(
+                        desc_folder,
+                        f"explanation_fold_{fold}_instance_{i}_{datetime.now().strftime('%H_%M_%S')}.svg"
                     )
-            except Exception as e:
-                print(f"An error occurred while plotting descriptors: {e}, fold {fold}, instance {i}, smiles {smiles}")
-            # print(f"Plot saved to {plot_path}")
 
-            lime_explanations.append(beta)
+                    print(f"Plotting descriptors for {desc_type}...")
+                    exmol.plot_descriptors(
+                        samples,
+                        title=f"{smiles} - {desc_type}",
+                        output_file=plot_path
+                    )
+                except Exception as e:
+                    print(f"An error occurred while plotting descriptors for {desc_type}: {e}, fold {fold}, instance {i}, smiles {smiles}")
 
-        return lime_explanations, samples
+                lime_explanations.append({"descriptor_type": desc_type, "beta": beta})
+
+        return lime_explanations, self.samples
 
     def train_pipeline(self, model_name: str, model_path: str | None = None) -> tuple:
         """

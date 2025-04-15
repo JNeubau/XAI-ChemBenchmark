@@ -6,20 +6,18 @@ LIME (Local Interpretable Model-agnostic Explanations) is a technique used to ex
 
 ---
 
-## **LIME Cross-Validation Pipeline**
-
-### **Purpose**
+## **Purpose**
 The `CrossValidationLIMEPipeline` class is designed to:
 1. Train machine learning models using cross-validation.
 2. Evaluate model performance using specified metrics.
 3. Generate LIME explanations for individual predictions.
-4. Visualize and save the explanations and chemical space.
+4. Visualize and save the explanations and chemical space for different descriptor types.
 
 ---
 
-### **Key Components**
+## **Key Components**
 
-#### **1. Initialization**
+### **1. Initialization**
 The pipeline is initialized with the following parameters:
 - **`X`**: DataFrame containing feature data.
 - **`y`**: DataFrame containing the target variable.
@@ -31,7 +29,9 @@ The pipeline is initialized with the following parameters:
 - **`hyperparam_opt`**: Boolean indicating whether to perform hyperparameter optimization.
 - **`verbose`**: Boolean for printing detailed logs.
 
-#### **2. Model Training**
+---
+
+### **2. Model Training**
 The `train_pipeline` method:
 1. Splits the data into training and testing sets for each fold.
 2. Tunes the model using grid search (if `hyperparam_opt` is enabled).
@@ -39,54 +39,65 @@ The `train_pipeline` method:
 4. Evaluates the model on the test set using the specified metrics.
 5. Generates LIME explanations for the test set.
 
-#### **3. LIME Explanation Generation**
+---
 
-#### **Usage Example**
-```python
-beta = exmol.lime_explain(
-    examples,
-    descriptor_type='MACCS',
-    return_beta=True
-)
-```
-
+### **3. LIME Explanation Generation**
 The `generate_lime_explanations` method:
 1. Uses the `exmol` library to sample the chemical space around a given molecule.
 2. Generates MACCS fingerprints for the sampled molecules.
 3. Filters the fingerprints based on selected keys from a reference file (`maccs_merged.csv`).
 4. Uses the filtered fingerprints to make predictions with the trained model.
-5. Generates LIME explanations and visualizes them using `exmol.plot_descriptors`.
+5. Generates LIME explanations for different descriptor types (`Classic`, `ECFP`, `MACCS`).
+6. Saves the explanations and visualizations in separate folders for each descriptor type.
 
-#### **4. Visualization**
-The pipeline saves the following visualizations:
-- **Descriptor Plots**: Visualize the importance of features (e.g., MACCS keys) for individual predictions.
-- **Chemical Space Plots**: Visualize the sampled chemical space and counterfactuals using `exmol.plot_space`.
+#### **Descriptor Types**
+The pipeline supports the following descriptor types:
+- **`Classic`**: Classic molecular descriptors.
+- **`ECFP`**: Extended Connectivity Fingerprints.
+- **`MACCS`**: Molecular ACCess System keys.
+
+#### **Visualization**
+- Descriptor plots are saved in separate folders for each descriptor type.
+- Example folder structure:
+  ```
+  save_dir/
+  ├── descriptors_Classic/
+  │   ├── explanation_fold_0_instance_0.svg
+  │   ├── explanation_fold_0_instance_1.svg
+  ├── descriptors_ECFP/
+  │   ├── explanation_fold_0_instance_0.svg
+  │   ├── explanation_fold_0_instance_1.svg
+  ├── descriptors_MACCS/
+  │   ├── explanation_fold_0_instance_0.svg
+  │   ├── explanation_fold_0_instance_1.svg
+  ```
 
 ---
 
-## **Workflow**
+### **4. Workflow**
 
-### **1. Data Preparation**
+#### **1. Data Preparation**
 - Input data includes:
   - Feature matrix (`X`).
   - Target variable (`y`).
   - SMILES strings (`z`).
 - The data is split into training and testing sets using cross-validation.
 
-### **2. Model Training**
+#### **2. Model Training**
 - A machine learning model (e.g., Random Forest) is trained on the training set.
 - Hyperparameter optimization is performed using grid search.
 
-### **3. Explanation Generation**
+#### **3. Explanation Generation**
 - For each test instance:
   1. The chemical space is sampled using `exmol.sample_space`.
   2. MACCS fingerprints are generated for the sampled molecules.
   3. The fingerprints are filtered based on the selected keys.
   4. Predictions are made using the filtered fingerprints.
-  5. LIME explanations are generated using `exmol.lime_explain`.
+  5. LIME explanations are generated for each descriptor type.
+  6. Visualizations are saved in separate folders for each descriptor type.
 
-### **4. Visualization**
-- Descriptor plots are saved as `.svg` files.
+#### **4. Visualization**
+- Descriptor plots are saved as `.svg` files in their respective folders.
 
 ---
 
@@ -113,7 +124,7 @@ A local prediction function used by LIME to make predictions for sampled molecul
 #### **Steps**
 1. Generate MACCS fingerprints for the input SMILES strings.
 2. Filter the fingerprints based on the selected keys.
-3. Convert the filtered fingerprints to a NumPy array.
+3. Convert the filtered fingerprints to a labeled DataFrame.
 4. Use the trained model to make predictions.
 
 ---
