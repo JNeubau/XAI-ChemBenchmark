@@ -4,6 +4,7 @@ import copy
 from typing import Any, Iterable
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 import os
 from datetime import datetime
 from XAIFlow.AI_models.models import Models
@@ -74,22 +75,34 @@ class CrossValidationLimePipeline:
                 print(f"Best score: {best_score}\n Best params: {best_params}")
         return model
 
-    @staticmethod
+    @staticmethod 
     def explain_model(model: object, X_test: pd.DataFrame, expainer: object) -> Iterable:
         """
-        Explain the model.
+        Explain the model and save explanation plots.
         :param model: prediction model.
         :param X_test: test data.
+        :param expainer: LIME explainer object
         :return: lime values.
-        # """
-        lime_values=[]
-        for i in enumerate(X_test.values):
-            print(f"instance {i}, {X_test.values[i]}")
-            lime_value = expainer.explain_instance(X_test.values[i], model.predict, num_features=5)
-            lime_value = lime_value.as_list()
+        """
+        lime_values = []
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        
+        for idx, instance in enumerate(X_test.values):
+            print(f"instance {idx}, {instance}")
+            # Get explanation
+            lime_explanation = expainer.explain_instance(instance, model.predict, num_features=5)
+            lime_value = lime_explanation.as_list()
             lime_values.append(lime_value)
+            
+            # Save explanation plot
+            fig = lime_explanation.as_pyplot_figure()
+            fig.suptitle(f'LIME Explanation for Instance {idx}')
+            save_path = f'lime_explanation_{idx}_{timestamp}.png'
+            fig.savefig(save_path, bbox_inches='tight', dpi=300)
+            plt.close(fig)
+            
             print(lime_values)
-        # lime_values = []
+        
         return lime_values
 
     def update_lime(self, model: object, X_test: pd.DataFrame, explainer: object):
