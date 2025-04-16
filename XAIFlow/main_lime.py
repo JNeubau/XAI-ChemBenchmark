@@ -96,7 +96,7 @@ def save_lime_explanations_to_excel(folds, data, lime_explanations):
         num_test_smiles = len(test_smiles)
 
         if num_explanations != num_test_smiles:
-            print(f"Warning: Mismatch in explanations and test SMILES for fold {fold_idx}.")
+            # print(f"Warning: Mismatch in explanations and test SMILES for fold {fold_idx}.")
             min_length = min(num_explanations, num_test_smiles)
         else:
             min_length = num_explanations
