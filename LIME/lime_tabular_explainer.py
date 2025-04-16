@@ -22,6 +22,7 @@ class CrossValidationLimePipeline:
             self,
             X: pd.DataFrame,
             y: pd.DataFrame,
+            z: pd.Series,  # SMILES data
             folds: list,
             metrics: list,
             save_dir: str,
@@ -33,8 +34,7 @@ class CrossValidationLimePipeline:
         Initialize the cross-validation pipeline.
         :param X: dataframe with features.
         :param y: dataframe with target variable.
-        :param numerical_features: list with numerical features.
-        :param categorical_features: list with categorical features.
+        :param z: Series with SMILES strings.
         :param folds: list with cross-validation folds.
         :param metrics: list with metrics to evaluate.
         :param save_dir: path to save scores.
@@ -43,6 +43,7 @@ class CrossValidationLimePipeline:
         """
         self.X = X
         self.y = y
+        self.z = z  # Store SMILES data
         self.folds = folds
         self.data_name = data_name
         self.save_dir = save_dir
@@ -76,32 +77,49 @@ class CrossValidationLimePipeline:
         return model
 
     @staticmethod 
-    def explain_model(model: object, X_test: pd.DataFrame, expainer: object) -> Iterable:
+    def explain_model(model: object, X_test: pd.DataFrame, expainer: object, smiles_list: pd.Series) -> Iterable:
         """
         Explain the model and save explanation plots.
         :param model: prediction model.
         :param X_test: test data.
         :param expainer: LIME explainer object
+        :param smiles_list: Series containing SMILES strings for molecules
         :return: lime values.
         """
         lime_values = []
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         
-        for idx, instance in enumerate(X_test.values):
-            print(f"instance {idx}, {instance}")
+        # Create plots directory
+        plots_dir = os.path.join(os.getcwd(), "lime_explanations")
+        os.makedirs(plots_dir, exist_ok=True)
+        
+        for idx, (instance, smiles) in enumerate(zip(X_test.values, smiles_list)):
+            print(f"Processing molecule {idx}, SMILES: {smiles}")
             # Get explanation
             lime_explanation = expainer.explain_instance(instance, model.predict, num_features=5)
             lime_value = lime_explanation.as_list()
             lime_values.append(lime_value)
             
-            # Save explanation plot
-            fig = lime_explanation.as_pyplot_figure()
-            fig.suptitle(f'LIME Explanation for Instance {idx}')
-            save_path = f'lime_explanation_{idx}_{timestamp}.png'
-            fig.savefig(save_path, bbox_inches='tight', dpi=300)
-            plt.close(fig)
-            
-            print(lime_values)
+            try:
+                # Save explanation plot
+                fig = lime_explanation.as_pyplot_figure()
+                fig.suptitle(f'LIME Explanation for SMILES: {smiles}')
+                
+                # Create more detailed filename with timestamp and SMILES
+                plot_path = os.path.join(
+                    plots_dir,
+                    f"lime_explanation_SMILES_{idx}_{timestamp}.svg"
+                )
+                
+                # Save high quality vector graphics
+                fig.savefig(plot_path, bbox_inches='tight', dpi=300, format='svg')
+                plt.close(fig)
+                
+                if lime_values:
+                    print(f"Explanation saved for SMILES {smiles} at {plot_path}")
+                    
+            except Exception as e:
+                print(f"An error occurred while saving explanation for SMILES {smiles}: {e}")
         
         return lime_values
 
@@ -111,7 +129,9 @@ class CrossValidationLimePipeline:
         :param model: prediction model.
         :param X_test: test data.
         """
-        lime_values = self.explain_model(model, X_test,explainer)
+        # Get SMILES from the test data index
+        smiles_list = self.z.loc[X_test.index]
+        lime_values = self.explain_model(model, X_test, explainer, smiles_list)
         self.lime_values.append(lime_values)
 
     def eval_model(self, y_pred: np.array, y_test: np.array) -> dict:

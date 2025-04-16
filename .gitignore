@@ -176,3 +176,4 @@ cython_debug/
 .pypirc
 /XAIFlow/png
 /XAIFlow/results
+XAIFlow/lime_explanations
