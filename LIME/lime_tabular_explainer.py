@@ -90,7 +90,7 @@ class CrossValidationLimePipeline:
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         
         # Create plots directory
-        plots_dir = os.path.join(os.getcwd(), "lime_explanations")
+        plots_dir = os.path.join(os.getcwd(), "lime_explanations",timestamp)
         os.makedirs(plots_dir, exist_ok=True)
         
         for idx, (instance, smiles) in enumerate(zip(X_test.values, smiles_list)):
@@ -230,8 +230,8 @@ class CrossValidationLimePipeline:
             feature_names = list(X_train.columns)
 
         # Fit the Explainer on the training data set using the LimeTabularExplainer
-            explainer = lime.lime_tabular.LimeTabularExplainer(X_train.values, feature_names =     
-                                        feature_names,
+            explainer = lime.lime_tabular.LimeTabularExplainer(X_train.values, 
+                                        feature_names = feature_names,
                                         mode = 'regression',
                                         random_state=42,
                                         )

@@ -14,15 +14,15 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.dirname(os.getcwd()))
 
 from LIME.lime_tabular_explainer import CrossValidationLimePipeline
-# from SHAP.shap_cross_validation import CrossValidationShapPipeline
-# # from SHAP.shapplot import generate_shap_plots
-# import SHAP.shapplot as plot_shap
-# from SHAP_IQ.shapiq_cross_validation import CrossValidationShapIqPipeline
-# import SHAP_IQ.shapiqplot as plot_iq
+# from LIME.lime_cross_validation import CrossValidationLimePipeline
+# # from LIME.limeplot import generate_lime_plots
+# import LIME.limeplot as plot_lime
+# from LIME_IQ.limeiq_cross_validation import CrossValidationLimeIqPipeline
+# import LIME_IQ.limeiqplot as plot_iq
 
 
 def mainXaiFlow(model, local_explanation=True, max_order_iq=1):
-    if model != 'SHAP_IQ':
+    if model != 'LIME':
         max_order_iq = 1
     print("Model: ", model)
     parent_dir = os.path.dirname(os.getcwd())
@@ -30,12 +30,7 @@ def mainXaiFlow(model, local_explanation=True, max_order_iq=1):
     
     maccs_fingerprints = os.path.join(parent_dir, 'data', 'maccs_merged.csv')
     smarts_mapping_path = os.path.join(parent_dir, 'data', 'maccs_smarts_mapping.json')
-    if max_order_iq > 1:
-        explenation_type = 'local_interactions'
-    elif local_explanation:
-        explenation_type = 'local'
-    else:
-        explenation_type = 'global'
+    explenation_type = 'local'    
     results_dir = os.path.join(parent_dir, 'results', 'battery', model, explenation_type, datetime.today().strftime("%d-%m-%Y"))
     
     data = pd.read_csv(maccs_fingerprints, index_col=0)
@@ -46,24 +41,24 @@ def mainXaiFlow(model, local_explanation=True, max_order_iq=1):
 
     # Train the model
     cv_pipeline = select_pipeline(model, data, folds, max_order_iq)
-    results, scores, shap_values = cv_pipeline.train_pipeline('RFReg')
+    results, scores, lime_values = cv_pipeline.train_pipeline('RFReg')
     
     # plots_dir = os.path.join(parent_dir, 'results', 'plots', model, explenation_type, datetime.today().strftime("%d-%m-%Y"))
-    # create_plots(plots_dir, data, model, shap_values, max_order_iq)   
+    # create_plots(plots_dir, data, model, lime_values, max_order_iq)   
     
     # if max_order_iq > 1: 
-    #     smarts_top_all, molecules_statistics_all = process_folds_local_interactions(folds, data, shap_values, smarts_mapping_path, 10)
+    #     smarts_top_all, molecules_statistics_all = process_folds_local_interactions(folds, data, lime_values, smarts_mapping_path, 10)
     #     match_molecules_all = {}
     # else:
-    #     if model == 'SHAP_IQ':
-    #         shap_values = [np.array(shap_values[i]) for i in range(len(shap_values))]
-    smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation)
+    #     if model == 'LIME_IQ':
+    #         lime_values = [np.array(lime_values[i]) for i in range(len(lime_values))]
+    smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, lime_values, smarts_mapping_path, local_explanation)
     # molecules_statistics_all = predict_capacity(cv_pipeline, smarts_top_all, molecules_statistics_all)
     # molecules_statistics_all = count_molecules_with_fingerprint(data, molecules_statistics_all)
     # molecules_statistics_all = count_important_features(data, molecules_statistics_all)
     
     # excel_data = prepare_data_for_excel_export(match_molecules_all, smarts_top_all, molecules_statistics_all)
-    # if model == 'SHAP_IQ' and max_order_iq > 1:
+    # if model == 'LIME_IQ' and max_order_iq > 1:
     #     save_interactions_to_excel(excel_data, results_dir)
     # else:
     # save_molecules_to_excel(excel_data, results_dir)
@@ -72,17 +67,17 @@ def mainXaiFlow(model, local_explanation=True, max_order_iq=1):
     # save_scores_to_excel(scores_data, results_dir)
     
 
-# def create_plots(plots_dir, data, model, shap_values, max_order_iq=1):
-#     if model == 'SHAP':
-#         plot_shap.generate_shap_plots_folds(data,shap_values, plots_dir,['all'])
-#         plot_shap.generate_shap_plots_local(data, shap_values, plots_dir, ['force', 'waterfall'])
-#     if model == 'SHAP_IQ':
+# def create_plots(plots_dir, data, model, lime_values, max_order_iq=1):
+#     if model == 'LIME':
+#         plot_lime.generate_lime_plots_folds(data,lime_values, plots_dir,['all'])
+#         plot_lime.generate_lime_plots_local(data, lime_values, plots_dir, ['force', 'waterfall'])
+#     if model == 'LIME_IQ':
 #         if max_order_iq > 1:
-#             plot_iq.plot_shapiq_local(data, shap_values, plots_dir, ['all'])
-#             plot_iq.plot_shapiq_fold(data, shap_values, plots_dir, ['bar'])
+#             plot_iq.plot_limeiq_local(data, lime_values, plots_dir, ['all'])
+#             plot_iq.plot_limeiq_fold(data, lime_values, plots_dir, ['bar'])
 #         else:
-#             plot_iq.plot_shapiq_local(data, shap_values, plots_dir, ['force', 'waterfall'])
-#             plot_iq.plot_shapiq_fold(data, shap_values, plots_dir, ['bar'])
+#             plot_iq.plot_limeiq_local(data, lime_values, plots_dir, ['force', 'waterfall'])
+#             plot_iq.plot_limeiq_fold(data, lime_values, plots_dir, ['bar'])
 #     print("Plots saved to: ", plots_dir)
 
 
@@ -124,8 +119,8 @@ def predict_capacity(pipeline, data, molecules_statistics_all):
 
 def select_pipeline(model, data, folds, max_order_iq=1):
     match model:
-        # case 'SHAP':
-        #     return CrossValidationShapPipeline(
+        # case 'LIME':
+        #     return CrossValidationLimePipeline(
         #         X=data.drop(columns=['capacity_max', 'smiles']),
         #         y=data[['capacity_max']],
         #         folds=folds,
@@ -134,8 +129,8 @@ def select_pipeline(model, data, folds, max_order_iq=1):
         #         data_name='battery',
         #         verbose=True
         #     )
-        # case 'SHAP_IQ':
-        #     return CrossValidationShapIqPipeline(
+        # case 'LIME_IQ':
+        #     return CrossValidationLimeIqPipeline(
         #         X=data.drop(columns=['capacity_max', 'smiles']),
         #         y=data[['capacity_max']],
         #         folds=folds,
@@ -150,6 +145,7 @@ def select_pipeline(model, data, folds, max_order_iq=1):
             return CrossValidationLimePipeline(
                 X=data.drop(columns=['capacity_max', 'smiles']),
                 y=data[['capacity_max']],
+                z=data['smiles'],
                 folds=folds,
                 metrics=['smape', 'pairwise_accuracy_score', 'rmse', 'ndcg_score'],
                 save_dir='',
@@ -173,8 +169,8 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
         "number_of_molecules_where_fingerprint": [],
         "Number_where_important": [],
         'feature_in_smiles': [],
-        "Shap_value": [],
-        "shap_sign": [],
+        "Lime_value": [],
+        "lime_sign": [],
         "Capacity Max": [],
         "Capacity Pred": [],
     }
@@ -192,8 +188,8 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
         excel_data["number_of_molecules_where_fingerprint"].append(molecules_statistics_all[key]["number_of_molecules_where_fingerprint"])
         excel_data["Number_where_important"].append(molecules_statistics_all[key]["number_where_important"])
         excel_data["feature_in_smiles"].append(molecules_statistics_all[key]["feature_in_smiles"])
-        excel_data["Shap_value"].append(molecules_statistics_all[key]["shap_value"])
-        excel_data["shap_sign"].append(molecules_statistics_all[key]["shap_sign"])
+        excel_data["Lime_value"].append(molecules_statistics_all[key]["lime_value"])
+        excel_data["lime_sign"].append(molecules_statistics_all[key]["lime_sign"])
         excel_data["Capacity Max"].append(molecules_statistics_all[key]["capacity_max"])
         excel_data["Capacity Pred"].append(molecules_statistics_all[key]["capacity_pred"])
         bbbb+=1
@@ -219,36 +215,33 @@ def save_scores_to_excel(scores_data, results_dir):
     print(f"Scores saved to {results_dir}")
     
 
-def process_folds_local(folds, data, shap_values, smarts_mapping_path, top_i=5):
+def process_folds_local(folds, data, lime_values, smarts_mapping_path, top_i=5):
     smarts_top_all = {}
     match_molecules_all = {}
     molecules_statistics_all = {}
     for i, fold in enumerate(folds):
         test_f = data.loc[fold[1]]
-        lime_f = shap_values[i]
+        lime_f = lime_values[i]
 
         # for i in enumerate()
-        # print("Fold:", i)
-        # print("Test fold:", test_f.head())
-        # print("SHAP values:", shap_f)
 
-        for molecule_idx, lime_array in enumerate(lime_f):
+        # for molecule_idx, lime_array in enumerate(lime_f):
             # dictionary, sorted list of tuples
-            # _, sorted_top_list = shap_array.get_top_k(top_i + 1, as_interaction_values=False)
+            # _, sorted_top_list = lime_array.get_top_k(top_i + 1, as_interaction_values=False)
             # sorted_top_list = sorted_top_list[1:]
-            print(lime_array[molecule_idx])
+            # print(lime_array[molecule_idx])
             # print("Sorted top list:", sorted_top_list)
 
-            # Extract the feature names and their corresponding SHAP values
+            # Extract the feature names and their corresponding LIME values
             # feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
             # top_10_feature_names = [feature_names[i[0]] for i in sorted_top_list]
 
             # with open(smarts_mapping_path, 'r') as f:
             #     smarts_mapping = json.load(f)
         #     feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
-        #     abs_shap_values = np.abs(shap_array)
-        #     top_10_indices = np.argsort(abs_shap_values)[-top_i:][::-1]
-        #     top_10_indices = [idx for idx in top_10_indices if abs_shap_values[idx] != 0]
+        #     abs_lime_values = np.abs(lime_array)
+        #     top_10_indices = np.argsort(abs_lime_values)[-top_i:][::-1]
+        #     top_10_indices = [idx for idx in top_10_indices if abs_lime_values[idx] != 0]
         #     top_10_feature_names = [feature_names[i] for i in top_10_indices]
 
         #     with open(smarts_mapping_path, 'r') as f:
@@ -263,8 +256,8 @@ def process_folds_local(folds, data, shap_values, smarts_mapping_path, top_i=5):
         #     molecules_statistics = {s: {
         #         "number_of_molecules_where_fingerprint": 0,
         #         "number_where_important": 0,
-        #         "shap_value": 0,
-        #         "shap_sign": '',
+        #         "lime_value": 0,
+        #         "lime_sign": '',
         #         "feature_in_smiles": False,
         #         "capacity_max": test_f.iloc[molecule_idx]['capacity_max'],
         #         "capacity_pred": 0
@@ -280,8 +273,8 @@ def process_folds_local(folds, data, shap_values, smarts_mapping_path, top_i=5):
         #         #     molecules_statistics[key]["number_where_important"] = count_mol_with_fingerprint
         #         # else:
         #         # #     molecules_statistics[key]["number_where_important"] = molecules_statistics_all[key]["number_where_important"] + count_mol_with_fingerprint
-        #         # molecules_statistics[key]["shap_value"] = abs(shap_array[feature_names.index(key[2])])
-        #         # molecules_statistics[key]["shap_sign"] = 'Positive' if shap_array[feature_names.index(key[2])] >= 0 else 'Negative'
+        #         # molecules_statistics[key]["lime_value"] = abs(lime_array[feature_names.index(key[2])])
+        #         # molecules_statistics[key]["lime_sign"] = 'Positive' if lime_array[feature_names.index(key[2])] >= 0 else 'Negative'
         #         # molecules_statistics[key]["feature_in_smiles"] = bool(data.loc[data['smiles'] == key[1], key[2]].values[0] == 1)
 
         #     smarts_top_all.update(smarts_top10)
@@ -290,113 +283,9 @@ def process_folds_local(folds, data, shap_values, smarts_mapping_path, top_i=5):
 
     return smarts_top_all, match_molecules_all, molecules_statistics_all
 
-
-def process_folds_local_interactions(folds, data, shap_values, smarts_mapping_path, top_i=10):
-    smarts_top_all = {}
-    match_molecules_all = {}
-    molecules_statistics_all = {}
-    for i, fold in enumerate(folds):
-        test_f = data.loc[fold[1]]
-        shap_f = shap_values[i]
-
-        for molecule_idx, shap_array in enumerate(shap_f):
-            # dictionary, sorted list of tuples
-            _, sorted_top_list_interaction = shap_array.get_top_k(top_i + 1, as_interaction_values=False)
-            sorted_top_list_interaction = sorted_top_list_interaction[1:]
-            print(sorted_top_list_interaction)
-            feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
-            top_10_feature_names = [
-                ([feature_names[j] for j in i[0]], i[1]) for i in sorted_top_list_interaction
-            ]
-
-            with open(smarts_mapping_path, 'r') as f:
-                smarts_mapping = json.load(f)
-
-            smarts_top10 = {
-                (i, test_f.iloc[molecule_idx]['smiles'], tuple(feature)): [
-                    smarts_mapping[f'maccsfingerprint{int(f.replace("maccsfingerprint", "")) + 1}'][0]
-                    for f in feature
-                ]
-                for feature, _ in top_10_feature_names
-            }
-
-            molecules_statistics = {s: {
-                "number_of_molecules_where_fingerprint": 0,
-                "number_where_important": 0,
-                "shap_value": 0,
-                "shap_sign": '',
-                "feature_in_smiles": False ,
-                "capacity_max": test_f.iloc[molecule_idx]['capacity_max'],
-                "capacity_pred": 0
-            } for s in smarts_top10.keys()}
-            
-            for key, value in smarts_top10.items():
-                for feature, shap_value in top_10_feature_names:
-                    if list(key[2]) == feature:
-                        molecules_statistics[key]["shap_value"] = abs(shap_value)
-                        molecules_statistics[key]["shap_sign"] = 'Positive' if shap_value >= 0 else 'Negative'
-                        molecules_statistics[key]["feature_in_smiles"] = [
-                            bool(data.loc[data['smiles'] == key[1], f].values[0] == 1) for f in key[2]
-                        ]
-                        break
-
-            smarts_top_all.update(smarts_top10)
-            molecules_statistics_all.update(molecules_statistics)
-
-    return smarts_top_all, molecules_statistics_all
-
-
-def process_folds_global(folds, data, shap_values, smarts_mapping_path, top_i=10):
-    smarts_top_all = {}
-    match_molecules_all = {}
-    molecules_statistics_all = {}  # Initialize molecules_statistics_all
-
-    for i, fold in enumerate(folds):
-        test_f = data.loc[fold[1]]
-        shap_f = shap_values[i]
-        feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
-        mean_abs_shap_values = np.mean(np.abs(shap_f), axis=0)
-        top_i_indices = np.argsort(mean_abs_shap_values)[-top_i:][::-1]
-        top_i_indices = [idx for idx in top_i_indices if mean_abs_shap_values[idx] != 0]
-        top_i_feature_names = [feature_names[i] for i in top_i_indices]
-
-        with open(smarts_mapping_path, 'r') as f:
-            smarts_mapping = json.load(f)
-
-        smarts_topi = {
-            (i, match_molecule_global(feature,test_f,data), feature): smarts_mapping[f'maccsfingerprint{int(feature.replace("maccsfingerprint", ""))+1}'][0]
-            for feature in top_i_feature_names
-        }
-        # print("SMARTS Top 10:", smarts_topi)
-
-        match_molecules = {key: [] for key in smarts_topi.keys()}
-        molecules_statistics = {s: {
-            "number_of_molecules_where_fingerprint": 0,
-            "number_where_important": 0,
-            "shap_value": mean_abs_shap_values[feature_names.index(s[2])],
-            "shap_sign": '',
-            "feature_in_smiles": True,
-            "capacity_max": 0,
-            "capacity_pred": 0
-        } for s in smarts_topi.keys()}
-
-        for key in molecules_statistics.keys():
-            feature = key[2]
-            shap_values_for_feature = shap_f[:, feature_names.index(feature)]
-            capacity_values = test_f['capacity_max'].values
-            df = pd.DataFrame({
-                'shap_values': shap_values_for_feature,
-                'capacity_values': capacity_values
-            })
-            correlation = df.corr(method='spearman').loc['shap_values', 'capacity_values']
-            molecules_statistics[key]["shap_sign"] = f'Positive|{correlation}' if correlation > 0 else f'Negative|{correlation}'
-
-        smarts_top_all.update(smarts_topi)
-        match_molecules_all.update(match_molecules)
-        molecules_statistics_all.update(molecules_statistics)  # Update molecules_statistics_all
-
-    molecules_statistics_all = number_where_important_global(molecules_statistics_all,match_molecules_all)
-    return smarts_top_all, match_molecules_all, molecules_statistics_all
+def process_folds_global(folds, data, lime_values, smarts_mapping_path, top_i=10):
+   
+    return 0
 
 
 def match_molecule_global(feature, test_f, full_data):
@@ -440,15 +329,14 @@ def number_where_important_global(molecules_statistics_all, match_molecules_all)
 
     return molecules_statistics_all
 
-def process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation=True):
+def process_folds(folds, data, lime_values, smarts_mapping_path, local_explanation=True):
     if local_explanation:
-        return process_folds_local(folds, data, shap_values, smarts_mapping_path)
+        return process_folds_local(folds, data, lime_values, smarts_mapping_path)
     else:
-        return process_folds_global(folds, data, shap_values, smarts_mapping_path)
+        return process_folds_global(folds, data, lime_values, smarts_mapping_path)
 
 
 if __name__ == '__main__':
-    model = ['LIME'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
+    model = ['LIME'] 
     local_explanation = True
-    # max_order_iq = 2
     [mainXaiFlow(m, local_explanation) for m in model]
