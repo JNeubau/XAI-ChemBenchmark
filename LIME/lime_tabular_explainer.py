@@ -88,11 +88,12 @@ class CrossValidationLimePipeline:
         """
         lime_values = []
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        timestampdir = datetime.now().strftime('%Y%m%d')
         
         # Create plots directory
-        plots_dir = os.path.join(os.getcwd(), "lime_explanations",timestamp)
+        plots_dir = os.path.join(os.getcwd(), "lime_explanations",timestampdir)
         os.makedirs(plots_dir, exist_ok=True)
-        
+        f=0
         for idx, (instance, smiles) in enumerate(zip(X_test.values, smiles_list)):
             print(f"Processing molecule {idx}, SMILES: {smiles}")
             # Get explanation
@@ -108,7 +109,7 @@ class CrossValidationLimePipeline:
                 # Create more detailed filename with timestamp and SMILES
                 plot_path = os.path.join(
                     plots_dir,
-                    f"lime_explanation_SMILES_{idx}_{timestamp}.svg"
+                    f"lime_explanation_SMILES_{f}_{idx}_{timestamp}.svg"
                 )
                 
                 # Save high quality vector graphics
@@ -121,6 +122,7 @@ class CrossValidationLimePipeline:
             except Exception as e:
                 print(f"An error occurred while saving explanation for SMILES {smiles}: {e}")
         
+            f += 1
         return lime_values
 
     def update_lime(self, model: object, X_test: pd.DataFrame, explainer: object):
