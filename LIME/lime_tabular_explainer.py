@@ -77,7 +77,7 @@ class CrossValidationLimePipeline:
         return model
 
     @staticmethod 
-    def explain_model(model: object, X_test: pd.DataFrame, expainer: object, smiles_list: pd.Series) -> Iterable:
+    def explain_model(model: object, X_test: pd.DataFrame, expainer: object, smiles_list: pd.Series,f: int) -> Iterable:
         """
         Explain the model and save explanation plots.
         :param model: prediction model.
@@ -88,12 +88,13 @@ class CrossValidationLimePipeline:
         """
         lime_values = []
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        timestampdir = datetime.now().strftime('%Y%m%d')
-        
+        # timestampdir = datetime.now().strftime('%Y%m%d')
+        parent_dir = os.path.dirname(os.getcwd())
+
         # Create plots directory
-        plots_dir = os.path.join(os.getcwd(), "lime_explanations",timestampdir)
+        plots_dir = os.path.join(parent_dir, 'battery','results', 'plots',"LIME",datetime.today().strftime("%d-%m-%Y"))
         os.makedirs(plots_dir, exist_ok=True)
-        f=0
+        
         for idx, (instance, smiles) in enumerate(zip(X_test.values, smiles_list)):
             print(f"Processing molecule {idx}, SMILES: {smiles}")
             # Get explanation
@@ -122,10 +123,9 @@ class CrossValidationLimePipeline:
             except Exception as e:
                 print(f"An error occurred while saving explanation for SMILES {smiles}: {e}")
         
-            f += 1
         return lime_values
 
-    def update_lime(self, model: object, X_test: pd.DataFrame, explainer: object):
+    def update_lime(self, model: object, X_test: pd.DataFrame, explainer: object, f: int):
         """
         Update lime values.
         :param model: prediction model.
@@ -133,7 +133,7 @@ class CrossValidationLimePipeline:
         """
         # Get SMILES from the test data index
         smiles_list = self.z.loc[X_test.index]
-        lime_values = self.explain_model(model, X_test, explainer, smiles_list)
+        lime_values = self.explain_model(model, X_test, explainer, smiles_list,f)
         self.lime_values.append(lime_values)
 
     def eval_model(self, y_pred: np.array, y_test: np.array) -> dict:
@@ -212,7 +212,7 @@ class CrossValidationLimePipeline:
 
         if self.verbose:
             print(f"Training model {proper_model_name}")
-
+        f=0
         for fold in self.folds:
             train_idx, test_idx = fold
 
@@ -243,7 +243,8 @@ class CrossValidationLimePipeline:
             y_pred_eval = self.eval_model(y_pred, y_test_numpy)
 
             self.update_scores(y_pred_eval)
-            self.update_lime(model, X_test,explainer)
+            self.update_lime(model, X_test,explainer,f)
+            f+=1
 
         results = self.aggregate_scores()
 
