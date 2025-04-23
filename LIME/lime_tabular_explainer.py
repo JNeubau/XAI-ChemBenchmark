@@ -230,12 +230,20 @@ class CrossValidationLimePipeline:
 
             y_pred = model.predict(X_test).flatten()
             feature_names = list(X_train.columns)
+            n_features = X_train.shape[1]
 
-        # Fit the Explainer on the training data set using the LimeTabularExplainer
+            # All features are categorical (binary)
+            categorical_features = list(range(n_features))
+            categorical_names = {i: [0, 1] for i in categorical_features}
+            # Fit the Explainer on the training data set using the LimeTabularExplainer
             explainer = lime.lime_tabular.LimeTabularExplainer(X_train.values, 
                                         feature_names = feature_names,
                                         mode = 'regression',
                                         random_state=42,
+                                        verbose=True,
+                                        categorical_features = categorical_features,
+                                        categorical_names = categorical_names,
+                                        discretize_continuous = True,
                                         )
 
             # model eval
