@@ -53,18 +53,14 @@ def mainXaiFlow(model, local_explanation=True, max_order_iq=1):
     #     if model == 'LIME_IQ':
     #         lime_values = [np.array(lime_values[i]) for i in range(len(lime_values))]
     smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, lime_values, smarts_mapping_path, local_explanation)
-    # molecules_statistics_all = predict_capacity(cv_pipeline, smarts_top_all, molecules_statistics_all)
-    # molecules_statistics_all = count_molecules_with_fingerprint(data, molecules_statistics_all)
-    # molecules_statistics_all = count_important_features(data, molecules_statistics_all)
+    molecules_statistics_all = count_molecules_with_fingerprint(data, molecules_statistics_all)
+    molecules_statistics_all = count_important_features(data, molecules_statistics_all)
     
-    # excel_data = prepare_data_for_excel_export(match_molecules_all, smarts_top_all, molecules_statistics_all)
-    # if model == 'LIME_IQ' and max_order_iq > 1:
-    #     save_interactions_to_excel(excel_data, results_dir)
-    # else:
-    # save_molecules_to_excel(excel_data, results_dir)
+    excel_data = prepare_data_for_excel_export(match_molecules_all, smarts_top_all, molecules_statistics_all)
+    save_molecules_to_excel(excel_data, results_dir)
     
-    # scores_data = create_dataframe_from_scores(scores, results)
-    # save_scores_to_excel(scores_data, results_dir)
+    scores_data = create_dataframe_from_scores(scores, results)
+    save_scores_to_excel(scores_data, results_dir)
     
 
 # def create_plots(plots_dir, data, model, lime_values, max_order_iq=1):
@@ -219,67 +215,55 @@ def process_folds_local(folds, data, lime_values, smarts_mapping_path, top_i=5):
     smarts_top_all = {}
     match_molecules_all = {}
     molecules_statistics_all = {}
+    
     for i, fold in enumerate(folds):
         test_f = data.loc[fold[1]]
         lime_f = lime_values[i]
 
-        # for i in enumerate()
+        for molecule_idx, lime_array in enumerate(lime_f):
+            feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
+            # Convert LIME explanation list to dict
+            lime_dict = {item[0].split('=')[0]: item[1] for item in lime_array}
+            # abs_lime_values = lime_dict
+            top_features = lime_dict.items()
+            # top_features = sorted_features
+            feature_names_only = [feature for feature, _ in top_features]
 
-        # for molecule_idx, lime_array in enumerate(lime_f):
-            # dictionary, sorted list of tuples
-            # _, sorted_top_list = lime_array.get_top_k(top_i + 1, as_interaction_values=False)
-            # sorted_top_list = sorted_top_list[1:]
-            # print(lime_array[molecule_idx])
-            # print("Sorted top list:", sorted_top_list)
+            print("Test fold:", test_f.iloc[molecule_idx]['smiles'])
+            print("LIME dict:", lime_dict)
+            print("Top features:", top_features)
+            print("Feature names only:", feature_names_only)
 
-            # Extract the feature names and their corresponding LIME values
-            # feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
-            # top_10_feature_names = [feature_names[i[0]] for i in sorted_top_list]
+            with open(smarts_mapping_path, 'r') as f:
+                smarts_mapping = json.load(f)
 
-            # with open(smarts_mapping_path, 'r') as f:
-            #     smarts_mapping = json.load(f)
-        #     feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
-        #     abs_lime_values = np.abs(lime_array)
-        #     top_10_indices = np.argsort(abs_lime_values)[-top_i:][::-1]
-        #     top_10_indices = [idx for idx in top_10_indices if abs_lime_values[idx] != 0]
-        #     top_10_feature_names = [feature_names[i] for i in top_10_indices]
+            smarts_top10 = {
+                (i, test_f.iloc[molecule_idx]['smiles'], feature): smarts_mapping[f'maccsfingerprint{int(feature.replace("maccsfingerprint", ""))+1}'][0]
+                for feature in feature_names_only
+            }
 
-        #     with open(smarts_mapping_path, 'r') as f:
-        #         smarts_mapping = json.load(f)
-
-        #     smarts_top10 = {
-        #         (i, test_f.iloc[molecule_idx]['smiles'], feature): smarts_mapping[f'maccsfingerprint{int(feature.replace("maccsfingerprint", ""))+1}'][0]
-        #         for feature in top_10_feature_names
-        #     }
-
-        #     match_molecules = {s: [] for s in smarts_top10.keys()}
-        #     molecules_statistics = {s: {
-        #         "number_of_molecules_where_fingerprint": 0,
-        #         "number_where_important": 0,
-        #         "lime_value": 0,
-        #         "lime_sign": '',
-        #         "feature_in_smiles": False,
-        #         "capacity_max": test_f.iloc[molecule_idx]['capacity_max'],
-        #         "capacity_pred": 0
-        #     } for s in smarts_top10.keys()}
+            match_molecules = {s: [] for s in smarts_top10.keys()}
+            molecules_statistics = {s: {
+                "number_of_molecules_where_fingerprint": 0,
+                "number_where_important": 0,
+                "lime_value": 0,
+                "lime_sign": '',
+                "feature_in_smiles": False,
+                "capacity_max": test_f.iloc[molecule_idx]['capacity_max'],
+                "capacity_pred": 0
+            } for s in smarts_top10.keys()}
             
-        #     for key, value in smarts_top10.items():
-        #         print(f"Key: {key}, Value: {value}")
-        #         # non_zero_molecules = test_f[test_f[key[2]] == 1]
-        #         # non_zero_molecules = non_zero_molecules['smiles'].tolist()
-        #         # match_molecules[key].extend(non_zero_molecules)
-        #         # count_mol_with_fingerprint = len(non_zero_molecules)
-        #         # if key not in molecules_statistics_all:
-        #         #     molecules_statistics[key]["number_where_important"] = count_mol_with_fingerprint
-        #         # else:
-        #         # #     molecules_statistics[key]["number_where_important"] = molecules_statistics_all[key]["number_where_important"] + count_mol_with_fingerprint
-        #         # molecules_statistics[key]["lime_value"] = abs(lime_array[feature_names.index(key[2])])
-        #         # molecules_statistics[key]["lime_sign"] = 'Positive' if lime_array[feature_names.index(key[2])] >= 0 else 'Negative'
-        #         # molecules_statistics[key]["feature_in_smiles"] = bool(data.loc[data['smiles'] == key[1], key[2]].values[0] == 1)
+            for key, value in smarts_top10.items():
+                non_zero_molecules = test_f[test_f[key[2]] == 1]
+                non_zero_molecules = non_zero_molecules['smiles'].tolist()
+                match_molecules[key].extend(non_zero_molecules)
+                molecules_statistics[key]["lime_value"] = lime_dict[key[2]]
+                molecules_statistics[key]["lime_sign"] = 'Positive' if lime_dict[key[2]] >= 0 else 'Negative'
+                molecules_statistics[key]["feature_in_smiles"] = bool(data.loc[data['smiles'] == key[1], key[2]].values[0] == 1)
 
-        #     smarts_top_all.update(smarts_top10)
-        #     match_molecules_all.update(match_molecules)
-        #     molecules_statistics_all.update(molecules_statistics)
+            smarts_top_all.update(smarts_top10)
+            match_molecules_all.update(match_molecules)
+            molecules_statistics_all.update(molecules_statistics)
 
     return smarts_top_all, match_molecules_all, molecules_statistics_all
 
