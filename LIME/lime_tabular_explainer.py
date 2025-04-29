@@ -88,11 +88,10 @@ class CrossValidationLimePipeline:
         """
         lime_values = []
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        # timestampdir = datetime.now().strftime('%Y%m%d')
         parent_dir = os.path.dirname(os.getcwd())
 
         # Create plots directory
-        plots_dir = os.path.join(parent_dir, 'battery','results', 'plots',"LIME",datetime.today().strftime("%d-%m-%Y"))
+        plots_dir = os.path.join(parent_dir, 'results', 'plots', "LIME", datetime.today().strftime("%d-%m-%Y"))
         os.makedirs(plots_dir, exist_ok=True)
         
         for idx, (instance, smiles) in enumerate(zip(X_test.values, smiles_list)):
@@ -110,7 +109,7 @@ class CrossValidationLimePipeline:
                 # Create more detailed filename with timestamp and SMILES
                 plot_path = os.path.join(
                     plots_dir,
-                    f"lime_explanation_SMILES_{f}_{idx}_{timestamp}.svg"
+                    f"lime_explanation_{f}_{idx}_{timestamp}.svg"
                 )
                 
                 # Save high quality vector graphics
