@@ -93,7 +93,7 @@ class CrossValidationLimePipeline:
         # Create plots directory
         plots_dir = os.path.join(parent_dir, 'results', 'plots', "LIME", datetime.today().strftime("%d-%m-%Y"))
         os.makedirs(plots_dir, exist_ok=True)
-        
+
         for idx, (instance, smiles) in enumerate(zip(X_test.values, smiles_list)):
             print(f"Processing molecule {idx}, SMILES: {smiles}")
             # Get explanation
@@ -124,14 +124,14 @@ class CrossValidationLimePipeline:
         
         return lime_values
 
-    def update_lime(self, model: object, X_test: pd.DataFrame, explainer: object, f: int):
+    def update_lime(self, model: object, X_test: pd.DataFrame, explainer: object, f: int, smiles_test: pd.Series):
         """
         Update lime values.
         :param model: prediction model.
         :param X_test: test data.
         """
         # Get SMILES from the test data index
-        smiles_list = self.z.loc[X_test.index]
+        smiles_list = smiles_test
         lime_values = self.explain_model(model, X_test, explainer, smiles_list,f)
         self.lime_values.append(lime_values)
 
@@ -220,7 +220,9 @@ class CrossValidationLimePipeline:
             y_train = copy.deepcopy(self.y.loc[train_idx, :]).reset_index(drop=True)
             X_test = copy.deepcopy(self.X.loc[test_idx, :]).reset_index(drop=True)
             y_test = copy.deepcopy(self.y.loc[test_idx, :]).reset_index(drop=True)
-
+            # SMILES data
+            # smiles_train = copy.deepcopy(self.z.loc[train_idx]).reset_index(drop=True)
+            smiles_test = copy.deepcopy(self.z.loc[test_idx]).reset_index(drop=True)
             model = self.tune_model(X_train, y_train, model, param_grid)
 
             # model training
@@ -242,7 +244,7 @@ class CrossValidationLimePipeline:
                                         verbose=True,
                                         categorical_features = categorical_features,
                                         categorical_names = categorical_names,
-                                        discretize_continuous = True,
+                                        discretize_continuous = False,
                                         )
 
             # model eval
@@ -250,7 +252,7 @@ class CrossValidationLimePipeline:
             y_pred_eval = self.eval_model(y_pred, y_test_numpy)
 
             self.update_scores(y_pred_eval)
-            self.update_lime(model, X_test,explainer,f)
+            self.update_lime(model, X_test,explainer,f,smiles_test)
             f+=1
 
         results = self.aggregate_scores()

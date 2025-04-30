@@ -62,21 +62,6 @@ def mainXaiFlow(model, local_explanation=True, max_order_iq=1):
     scores_data = create_dataframe_from_scores(scores, results)
     save_scores_to_excel(scores_data, results_dir)
     
-
-# def create_plots(plots_dir, data, model, lime_values, max_order_iq=1):
-#     if model == 'LIME':
-#         plot_lime.generate_lime_plots_folds(data,lime_values, plots_dir,['all'])
-#         plot_lime.generate_lime_plots_local(data, lime_values, plots_dir, ['force', 'waterfall'])
-#     if model == 'LIME_IQ':
-#         if max_order_iq > 1:
-#             plot_iq.plot_limeiq_local(data, lime_values, plots_dir, ['all'])
-#             plot_iq.plot_limeiq_fold(data, lime_values, plots_dir, ['bar'])
-#         else:
-#             plot_iq.plot_limeiq_local(data, lime_values, plots_dir, ['force', 'waterfall'])
-#             plot_iq.plot_limeiq_fold(data, lime_values, plots_dir, ['bar'])
-#     print("Plots saved to: ", plots_dir)
-
-
 def create_dataframe_from_scores(scores, results):
     df_scores = pd.DataFrame(scores)
     for key, value in results.items():
@@ -165,7 +150,7 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
         "number_of_molecules_where_fingerprint": [],
         "Number_where_important": [],
         'feature_in_smiles': [],
-        "Lime_value": [],
+        "lime_value": [],
         "lime_sign": [],
         "Capacity Max": [],
         "Capacity Pred": [],
@@ -184,12 +169,12 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
         excel_data["number_of_molecules_where_fingerprint"].append(molecules_statistics_all[key]["number_of_molecules_where_fingerprint"])
         excel_data["Number_where_important"].append(molecules_statistics_all[key]["number_where_important"])
         excel_data["feature_in_smiles"].append(molecules_statistics_all[key]["feature_in_smiles"])
-        excel_data["Lime_value"].append(molecules_statistics_all[key]["lime_value"])
+        excel_data["lime_value"].append(molecules_statistics_all[key]["lime_value"])
         excel_data["lime_sign"].append(molecules_statistics_all[key]["lime_sign"])
         excel_data["Capacity Max"].append(molecules_statistics_all[key]["capacity_max"])
         excel_data["Capacity Pred"].append(molecules_statistics_all[key]["capacity_pred"])
         bbbb+=1
-    print("bbbb:", bbbb)
+    # print("bbbb:", bbbb)
     return excel_data
 
 
@@ -220,19 +205,28 @@ def process_folds_local(folds, data, lime_values, smarts_mapping_path, top_i=5):
         test_f = data.loc[fold[1]]
         lime_f = lime_values[i]
 
+        print("Fold:", i)
         for molecule_idx, lime_array in enumerate(lime_f):
             feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
             # Convert LIME explanation list to dict
+            print("molecule_idx:", test_f.iloc[molecule_idx]['smiles'])
             lime_dict = {item[0].split('=')[0]: item[1] for item in lime_array}
+            print("LIME dict:", lime_dict)
             # abs_lime_values = lime_dict
             top_features = lime_dict.items()
             # top_features = sorted_features
             feature_names_only = [feature for feature, _ in top_features]
-
-            print("Test fold:", test_f.iloc[molecule_idx]['smiles'])
-            print("LIME dict:", lime_dict)
-            print("Top features:", top_features)
-            print("Feature names only:", feature_names_only)
+            for feature in feature_names_only:
+                if data.loc[data['smiles'] == test_f.iloc[molecule_idx]['smiles'], feature].values[0] == 1:
+                    # molecules_statistics[(i, test_f.iloc[molecule_idx]['smiles'], feature)]["feature_in_smiles"] = True
+                    print("Feature in SMILES:", feature, "True")
+                else:
+                    # molecules_statistics[(i, test_f.iloc[molecule_idx]['smiles'], feature)]["feature_in_smiles"] = False
+                    print("Feature in SMILES:", feature, "False")
+            # print("Test fold:", test_f.iloc[molecule_idx]['smiles'])
+            # print("LIME dict:", lime_dict)
+            # print("Top features:", top_features)
+            # print("Feature names only:", feature_names_only)
 
             with open(smarts_mapping_path, 'r') as f:
                 smarts_mapping = json.load(f)
@@ -257,6 +251,7 @@ def process_folds_local(folds, data, lime_values, smarts_mapping_path, top_i=5):
                 non_zero_molecules = test_f[test_f[key[2]] == 1]
                 non_zero_molecules = non_zero_molecules['smiles'].tolist()
                 match_molecules[key].extend(non_zero_molecules)
+                # print("Lime value:", lime_dict[key[2]])
                 molecules_statistics[key]["lime_value"] = lime_dict[key[2]]
                 molecules_statistics[key]["lime_sign"] = 'Positive' if lime_dict[key[2]] >= 0 else 'Negative'
                 molecules_statistics[key]["feature_in_smiles"] = bool(data.loc[data['smiles'] == key[1], key[2]].values[0] == 1)
