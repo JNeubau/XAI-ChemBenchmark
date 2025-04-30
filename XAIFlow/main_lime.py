@@ -3,6 +3,7 @@ import sys
 from datetime import datetime
 import pandas as pd
 import numpy as np
+import random
 import exmol
 import matplotlib.pyplot as plt
 
@@ -15,10 +16,11 @@ from LIME.lime_cross_validation import CrossValidationLIMEPipeline
 
 
 def mainLimeFlow():
+    np.random.seed(42)
+    random.seed(42)
     print("Running LIME explanation pipeline...")
     parent_dir = os.path.dirname(os.getcwd())
     print("Parent directory:", parent_dir)
-
     maccs_fingerprints = os.path.join(parent_dir, 'data', 'maccs_merged.csv')
     results_dir = os.path.join(parent_dir, 'results', 'battery', 'LIME', 'local', datetime.today().strftime("%d-%m-%Y"))
 
@@ -238,4 +240,6 @@ def export_plots_exmol(sample_space):
 
 
 if __name__ == '__main__':
+    np.random.seed(0)
+    random.seed(0)
     mainLimeFlow()

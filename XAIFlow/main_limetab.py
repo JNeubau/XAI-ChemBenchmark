@@ -8,7 +8,7 @@ import json
 from AI_models.models import Models
 from AI_models.eval_metrics import EvalMetrics
 from utils.data_split import custom_data_kfold
-from utils.exportlib import save_data_to_excel_with_highlights, save_scores_to_excel_new_sheet, save_interactions_to_excel_with_highlights
+from utils.exportlib import save_data_to_excel_with_highlights_lime, save_scores_to_excel_new_sheet, save_interactions_to_excel_with_highlights
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.dirname(os.getcwd()))
@@ -42,16 +42,7 @@ def mainXaiFlow(model, local_explanation=True, max_order_iq=1):
     # Train the model
     cv_pipeline = select_pipeline(model, data, folds, max_order_iq)
     results, scores, lime_values = cv_pipeline.train_pipeline('RFReg')
-    
-    # plots_dir = os.path.join(parent_dir, 'results', 'plots', model, explenation_type, datetime.today().strftime("%d-%m-%Y"))
-    # create_plots(plots_dir, data, model, lime_values, max_order_iq)   
-    
-    # if max_order_iq > 1: 
-    #     smarts_top_all, molecules_statistics_all = process_folds_local_interactions(folds, data, lime_values, smarts_mapping_path, 10)
-    #     match_molecules_all = {}
-    # else:
-    #     if model == 'LIME_IQ':
-    #         lime_values = [np.array(lime_values[i]) for i in range(len(lime_values))]
+
     smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, lime_values, smarts_mapping_path, local_explanation)
     molecules_statistics_all = count_molecules_with_fingerprint(data, molecules_statistics_all)
     molecules_statistics_all = count_important_features(data, molecules_statistics_all)
@@ -100,28 +91,6 @@ def predict_capacity(pipeline, data, molecules_statistics_all):
 
 def select_pipeline(model, data, folds, max_order_iq=1):
     match model:
-        # case 'LIME':
-        #     return CrossValidationLimePipeline(
-        #         X=data.drop(columns=['capacity_max', 'smiles']),
-        #         y=data[['capacity_max']],
-        #         folds=folds,
-        #         metrics=['smape', 'pairwise_accuracy_score', 'rmse', 'ndcg_score'],
-        #         save_dir='',
-        #         data_name='battery',
-        #         verbose=True
-        #     )
-        # case 'LIME_IQ':
-        #     return CrossValidationLimeIqPipeline(
-        #         X=data.drop(columns=['capacity_max', 'smiles']),
-        #         y=data[['capacity_max']],
-        #         folds=folds,
-        #         metrics=['smape', 'pairwise_accuracy_score', 'rmse', 'ndcg_score'],
-        #         save_dir='',
-        #         data_name='battery',
-        #         verbose=True,
-        #         iq_min_order=1,
-        #         iq_max_order=max_order_iq
-        #     )
         case 'LIME':
             return CrossValidationLimePipeline(
                 X=data.drop(columns=['capacity_max', 'smiles']),
@@ -180,7 +149,7 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
 
 def save_molecules_to_excel(excel_data, results_dir):
     results_dir = results_dir + f'\\molecule_results_with_highlights_{datetime.now().strftime("%H-%M-%S")}.xlsx'
-    save_data_to_excel_with_highlights(excel_data, results_dir)
+    save_data_to_excel_with_highlights_lime(excel_data, results_dir)
     print(f"Molecule results with highlights saved to {results_dir}")
     
     
@@ -209,20 +178,20 @@ def process_folds_local(folds, data, lime_values, smarts_mapping_path, top_i=5):
         for molecule_idx, lime_array in enumerate(lime_f):
             feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
             # Convert LIME explanation list to dict
-            print("molecule_idx:", test_f.iloc[molecule_idx]['smiles'])
+            # print("molecule_idx:", test_f.iloc[molecule_idx]['smiles'])
             lime_dict = {item[0].split('=')[0]: item[1] for item in lime_array}
-            print("LIME dict:", lime_dict)
+            # print("LIME dict:", lime_dict)
             # abs_lime_values = lime_dict
             top_features = lime_dict.items()
             # top_features = sorted_features
             feature_names_only = [feature for feature, _ in top_features]
-            for feature in feature_names_only:
-                if data.loc[data['smiles'] == test_f.iloc[molecule_idx]['smiles'], feature].values[0] == 1:
-                    # molecules_statistics[(i, test_f.iloc[molecule_idx]['smiles'], feature)]["feature_in_smiles"] = True
-                    print("Feature in SMILES:", feature, "True")
-                else:
-                    # molecules_statistics[(i, test_f.iloc[molecule_idx]['smiles'], feature)]["feature_in_smiles"] = False
-                    print("Feature in SMILES:", feature, "False")
+            # for feature in feature_names_only:
+            #     if data.loc[data['smiles'] == test_f.iloc[molecule_idx]['smiles'], feature].values[0] == 1:
+            #         # molecules_statistics[(i, test_f.iloc[molecule_idx]['smiles'], feature)]["feature_in_smiles"] = True
+            #         print("Feature in SMILES:", feature, "True")
+            #     else:
+            #         # molecules_statistics[(i, test_f.iloc[molecule_idx]['smiles'], feature)]["feature_in_smiles"] = False
+            #         print("Feature in SMILES:", feature, "False")
             # print("Test fold:", test_f.iloc[molecule_idx]['smiles'])
             # print("LIME dict:", lime_dict)
             # print("Top features:", top_features)

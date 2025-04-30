@@ -234,7 +234,7 @@ def save_interactions_to_excel_with_highlights(data, excel_file):
             worksheet.set_row(row_num, 250)
     # clean_up_png_files_from_dir(image_dir)
     
-def save_data_to_excel_with_highlights(data, excel_file):
+def save_data_to_excel_with_highlights_lime(data, excel_file):
     """
     Save data to an Excel file with molecule images generated from SMILES strings and highlighted substructures.
     The data will be sorted by SMILES and a specified feature.
