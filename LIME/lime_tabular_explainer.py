@@ -86,6 +86,12 @@ class CrossValidationLimePipeline:
         :param smiles_list: Series containing SMILES strings for molecules
         :return: lime values.
         """
+        # from sklearn.linear_model import Lasso
+        # from sklearn.ensemble import RandomForestRegressor
+
+        # lasso = Lasso(alpha=0.01,random_state=42)
+        # rf = RandomForestRegressor(n_estimators=100, random_state=42)
+
         lime_values = []
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         parent_dir = os.path.dirname(os.getcwd())
@@ -118,6 +124,10 @@ class CrossValidationLimePipeline:
                 
                 if lime_values:
                     print(f"Explanation saved for SMILES {smiles} at {plot_path}")
+                
+                # Save explanation to a html file
+                lime_explanation.save_to_file(os.path.join(plots_dir, f"lime_explanation_{f}_{idx}_{timestamp}.html"))
+                print(f"Explanation saved to HTML for SMILES {smiles} at {plot_path}")
                     
             except Exception as e:
                 print(f"An error occurred while saving explanation for SMILES {smiles}: {e}")
