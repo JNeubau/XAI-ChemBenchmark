@@ -119,6 +119,10 @@ def mol_to_esol_pyg(molecule):
 
 def get_dgn(dataset, experiment):
     print('get_DGN')
+    
+    if dataset.lower() == 'battery':
+        return get_battery_rf(experiment)
+    
     from models.encoder.GCNN import GCNN
     import json
 
@@ -140,6 +144,71 @@ def get_dgn(dataset, experiment):
     )
     m.eval()
     return m
+
+def get_battery_rf(experiment):
+    """Load a trained Random Forest model for battery dataset."""
+    print('Loading Random Forest model for battery dataset')
+    import joblib
+    import os
+    
+    base_path = f'runs/battery/{experiment}'
+    model_path = f'{base_path}/model.joblib'
+    
+    # Check if model file exists
+    if not os.path.exists(model_path):
+        # If not, train a RandomForest model on battery dataset
+        print(f"No model found at {model_path}, training a new Random Forest model...")
+        from sklearn.ensemble import RandomForestRegressor
+        from utils.data import get_split
+        import numpy as np
+        
+        # Create directory if it doesn't exist
+        os.makedirs(base_path, exist_ok=True)
+        os.makedirs(f'{base_path}/ckpt', exist_ok=True)
+        
+        # Get training data
+        train_dataset = get_split('battery', 'train', experiment)
+        
+        # Extract features and targets
+        X_train = []
+        y_train = []
+        
+        # Iterate through the dataset
+        for i in range(len(train_dataset)):
+            data = train_dataset[i]
+            # Reshape features to a flat array
+            X_train.append(data.x.reshape(-1).numpy())
+            y_train.append(data.y.item())
+        
+        X_train = np.array(X_train)
+        y_train = np.array(y_train)
+        
+        # Create and train model
+        rf_model = RandomForestRegressor(n_estimators=100, random_state=0)
+        rf_model.fit(X_train, y_train)
+        
+        # Save model
+        joblib.dump(rf_model, model_path)
+        
+        # Save hyperparameters
+        import json
+        with open(f'{base_path}/hyperparams.json', 'w') as f:
+            json.dump({
+                'model': 'RandomForest',
+                'n_estimators': 100,
+                'num_input': X_train.shape[1],
+                'num_output': 1,
+                'batch_size': 32,
+                'seed': 0,
+                'device': 'cpu'
+            }, f)
+        
+        print(f"Model trained and saved to {model_path}")
+        return rf_model
+    else:
+        # Load existing model
+        print(f"Loading existing Random Forest model from {model_path}")
+        return joblib.load(model_path)
 
 def pyg_to_mol_tox21(pyg_mol):
     mol = Chem.RWMol()

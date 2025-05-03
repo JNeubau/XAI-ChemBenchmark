@@ -32,9 +32,42 @@ def get_split(dataset_name, split, experiment):
             'data/esol',
             name='ESOL'
         )
+    
+    elif dataset_name.lower() == 'battery':
+        # For battery dataset, create a custom dataset
+        class BatteryInMemory(InMemoryDataset):
+            def __init__(self):
+                super().__init__()
+                self._num_classes = 1
+            
+            @property
+            def num_classes(self):
+                return self._num_classes
+                
+            @property
+            def num_features(self):
+                # This will be set after loading the data
+                return self.data.x.size(1)
+                
+            def __len__(self):
+                if hasattr(self, 'slices'):
+                    return len(self.slices['x']) - 1
+                return 0
+        
+        ds = BatteryInMemory()
 
 
-    ds.data, ds.slices = torch.load(f"runs/{dataset_name.lower()}/{experiment}/splits/{split}.pth")
+    # ds.data, ds.slices = torch.load(f"runs/{dataset_name.lower()}/{experiment}/splits/{split}.pth")
+    # Load the split data
+    split_file = f"runs/{dataset_name.lower()}/{experiment}/splits/{split}.pth"
+    
+    if dataset_name.lower() == 'battery':
+        # For battery, we saved the collated data directly
+        loaded_data = torch.load(split_file)
+        ds.data, ds.slices = loaded_data[0], loaded_data[1]
+    else:
+        # For other datasets, we saved a tuple (data, slices)
+        ds.data, ds.slices = torch.load(split_file)
 
     return ds
 
@@ -42,52 +75,7 @@ def get_split(dataset_name, split, experiment):
 def preprocess(dataset_name, experiment_name, batch_size):
     return _PREPROCESS[dataset_name.lower()](experiment_name, batch_size)
 
-def _preprocess_battery(experiment_name, batch_size):
-
-    # dataset_tr = TUDataset('data/tox21',
-    #                        name='Tox21_AhR_training',
-    #                        pre_transform=lambda sample: pre_transform(sample, 3))
-
-    # dataset_vl = TUDataset('data/tox21',
-    #                        name='Tox21_AhR_evaluation',
-    #                        pre_transform=lambda sample: pre_transform(sample, 0))
-
-    # dataset_ts = TUDataset('data/tox21',
-    #                        name='Tox21_AhR_testing',
-    #                        pre_transform=lambda sample: pre_transform(sample, 2))
-
-    # data_list = (
-    #     [dataset_tr.get(idx) for idx in range(len(dataset_tr))] +
-    #     [dataset_vl.get(idx) for idx in range(len(dataset_vl))] +
-    #     [dataset_ts.get(idx) for idx in range(len(dataset_ts))]
-    # )
-
-    # data_list = list(filter(lambda mol: check_molecule_validity(mol, pyg_to_mol_tox21), data_list))
-
-    # POSITIVES = list(filter(lambda x: x.y == 1, data_list))
-    # NEGATIVES = list(filter(lambda x: x.y == 0, data_list))
-    # N_POSITIVES = len(POSITIVES)
-    # N_NEGATIVES = N_POSITIVES
-    # NEGATIVES = NEGATIVES[:N_NEGATIVES]
-
-    # dataset_full = dataset_tr
-    # data_list = POSITIVES + NEGATIVES
-    # random.shuffle(data_list)
-
-    # n = len(data_list) // 10
-    # train_data = data_list[n:]
-    # val_data = data_list[:n]
-    # test_data = train_data[:n]
-    # train_data = train_data[n:]
-
-    # train = dataset_tr
-    # val = dataset_vl
-    # test = dataset_ts
-
-    # train.data, train.slices = train.collate(train_data)
-    # val.data, val.slices = train.collate(val_data)
-    # test.data, test.slices = train.collate(test_data)
-    
+def _preprocess_battery(experiment_name, batch_size):    
     # Create directory structure if needed
     os.makedirs(f'runs/battery/{experiment_name}/splits', exist_ok=True)
     
@@ -98,8 +86,6 @@ def _preprocess_battery(experiment_name, batch_size):
     # Extract features and target variable
     # Assuming the last column is the target and all others are features
     # Adjust this according to your actual CSV structure
-    # features = df.iloc[:, :-1].values  # All columns except the last one
-    # targets = df.iloc[:, -1].values    # Last column as the target
     fingerprint_cols = [col for col in df.columns if col.startswith('maccsfinger')]
     feature_cols = ['Unnamed: 0'] + fingerprint_cols  # Include ID column
     
