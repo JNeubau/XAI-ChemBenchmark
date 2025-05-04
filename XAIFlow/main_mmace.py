@@ -4,6 +4,7 @@ from datetime import datetime
 import pandas as pd
 import numpy as np
 import exmol
+import random
 import matplotlib.pyplot as plt
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -15,6 +16,8 @@ from MMACE.mmace_cross_validation_pipeline import CrossValidationMMACEPipeline
 
 
 def mainMMACEFlow():
+    np.random.seed(0)
+    random.seed(0)
     print("Running MMACE explanation pipeline...")
     parent_dir = os.path.dirname(os.getcwd())
     print("Parent directory:", parent_dir)

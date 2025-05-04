@@ -9,8 +9,8 @@ from datetime import datetime
 from XAIFlow.AI_models.models import Models
 from XAIFlow.AI_models.eval_metrics import EvalMetrics, smape
 from XAIFlow.utils.data_split import custom_data_split
+# from XAIFlow.utils.fingerprints import Fingerprints
 import exmol
-# from exmol import explanation
 from rdkit import Chem
 import matplotlib.pyplot as plt
 
@@ -144,7 +144,7 @@ class CrossValidationMMACEPipeline:
         with open(save_scores_path, "a", encoding="utf-8") as f:
             f.writelines(lines)
 
-    def generate_MMACE_explanations(self, model, X_test: pd.DataFrame, list_smiles: pd.Series,fold: int = 0) -> tuple:
+    def generate_MMACE_explanations(self, model, X_test: pd.DataFrame, list_smiles: pd.Series, y_pred: np.array, fold: int = 0) -> tuple:
         """
         Generate MMACE explanations using the exmol library.
         :param model: trained model.
@@ -155,11 +155,10 @@ class CrossValidationMMACEPipeline:
         MMACE_explanations = []
 
         def local_predict_fn(x):
-            # print(f"Local predict function called with x: {x}")
-
             # Generate MACCS fingerprints for the input SMILES
-            fps = [list(Chem.MACCSkeys.GenMACCSKeys(Chem.MolFromSmiles(x)).ToBitString()) for smile in x]
-            fps_df = pd.DataFrame(fps, columns=[f'maccsfingerprint{i}' for i in range(1,len(fps[0])+1)])
+            # print(f"Generating MACCS fingerprints for SMILES: {x}")
+            fps = [list(Chem.MACCSkeys.GenMACCSKeys(Chem.MolFromSmiles(x)).ToBitString())]
+            fps_df = pd.DataFrame(fps, columns=[f'maccsfingerprint{i}' for i in range(1, len(fps[0]) + 1)])
 
             # Load the MACCS merge file and filter columns based on selected keys
             parent_dir = os.path.dirname(os.getcwd())
@@ -177,50 +176,89 @@ class CrossValidationMMACEPipeline:
             # Filter the fingerprints DataFrame to include only the selected keys
             filtered_fps = fps_df[selected_keys]
 
-            # Convert the filtered DataFrame to a numpy array (maccs_array)
-            maccs_array = filtered_fps.to_numpy()
-            return model.predict(maccs_array[0].reshape(1,-1)).flatten()
+            # Convert the filtered DataFrame to a labeled DataFrame for prediction
+            labeled_fps = pd.DataFrame(filtered_fps, columns=selected_keys)
 
+            # Use the labeled DataFrame for prediction
+            prediction = model.predict(labeled_fps).flatten()
+
+            # print(f"Prediction for SMILES {x}: {prediction}")
+
+            return prediction
+            # # Check if the prediction for the newly generated SMILES matches the original SMILES
+            # original_prediction = y_pred[X_test.index[i]]
+            # print(f"Comparing predictions {i}: {prediction} vs {original_prediction}")
+            # if not np.array_equal(prediction, original_prediction):
+            #     return 0
+
+            # return 1
+        
         for i, instance in X_test.iterrows():
 
             smiles = list_smiles.iloc[i]
-           
+            # print(f"Processing instance {i} with SMILES: {smiles}")
             try:
+                stoned_kwargs = {
+                    "num_samples": 250,
+                    # "alphabet": exmol.get_basic_alphabet(),
+                    "max_mutations": 2,
+                }
+                
                 samples = exmol.sample_space(
                     smiles, 
-                    local_predict_fn, 
-                    batched=False,
-                    # preset='chemed',
-                    num_samples=4,
+                    local_predict_fn,
+                    stoned_kwargs=stoned_kwargs, 
                     quiet=True,
-                    use_selfies=False)
+                    batched=False)
+                
+                # samples = exmol.sample_space(
+                #     smiles, 
+                #     local_predict_fn, 
+                #     batched=False,
+                #     # preset='chemed',
+                #     num_samples=4,
+                #     quiet=True,
+                #     use_selfies=False)
             except Exception as e:
                 print(f"An error occurred while sampling space: {e}")
                 continue
             
             print(f"Samples: {len(samples)}")
-            cfs = exmol.cf_explain(
+            cfs = exmol.rcf_explain(
                 samples,
-                nmols=2
+                delta=0.1,
+                nmols=4
                 )
             self.cfs.append(cfs)
-            plot_path = os.path.join(
-                self.save_dir, 
-                f"explanation_fold_{fold}_instance_{i}_{datetime.now().strftime('%H_%M_%S')}.svg"
-)            # exmol.plot_cf(cfs,output_file=plot_path)
-            fig = plt.figure(figsize=(10, 10))  # Adjust the figure size as needed
+            # plot_path = os.path.join(
+            #     self.save_dir, 
+            #     f"explanation_fold_{fold}_instance_{i}_{datetime.now().strftime('%H_%M_%S')}.png"
+            # )            
+            # exmol.plot_cf(cfs,output_file=plot_path)
+            #fig = plt.figure(figsize=(10, 10))  # Adjust the figure size as needed
 
-            try:
-                # Pass the figure to exmol.plot_cf
-                exmol.plot_cf(samples, fig=fig, mol_size=(200, 200), mol_fontsize=10)
-                # Save the figure
-                fig.savefig(plot_path, bbox_inches="tight")
-                print(f"Plot saved to {plot_path}")
-            except Exception as e:
-                print(f"An error occurred while plotting descriptors: {e}")
-            finally:
-                # Close the figure to free up memory
-                plt.close(fig)
+            # try:
+            #     # Pass the figure to exmol.plot_cf
+            #     exmol.plot_cf(samples, fig=fig, mol_size=(200, 200), mol_fontsize=10)
+            #     # Save the figure
+            #     fig.savefig(plot_path, bbox_inches="tight")
+            #     print(f"Plot saved to {plot_path}")
+            # except Exception as e:
+            #     print(f"An error occurred while plotting descriptors: {e}")
+            # finally:
+            #     # Close the figure to free up memory
+            #     plt.close(fig)
+
+            # try:
+            #     fkw = {"figsize": (10, 3)}
+            #     exmol.plot_cf(cfs, figure_kwargs=fkw, mol_size=(450, 400), nrows=1)
+            #     plt.savefig(f"test_{fold}_{i}", bbox_inches="tight", dpi=180)
+            #     # svg = exmol.insert_svg(cfs, mol_fontsize=16)
+            #     # with open("rnn-simple.svg", "w") as f:
+            #     #     f.write(svg)
+            # except Exception as e:
+            #     print(f"An error occurred while plotting CFS: {e}")
+            #     continue
 
             MMACE_explanations.append(cfs)
 
@@ -258,7 +296,7 @@ class CrossValidationMMACEPipeline:
             self.update_scores(model_scores)
 
             # if i == 0:
-            MMACE_explanations,samples = self.generate_MMACE_explanations(model, X_test, smiles['smiles'], fold=foldid)
+            MMACE_explanations,samples = self.generate_MMACE_explanations(model, X_test, smiles['smiles'], fold=foldid,y_pred=y_pred)
             self.MMACE_results.append({"fold": fold[1], "explanations": MMACE_explanations})
             # i+=1
             foldid+=1
