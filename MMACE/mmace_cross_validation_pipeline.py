@@ -12,6 +12,7 @@ from XAIFlow.utils.data_split import custom_data_split
 # from XAIFlow.utils.fingerprints import Fingerprints
 import exmol
 from rdkit import Chem
+import signal
 import matplotlib.pyplot as plt
 
 
@@ -153,6 +154,7 @@ class CrossValidationMMACEPipeline:
         :return: lista słowników z wyjaśnieniami dla poszczególnych instancji.
         """
         MMACE_explanations = []
+        datetime_now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
         def local_predict_fn(x):
             # Generate MACCS fingerprints for the input SMILES
@@ -199,9 +201,9 @@ class CrossValidationMMACEPipeline:
             # print(f"Processing instance {i} with SMILES: {smiles}")
             try:
                 stoned_kwargs = {
-                    "num_samples": 250,
+                    "num_samples": 200,
                     # "alphabet": exmol.get_basic_alphabet(),
-                    "max_mutations": 2,
+                    "max_mutations": 1,
                 }
                 
                 samples = exmol.sample_space(
@@ -226,15 +228,46 @@ class CrossValidationMMACEPipeline:
             print(f"Samples: {len(samples)}")
             cfs = exmol.rcf_explain(
                 samples,
-                delta=0.1,
-                nmols=4
+                filter_nondrug = False,
+                # delta=[-0.5,0.5],
+                delta=0.5,
+                nmols=20
                 )
             self.cfs.append(cfs)
-            # plot_path = os.path.join(
-            #     self.save_dir, 
-            #     f"explanation_fold_{fold}_instance_{i}_{datetime.now().strftime('%H_%M_%S')}.png"
-            # )            
-            # exmol.plot_cf(cfs,output_file=plot_path)
+            plot_path = os.path.join(
+                self.save_dir, 
+                f"explanation_fold_{fold}_instance_{i}_{datetime_now}.png"
+            )
+            print(f"Ploting...")
+            # if fold == 0:
+            #     try:
+            #         # fkw = {"figsize": (10, 3)}
+            #         print(f"fkw")
+            #         class TimeoutException(Exception):
+            #             pass
+
+            #         def timeout_handler(signum, frame):
+            #             raise TimeoutException()
+
+            #         # Set the timeout signal handler
+            #         signal.signal(signal.SIGALRM, timeout_handler)
+            #         signal.alarm(60)  # Set timeout to 10 seconds
+
+            #         try:
+            #             exmol.plot_cf(cfs, nrows=1)
+            #         except TimeoutException:
+            #             print("Plotting timed out.")
+            #         finally:
+            #             signal.alarm(0)  # Disable the alarm
+            #         print(f"exmol plot_cf")
+            #         plt.savefig(plot_path, bbox_inches="tight", dpi=180)
+            #         print(f"Plot saved to {plot_path}")
+            #     except Exception as e:
+            #         print(f"An error occurred while plotting CFS: {e}")
+            #         continue
+            #     finally:
+            #         plt.close('all')
+
             #fig = plt.figure(figsize=(10, 10))  # Adjust the figure size as needed
 
             # try:
