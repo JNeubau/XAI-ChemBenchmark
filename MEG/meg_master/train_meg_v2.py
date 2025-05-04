@@ -27,6 +27,8 @@ def battery(general_params,
     # Different prediction approach for Random Forest
     # RF expects flattened features, not graph structure
     features = original_molecule.x.reshape(1, -1)
+    print(f"Feature shape for prediction: {features.shape}")            
+    
     out = model_to_explain.predict(features.numpy())
     original_encoding = features  # Use the features as encoding since RF doesn't have internal representations
     
@@ -37,12 +39,16 @@ def battery(general_params,
     print(f'Original prediction: {pred_value}, Actual: {actual_value}')
     
     # For battery dataset we don't have SMILES, use a placeholder ID
-    molecule_id = f"battery_sample_{args['sample']}"
+    # molecule_id = f"battery_sample_{args['sample']}"
+    molecule_id = f"org_battery_sample_{getattr(original_molecule, 'battery_id', f'id')}_s{args['sample']}" if hasattr(original_molecule, 'battery_id') else f"battery_sample_{args['sample']}"
+    smiles = getattr(original_molecule, 'smiles', None)
     
     print(f'Battery sample ID: {molecule_id}')
+    print(f'Battery SMILES: {smiles}')
     
     # For battery dataset we're using MACCS fingerprints, not atoms
     feature_names = [f'feature_{i}' for i in range(features.shape[1])]
+    print(f"Number of features for explanation: {len(feature_names)}")
 
     params = {
         # General-purpose params
@@ -78,7 +84,7 @@ def battery(general_params,
     overall_queue.append({
         'pyg': original_molecule,
         'marker': 'og',
-        'smiles': molecule_id,  # Use the ID since we don't have SMILES
+        'smiles': smiles,  # Use the ID since we don't have SMILES
         'encoding': original_encoding.numpy(),
         'prediction': {
             'type': 'regression',
@@ -386,7 +392,7 @@ def save_results(base_path, queue, args):
 def main(dataset: str,
          experiment_name: str = typer.Argument("test"),
          sample: int = typer.Option(0),
-         epochs: int = typer.Option(1000), # 5000
+         epochs: int = typer.Option(100), # 5000
          max_steps_per_episode: int = typer.Option(2), # 1
          num_counterfactuals: int = typer.Option(10),
          fp_length: int = typer.Option(1024),

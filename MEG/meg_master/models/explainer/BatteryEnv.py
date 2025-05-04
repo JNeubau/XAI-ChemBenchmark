@@ -18,7 +18,8 @@ class CF_Battery:
         self.num_steps_taken = 0
         self.feature_names = kwargs['feature_names']
         self.current_features = None
-        self.molecule_id = kwargs.get('init_mol', 'battery_sample')  # Get molecule ID from params
+        self.molecule_id = getattr(self.original_molecule, 'battery_id', kwargs.get('init_mol', 'battery_sample'))  # Get molecule ID from params
+        self.smiles = getattr(self.original_molecule, 'smiles', None)  # Get SMILES from params
         
     def initialize(self):
         self.current_features = self.original_molecule.x.clone()
@@ -50,13 +51,9 @@ class CF_Battery:
         features_flat = self.current_features.reshape(1, -1)
         pred = self.model_to_explain.predict(features_flat.numpy())[0]
         
-        # Calculate Tanimoto similarity
+        # Calculate similarity
         sim = self.calculate_tanimoto_similarity()
-        # Calculate similarity (euclidean distance)
-        # sim = 1.0 / (1.0 + np.linalg.norm(
-        #     self.current_features.reshape(-1).numpy() - 
-        #     self.original_molecule.x.reshape(-1).numpy()
-        # ))
+        # sim = self.caluclate_euclidean_dist_similarity()
         
         # Calculate reward 
         # For regression, we want predictions that differ significantly
@@ -80,7 +77,8 @@ class CF_Battery:
                 'reward': reward,
                 'reward_pred': reward_pred,
                 'reward_sim': reward_sim,
-                'smiles': self.molecule_id,  # Use the ID since we don't have SMILES
+                'dataset_id': self.molecule_id,  # Use the ID since we don't have SMILES
+                'smiles': self.smiles,
                 'pred': float(pred),
                 'features': self.current_features.reshape(-1).numpy().tolist()
             },
@@ -108,3 +106,9 @@ class CF_Battery:
         
         # Use tanimoto as similarity (ranges from 0 to 1)
         return tanimoto
+    
+    def caluclate_euclidean_dist_similarity(self):
+        return 1.0 / (1.0 + np.linalg.norm(
+            self.current_features.reshape(-1).numpy() - 
+            self.original_molecule.x.reshape(-1).numpy()
+        ))

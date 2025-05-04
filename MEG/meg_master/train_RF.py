@@ -5,6 +5,8 @@ import json
 import typer
 import numpy as np
 import pickle
+import datetime 
+import joblib
 
 from models.encoder import GCNN
 from utils import preprocess, train_rf_classifier, train_rf_regressor, train_cycle_classifier, train_cycle_regressor
@@ -168,8 +170,26 @@ def main(dataset_name: str,
             max_depth=max_depth,
             random_state=seed
         )
+        
+        # Save using joblib (more efficient for sklearn models)
+        joblib.dump(rf_model, base_path + '/ckpt/model.joblib')
+    
         with open(base_path + '/ckpt/rf_regressor_model.pkl', 'wb') as f:
             pickle.dump(rf_model, f)
+            
+        # Save feature information to ensure consistency during prediction
+        feature_info = {
+            "num_features": rf_model.n_features_in_,
+            "feature_details": "MACCS fingerprints only (no ID column)",
+            "last_trained": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "model_path": {
+                "joblib": base_path + '/ckpt/rf_regressor_model.joblib',
+                "pickle": base_path + '/ckpt/rf_regressor_model.pkl'
+            }
+        }
+        
+        with open(base_path + '/ckpt/feature_info.json', 'w') as f:
+            json.dump(feature_info, f, indent=2)
         
     # elif dataset_name.lower() in ['battery']:
     #     rf_model, results = train_rf_regressor(

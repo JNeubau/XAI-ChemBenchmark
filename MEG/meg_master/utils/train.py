@@ -286,6 +286,11 @@ def train_rf_regressor(task, train_loader, val_loader, test_loader, len_train, l
         
         X_train.extend(batch_features)
         y_train.extend(data.y.numpy())
+    # for data in train_loader:
+    #     # Get features (reshape to flatten)
+    #     features = data.x.reshape(data.x.shape[0], -1).numpy()
+    #     X_train.extend(features)
+    #     y_train.extend(data.y.numpy())
     
     for data in val_loader:
         batch_features = []
@@ -314,6 +319,8 @@ def train_rf_regressor(task, train_loader, val_loader, test_loader, len_train, l
     y_val = np.array(y_val)
     X_test = np.array(X_test)
     y_test = np.array(y_test)
+    
+    print(f"Training RF regressor with {X_train.shape[1]} features")
     
     # Train Random Forest Regressor
     rf = RandomForestRegressor(n_estimators=n_estimators, max_depth=max_depth, random_state=random_state)

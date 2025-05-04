@@ -87,12 +87,15 @@ def _preprocess_battery(experiment_name, batch_size):
     # Assuming the last column is the target and all others are features
     # Adjust this according to your actual CSV structure
     fingerprint_cols = [col for col in df.columns if col.startswith('maccsfinger')]
-    feature_cols = ['Unnamed: 0'] + fingerprint_cols  # Include ID column
+    # feature_cols = ['Unnamed: 0'] + fingerprint_cols  # Include ID column
+    ids = df['Unnamed: 0'].values  # Extract IDs from first column
+    smiles_col = df['smiles'].values   # Numerical target (smiles)
     
-    features = df[feature_cols].values    # All fingerprint features
+    features = df[fingerprint_cols].values    # All fingerprint features
     targets = df['capacity_max'].values   # Numerical target (capacity)
     
     num_features = features.shape[1]
+    print(f"Number of fingerprint features: {num_features}")
     
     # Convert to PyG data format
     data_list = []
@@ -105,6 +108,8 @@ def _preprocess_battery(experiment_name, batch_size):
         
         # Create a Data object
         data = Data(x=x, y=y)
+        data.battery_id = str(ids[i])  # Store the ID as an attribute
+        data.smiles = str(smiles_col[i])  # Store the SMILES string as an attribute
         data_list.append(data)
     
     # Shuffle the data
@@ -118,20 +123,6 @@ def _preprocess_battery(experiment_name, batch_size):
     train_data = train_data[n:]
     
     # Create PyG datasets
-    # class BatteryDataset(InMemoryDataset):
-    #     def __init__(self, data_list):
-    #         self.data_list = data_list
-    #         self.num_features = features.shape[1]
-    #         self.num_classes = 1
-            
-    #     def __len__(self):
-    #         return len(self.data_list)
-            
-    #     def __getitem__(self, idx):
-    #         return self.data_list[idx]
-            
-    #     def collate(self, data_list):
-    #         return InMemoryDataset.collate(data_list)
     class SimpleBatteryDataset:
         def __init__(self, data_list):
             self.data_list = data_list
