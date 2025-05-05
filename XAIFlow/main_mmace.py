@@ -14,6 +14,7 @@ from utils.data_split import custom_data_kfold
 from utils.exportlib import save_data_to_excel_with_highlights, save_scores_to_excel_new_sheet
 from MMACE.mmace_cross_validation_pipeline import CrossValidationMMACEPipeline
 from MMACE.timeoutexception import timeout
+from MMACE.savemmacecfexcel import save_mmace_explanations_to_excel
 
 
 def mainMMACEFlow():
@@ -54,6 +55,9 @@ def mainMMACEFlow():
     print("Results:", results)
     print("Scores:", scores)
 
+    save_mmace_explanations_to_excel(
+            MMACE_Explanations, results_dir=results_dir
+        )
     # print("MMACE Explanations:", MMACE_Explanations)
     process_folds_local(folds, data, samples, cfs,MMACE_Explanations)
 
