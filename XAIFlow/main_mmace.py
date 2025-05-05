@@ -13,6 +13,7 @@ sys.path.append(os.path.dirname(os.getcwd()))
 from utils.data_split import custom_data_kfold
 from utils.exportlib import save_data_to_excel_with_highlights, save_scores_to_excel_new_sheet
 from MMACE.mmace_cross_validation_pipeline import CrossValidationMMACEPipeline
+from MMACE.timeoutexception import timeout
 
 
 def mainMMACEFlow():
@@ -45,12 +46,12 @@ def mainMMACEFlow():
         verbose=True
     )
 
-    results, scores, MMACE_explanations,cfs,samples = cv_pipeline.train_pipeline('RFReg')
+    results, scores,cfs,samples = cv_pipeline.train_pipeline('RFReg')
     print("Results:", results)
     print("Scores:", scores)
-    print("MMACE explanations:", MMACE_explanations)
+    # print("MMACE explanations:", MMACE_explanations)
 
-    process_folds_local(folds, data, MMACE_explanations, samples)
+    # process_folds_local(folds, data, samples,cfs)
     # smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds_local_MMACE(
     #     folds, data, MMACE_explanations, top_i=5
     # )
@@ -61,17 +62,97 @@ def mainMMACEFlow():
     # excel_data = prepare_data_for_excel_export(match_molecules_all, smarts_top_all, molecules_statistics_all)
     # save_molecules_to_excel(excel_data, results_dir)
 
-def process_folds_local(folds,data, MMACE_explanation,samples):
+def process_folds_local(folds,data,samples,cfs):
     print("Processing folds for local MMACE...")
+    smarts_top_all = {}
+    match_molecules_all = {}
+    molecules_statistics_all = {}
+    print(f"Number of folds: {len(folds)}")
+    print(f"Number of molecules: {len(data)}")
+    print(f"Number of samples: {len(samples)}")
+    print(f"Number of MMACE explanations: {len(cfs)}")
+    print(f"MMACE explanations: {cfs}") 
+    for i, fold in enumerate(folds):
+        test_f = data.loc[fold[1]]
+        mmace_cf = cfs[i]
+        samples_fold = samples[i]
+        # print(f"test_f :{test_f}")
+        print(F"samples_fold :{samples_fold}")
+        print(f"mmace_cf :{mmace_cf}")
+        
+        print(f"length of mmace_cf: {len(mmace_cf)}")
+        print(f"length of samples_fold: {len(samples_fold)}")
+        for molecule_idx, cf_array in enumerate(mmace_cf):
+            print(f"=============================\n Fold {i}, Molecule {molecule_idx}")
+            # print(f"SMILES: {test_f.iloc[molecule_idx]['smiles']}")
+            # print(f"cfs_array: {cf_array}")
+            # print("CFS array:", cfs_array)
+            # if i == 0 and molecule_idx==0:
+                # print("MMACE CF:", cfs_array)
+            if len(cf_array) == 0:
+                print("No CFS found for this molecule.")
+                continue
+            # if cfs_array is not None:
+            # export_plots_exmol(cfs_array,i,molecule_idx)
+            # print("Exported plots for exmol explanations.")
 
-    export_plots_exmol(samples)
-    print("Exported plots for exmol explanations.")
+# @timeout(60)
+# def plot_with_timeout(cfs):
+#     fkw = {"figsize": (10, 3)}
+#     exmol.plot_cf(cfs, figure_kwargs=fkw, mol_size=(450, 400), nrows=1)
 
-def export_plots_exmol(sample_space):
-    # exmol.plot_descriptors(sample_space)
-    # plt.savefig("my_descriptor_plot.png", bbox_inches="tight")
-    # plt.close()
-    return 0
+# def export_plots_exmol(cfs, fold, i):
+    
+#     datetime_now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+#     try:
+#         # plot_path = os.path.join(os.path.join(
+#         #         os.path.dirname(os.getcwd())), 'results', 'plots', 'MMACE', "local", datetime.today().strftime("%d-%m-%Y"))
+#         plot_dir = os.path.join(
+#                 os.path.dirname(os.getcwd()), 'results', 'plots', 'MMACE', "local", datetime.today().strftime("%d-%m-%Y")
+#             )
+#         os.makedirs(plot_dir, exist_ok=True)
+#         plot_path = os.path.join(
+#                 plot_dir, f"explanation_fold_{fold}_instance_{i}_{datetime_now}.png"
+#             )
+#         # fkw = {"figsize": (10, 3)}
+#         print(f"fkw")
+#         plot_with_timeout(cfs)
+#         print(f"exmol plot_cf")
+#         plt.savefig(plot_path, bbox_inches="tight", dpi=180)
+#         print(f"Plot saved to {plot_path}")
+#     except Exception as e:
+#         print(f"An error occurred while plotting CFS: {e}")
+#     finally:
+#         plt.close('all')
+    
+#     # exmol.plot_descriptors(sample_space)
+#     # plt.savefig("my_descriptor_plot.png", bbox_inches="tight")
+#     # plt.close()
+#     return 0
+
+# def export_plots_exmol_space(space,cfs, fold, i):
+#     datetime_now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+#     try:
+#         plot_path = os.path.join(
+#                 os.path.dirname(os.getcwd()),
+#                 f"explanation_space_fold_{fold}_instance_{i}_{datetime_now}.png"
+#             )
+#         # fkw = {"figsize": (10, 3)}
+#         print(f"fkw")
+#         fkw = {"figsize": (8, 6)}
+#         font = {"family": "normal", "weight": "normal", "size": 22}
+
+
+#         exmol.plot_space(space, cfs, figure_kwargs=fkw, mol_size=(200, 200), offset=1)
+#         ax = plt.gca()
+#         plt.colorbar(ax.get_children()[1], ax=[ax], location="left", label="Solubility [Log M]")
+#         plt.savefig(plot_path, bbox_inches="tight", dpi=180)
+#         print(f"Plot saved to {plot_path}")
+#     except Exception as e:
+#         print(f"An error occurred while plotting CFS: {e}")
+#     finally:
+#         plt.close('all')
+#     return 0
 
 # def process_folds_local_MMACE(folds, data, MMACE_explanations, top_i=5):
     # smarts_top_all = {}

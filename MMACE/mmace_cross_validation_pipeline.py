@@ -14,7 +14,7 @@ import exmol
 from rdkit import Chem
 import signal
 import matplotlib.pyplot as plt
-
+from MMACE.timeoutexception import timeout
 
 class CrossValidationMMACEPipeline:
     """
@@ -160,7 +160,7 @@ class CrossValidationMMACEPipeline:
             # Generate MACCS fingerprints for the input SMILES
             # print(f"Generating MACCS fingerprints for SMILES: {x}")
             fps = [list(Chem.MACCSkeys.GenMACCSKeys(Chem.MolFromSmiles(x)).ToBitString())]
-            fps_df = pd.DataFrame(fps, columns=[f'maccsfingerprint{i}' for i in range(1, len(fps[0]) + 1)])
+            fps_df = pd.DataFrame(fps, columns=[f'maccsfingerprint{i}' for i in range(0, len(fps[0]))])
 
             # Load the MACCS merge file and filter columns based on selected keys
             parent_dir = os.path.dirname(os.getcwd())
@@ -194,14 +194,82 @@ class CrossValidationMMACEPipeline:
             #     return 0
 
             # return 1
+        @timeout(60)
+        def plot_with_timeout(cfs):
+            fkw = {"figsize": (10, 3)}
+            exmol.plot_cf(cfs, figure_kwargs=fkw, mol_size=(450, 400), nrows=1)
+
+        def export_plots_exmol(cfs, fold, i):
+            
+            datetime_now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            try:
+                # plot_path = os.path.join(os.path.join(
+                #         os.path.dirname(os.getcwd())), 'results', 'plots', 'MMACE', "local", datetime.today().strftime("%d-%m-%Y"))
+                plot_dir = os.path.join(
+                        os.path.dirname(os.getcwd()), 'results', 'plots', 'MMACE', "local","counterfactuals", datetime.today().strftime("%d-%m-%Y")
+                    )
+                os.makedirs(plot_dir, exist_ok=True)
+                plot_path = os.path.join(
+                        plot_dir, f"explanation_fold_{fold}_instance_{i}_{datetime_now}.png"
+                    )
+                # fkw = {"figsize": (10, 3)}
+                print(f"fkw")
+                plot_with_timeout(cfs)
+                print(f"exmol plot_cf")
+                plt.savefig(plot_path, bbox_inches="tight", dpi=180)
+                print(f"Plot saved to {plot_path}")
+            except Exception as e:
+                print(f"An error occurred while plotting CFS: {e}")
+            finally:
+                plt.close('all')
+            
+            # exmol.plot_descriptors(sample_space)
+            # plt.savefig("my_descriptor_plot.png", bbox_inches="tight")
+            # plt.close()
+            return 0
+
+        @timeout(60)
+        def plot_space_with_timeout(space, cfs):
+            fkw = {"figsize": (10, 3)}
+            exmol.plot_space(space, cfs, figure_kwargs=fkw, mol_size=(200, 200), offset=1)
+
+        def export_plots_exmol_space(space,cfs, fold, i):
+            datetime_now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            try:
+                plot_dir = os.path.join(
+                        os.path.dirname(os.getcwd()), 'results', 'plots', 'MMACE', "local","space", datetime.today().strftime("%d-%m-%Y")
+                    )
+                os.makedirs(plot_dir, exist_ok=True)
+                plot_path = os.path.join(
+                        plot_dir, f"explanation_space_fold_{fold}_instance_{i}_{datetime_now}.png"
+                    )
+                # fkw = {"figsize": (10, 3)}
+                print(f"fkw")
+                fkw = {"figsize": (8, 6)}
+                font = {"family": "normal", "weight": "normal", "size": 22}
+
+
+                # exmol.plot_space(space, cfs, figure_kwargs=fkw, mol_size=(200, 200), offset=1)
+                plot_space_with_timeout(space, cfs)
+                ax = plt.gca()
+                plt.colorbar(ax.get_children()[1], ax=[ax], location="left")
+                plt.savefig(plot_path, bbox_inches="tight", dpi=180)
+                print(f"Plot saved to {plot_path}")
+            except Exception as e:
+                print(f"An error occurred while plotting CFS: {e}")
+            finally:
+                plt.close('all')
+            return 0
+
         
         for i, instance in X_test.iterrows():
-
+            samples_fold = []
+            cfs_fold = []
             smiles = list_smiles.iloc[i]
-            # print(f"Processing instance {i} with SMILES: {smiles}")
+            print(f"Processing instance {i} with SMILES: {smiles}")
             try:
                 stoned_kwargs = {
-                    "num_samples": 200,
+                    "num_samples": 25,
                     # "alphabet": exmol.get_basic_alphabet(),
                     "max_mutations": 1,
                 }
@@ -212,7 +280,7 @@ class CrossValidationMMACEPipeline:
                     stoned_kwargs=stoned_kwargs, 
                     quiet=True,
                     batched=False)
-                
+                samples_fold.append(samples)
                 # samples = exmol.sample_space(
                 #     smiles, 
                 #     local_predict_fn, 
@@ -223,7 +291,7 @@ class CrossValidationMMACEPipeline:
                 #     use_selfies=False)
             except Exception as e:
                 print(f"An error occurred while sampling space: {e}")
-                continue
+                return [], [], []
             
             print(f"Samples: {len(samples)}")
             cfs = exmol.rcf_explain(
@@ -231,71 +299,15 @@ class CrossValidationMMACEPipeline:
                 filter_nondrug = False,
                 # delta=[-0.5,0.5],
                 delta=0.5,
-                nmols=20
+                nmols=4
                 )
-            self.cfs.append(cfs)
-            plot_path = os.path.join(
-                self.save_dir, 
-                f"explanation_fold_{fold}_instance_{i}_{datetime_now}.png"
-            )
-            print(f"Ploting...")
-            # if fold == 0:
-            #     try:
-            #         # fkw = {"figsize": (10, 3)}
-            #         print(f"fkw")
-            #         class TimeoutException(Exception):
-            #             pass
+            
+            export_plots_exmol(cfs, fold, i)
+            # export_plots_exmol_space(samples, cfs, fold, i)
+            cfs_fold.append(cfs)
+           
 
-            #         def timeout_handler(signum, frame):
-            #             raise TimeoutException()
-
-            #         # Set the timeout signal handler
-            #         signal.signal(signal.SIGALRM, timeout_handler)
-            #         signal.alarm(60)  # Set timeout to 10 seconds
-
-            #         try:
-            #             exmol.plot_cf(cfs, nrows=1)
-            #         except TimeoutException:
-            #             print("Plotting timed out.")
-            #         finally:
-            #             signal.alarm(0)  # Disable the alarm
-            #         print(f"exmol plot_cf")
-            #         plt.savefig(plot_path, bbox_inches="tight", dpi=180)
-            #         print(f"Plot saved to {plot_path}")
-            #     except Exception as e:
-            #         print(f"An error occurred while plotting CFS: {e}")
-            #         continue
-            #     finally:
-            #         plt.close('all')
-
-            #fig = plt.figure(figsize=(10, 10))  # Adjust the figure size as needed
-
-            # try:
-            #     # Pass the figure to exmol.plot_cf
-            #     exmol.plot_cf(samples, fig=fig, mol_size=(200, 200), mol_fontsize=10)
-            #     # Save the figure
-            #     fig.savefig(plot_path, bbox_inches="tight")
-            #     print(f"Plot saved to {plot_path}")
-            # except Exception as e:
-            #     print(f"An error occurred while plotting descriptors: {e}")
-            # finally:
-            #     # Close the figure to free up memory
-            #     plt.close(fig)
-
-            # try:
-            #     fkw = {"figsize": (10, 3)}
-            #     exmol.plot_cf(cfs, figure_kwargs=fkw, mol_size=(450, 400), nrows=1)
-            #     plt.savefig(f"test_{fold}_{i}", bbox_inches="tight", dpi=180)
-            #     # svg = exmol.insert_svg(cfs, mol_fontsize=16)
-            #     # with open("rnn-simple.svg", "w") as f:
-            #     #     f.write(svg)
-            # except Exception as e:
-            #     print(f"An error occurred while plotting CFS: {e}")
-            #     continue
-
-            MMACE_explanations.append(cfs)
-
-        return MMACE_explanations, samples
+        return MMACE_explanations, samples_fold, cfs_fold
 
     def train_pipeline(self, model_name: str, model_path: str | None = None) -> tuple:
         """
@@ -329,9 +341,11 @@ class CrossValidationMMACEPipeline:
             self.update_scores(model_scores)
 
             # if i == 0:
-            MMACE_explanations,samples = self.generate_MMACE_explanations(model, X_test, smiles['smiles'], fold=foldid,y_pred=y_pred)
-            self.MMACE_results.append({"fold": fold[1], "explanations": MMACE_explanations})
+            MMACE_explanations,samples,cfs = self.generate_MMACE_explanations(model, X_test, smiles['smiles'], fold=foldid,y_pred=y_pred)
+            # self.MMACE_results.append({"fold": fold[1], "explanations": MMACE_explanations})
             # i+=1
+            self.samples.append(samples)
+            self.cfs.append(cfs)
             foldid+=1
 
         results = self.aggregate_scores()
@@ -339,4 +353,4 @@ class CrossValidationMMACEPipeline:
         if len(self.save_dir) > 0:
             self.save_results(results, proper_model_name, model.get_params())
 
-        return results, self.scores, self.MMACE_results, self.cfs, self.samples
+        return results, self.scores, self.cfs, self.samples
