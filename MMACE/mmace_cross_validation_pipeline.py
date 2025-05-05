@@ -162,6 +162,7 @@ class CrossValidationMMACEPipeline:
             # Generate MACCS fingerprints for the input SMILES
             # print(f"Generating MACCS fingerprints for SMILES: {x}")
             fps = [list(Chem.MACCSkeys.GenMACCSKeys(Chem.MolFromSmiles(x)).ToBitString())]
+            # fps = np.array(fps)[:, 1:]
             fps_df = pd.DataFrame(fps, columns=[f'maccsfingerprint{i}' for i in range(0, len(fps[0]))])
 
             # Load the MACCS merge file and filter columns based on selected keys
@@ -270,7 +271,7 @@ class CrossValidationMMACEPipeline:
             print(f"Processing instance {i} with SMILES: {smiles}")
             try:
                 stoned_kwargs = {
-                    "num_samples": 25,
+                    "num_samples": 20,
                     "alphabet": self.custom_alphabet if self.custom_alphabet else exmol.get_basic_alphabet(),
                     "max_mutations": 1,
                 }
@@ -293,7 +294,8 @@ class CrossValidationMMACEPipeline:
                 #     use_selfies=False)
             except Exception as e:
                 print(f"An error occurred while sampling space: {e}")
-                return [], [], []
+                cfs_fold.append([])
+                continue
             
             print(f"Samples: {len(samples)}")
             cfs = exmol.rcf_explain(
@@ -301,7 +303,7 @@ class CrossValidationMMACEPipeline:
                 filter_nondrug = False,
                 # delta=[-0.5,0.5],
                 delta=0.5,
-                nmols=4
+                nmols=2
                 )
             
             # export_plots_exmol(cfs, fold, i)

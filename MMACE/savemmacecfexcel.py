@@ -3,7 +3,6 @@ def save_mmace_explanations_to_excel(MMACE_Explanations, results_dir):
     Save MMACE counterfactual explanations to Excel with molecule visualizations.
     
     Parameters:
-    - data: original dataset with SMILES and predictions
     - MMACE_Explanations: list of dictionaries containing explanations per fold
     - results_dir: directory to save results
     """
@@ -24,19 +23,30 @@ def save_mmace_explanations_to_excel(MMACE_Explanations, results_dir):
         "Similarity": [],
         "Label": []
     }
-    
+    print(f"MMACE length: {len(MMACE_Explanations)}")
     # Process each fold
     for fold_idx, fold_dict in enumerate(MMACE_Explanations):
         fold_explanations = fold_dict["explanations"]
         
+        # Skip if fold explanations is empty
+        if not fold_explanations:
+            print(f"Skipping fold {fold_idx} - no explanations found")
+            continue
+        
         # Process each molecule in the fold
         for mol_idx, cf_list in enumerate(fold_explanations):
-            if len(cf_list) == 0:
+            print(f"Processing fold {fold_idx}, molecule {mol_idx}...")
+            print(f"Number of counterfactuals: {len(cf_list)}")
+            # print(f"Counterfactuals: {cf_list}")
+            # Skip if cf_list is empty
+            if cf_list == []:
+                print(f"Skipping molecule {mol_idx} in fold {fold_idx} - no counterfactuals found")
                 continue
                 
             # Get original molecule info
             original = next((cf for cf in cf_list if cf.is_origin), None)
             if not original:
+                print(f"Skipping molecule {mol_idx} in fold {fold_idx} - no original molecule found")
                 continue
                 
             # Process each counterfactual
@@ -51,6 +61,11 @@ def save_mmace_explanations_to_excel(MMACE_Explanations, results_dir):
                     excel_data["Similarity"].append(cf.similarity)
                     excel_data["Label"].append(cf.label)
 
+    # Check if we have any data to save
+    if not any(excel_data.values()):
+        print("No valid explanations found to save to Excel")
+        return None
+        
     # Create DataFrame
     df = pd.DataFrame(excel_data)
     
@@ -63,28 +78,32 @@ def save_mmace_explanations_to_excel(MMACE_Explanations, results_dir):
         
         # Add molecule visualizations
         for idx, row in df.iterrows():
-            # Original molecule
-            orig_mol = Chem.MolFromSmiles(row['Original_SMILES'])
-            if orig_mol:
-                img = Draw.MolToImage(orig_mol)
-                img_buffer = BytesIO()
-                img.save(img_buffer, format='PNG')
-                img_buffer.seek(0)
-                
-                row_num = idx + 1
-                worksheet.insert_image(row_num, 0, '', {'image_data': img_buffer})
-                
-            # Counterfactual molecule
-            cf_mol = Chem.MolFromSmiles(row['Counterfactual_SMILES'])
-            if cf_mol:
-                img = Draw.MolToImage(cf_mol)
-                img_buffer = BytesIO()
-                img.save(img_buffer, format='PNG')
-                img_buffer.seek(0)
-                
-                worksheet.insert_image(row_num, 3, '', {'image_data': img_buffer})
-                
-            worksheet.set_row(row_num, 250)  # Set row height to accommodate images
+            try:
+                # Original molecule
+                orig_mol = Chem.MolFromSmiles(row['Original_SMILES'])
+                if orig_mol:
+                    img = Draw.MolToImage(orig_mol)
+                    img_buffer = BytesIO()
+                    img.save(img_buffer, format='PNG')
+                    img_buffer.seek(0)
+                    
+                    row_num = idx + 1
+                    worksheet.insert_image(row_num, 0, '', {'image_data': img_buffer})
+                    
+                # Counterfactual molecule
+                cf_mol = Chem.MolFromSmiles(row['Counterfactual_SMILES'])
+                if cf_mol:
+                    img = Draw.MolToImage(cf_mol)
+                    img_buffer = BytesIO()
+                    img.save(img_buffer, format='PNG')
+                    img_buffer.seek(0)
+                    
+                    worksheet.insert_image(row_num, 3, '', {'image_data': img_buffer})
+                    
+                worksheet.set_row(row_num, 250)  # Set row height to accommodate images
+            except Exception as e:
+                print(f"Error processing molecule visualization for row {idx}: {e}")
+                continue
             
         # Adjust column widths
         worksheet.set_column('A:A', 20)  # Original molecule column
@@ -92,6 +111,7 @@ def save_mmace_explanations_to_excel(MMACE_Explanations, results_dir):
         worksheet.set_column('H:O', 15)  # Data columns
     
     print(f"MMACE explanations saved to: {excel_path}")
+    return excel_path
 
 import os
 from datetime import datetime
