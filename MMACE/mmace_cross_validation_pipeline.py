@@ -162,8 +162,8 @@ class CrossValidationMMACEPipeline:
             # Generate MACCS fingerprints for the input SMILES
             # print(f"Generating MACCS fingerprints for SMILES: {x}")
             fps = [list(Chem.MACCSkeys.GenMACCSKeys(Chem.MolFromSmiles(x)).ToBitString())]
-            # fps = np.array(fps)[:, 1:]
-            fps_df = pd.DataFrame(fps, columns=[f'maccsfingerprint{i}' for i in range(0, len(fps[0]))])
+            fps = np.array(fps)[:, 1:]
+            fps_df = pd.DataFrame(fps, columns=[f'maccsfingerprint{i}' for i in range(len(fps[0]))])
 
             # Load the MACCS merge file and filter columns based on selected keys
             parent_dir = os.path.dirname(os.getcwd())
@@ -182,10 +182,10 @@ class CrossValidationMMACEPipeline:
             filtered_fps = fps_df[selected_keys]
 
             # Convert the filtered DataFrame to a labeled DataFrame for prediction
-            labeled_fps = pd.DataFrame(filtered_fps, columns=selected_keys)
+            # labeled_fps = pd.DataFrame(filtered_fps, columns=selected_keys)
 
             # Use the labeled DataFrame for prediction
-            prediction = model.predict(labeled_fps).flatten()
+            prediction = model.predict(filtered_fps).flatten()
 
             # print(f"Prediction for SMILES {x}: {prediction}")
 

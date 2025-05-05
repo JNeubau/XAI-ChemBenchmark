@@ -32,6 +32,7 @@ def mainMMACEFlow():
     print(data.head())
     os.makedirs(results_dir, exist_ok=True)
     custom_alphabet = get_custom_alphabet(data)
+    print(f"Custom alphabet: {custom_alphabet}")
 
 
     folds = custom_data_kfold(data.drop(columns=['capacity_max']), data[['capacity_max']], 5)
