@@ -14,7 +14,7 @@ from utils.data_split import custom_data_kfold
 from utils.exportlib import save_data_to_excel_with_highlights, save_scores_to_excel_new_sheet
 from MMACE.mmace_cross_validation_pipeline import CrossValidationMMACEPipeline
 from MMACE.timeoutexception import timeout
-from MMACE.savemmacecfexcel import save_mmace_explanations_to_excel
+from MMACE.savemmacecfexcel import save_mmace_explanations_to_excel,create_mmace_pdf
 
 
 def mainMMACEFlow():
@@ -55,11 +55,10 @@ def mainMMACEFlow():
     print("Results:", results)
     print("Scores:", scores)
 
-    save_mmace_explanations_to_excel(
-            MMACE_Explanations, results_dir=results_dir
-        )
+    save_mmace_explanations_to_excel(MMACE_Explanations, results_dir=results_dir)
     # print("MMACE Explanations:", MMACE_Explanations)
-    process_folds_local(folds, data, samples, cfs,MMACE_Explanations)
+   
+    process_folds_local(folds, data, samples, cfs,MMACE_Explanations,results_dir)
 
 
     # print("MMACE explanations:", MMACE_explanations)
@@ -77,6 +76,7 @@ def mainMMACEFlow():
 def get_custom_alphabet(data):
     """
     Generate custom alphabet from SMILES data.
+    :param data: DataFrame containing SMILES strings.
     """
     import selfies as sf
     import exmol
@@ -91,7 +91,15 @@ def get_custom_alphabet(data):
     custom_alphabet = sf.get_alphabet_from_selfies([s for s in selfies_list if s is not None])
     return custom_alphabet
 
-def process_folds_local(folds,data,samples,cfs,MMACE_Explanations):
+def process_folds_local(folds,data,samples,cfs,MMACE_Explanations,results_dir):
+    """
+    Process folds for local MMACE explanations.
+    :param folds: List of folds for cross-validation.
+    :param data: DataFrame containing the dataset.
+    :param samples: List of samples for each fold.
+    :param cfs: List of counterfactuals for each fold.
+    :param MMACE_Explanations: List of MMACE explanations for each fold.
+    """
     print("Processing folds for local MMACE...")
     smarts_top_all = {}
     match_molecules_all = {}
@@ -104,23 +112,25 @@ def process_folds_local(folds,data,samples,cfs,MMACE_Explanations):
     for i, fold in enumerate(folds):
         test_f = data.loc[fold[1]]
         mmace_cf = MMACE_Explanations[i]["explanations"]
+        pdf_path = create_mmace_pdf(MMACE_Explanations, i, results_dir)
+        print(f"Created PDF report for fold {i} at: {pdf_path}")
         # samples_fold = samples[i]
         # # print(f"test_f :{test_f}")
         # print(F"samples_fold :{samples_fold}")
         # print(f"mmace_cf :{mmace_cf}")
         
-        print(f"length of mmace_cf: {len(mmace_cf)}")
+        # print(f"length of mmace_cf: {len(mmace_cf)}")
         # print(f"length of samples_fold: {len(samples_fold)}")
-        for molecule_idx, cf_array in enumerate(mmace_cf):
-            print(f"=============================\n Fold {i}, Molecule {molecule_idx}")
+        # for molecule_idx, cf_array in enumerate(mmace_cf):
+            # print(f"=============================\n Fold {i}, Molecule {molecule_idx}")
             # print(f"SMILES: {test_f.iloc[molecule_idx]['smiles']}")
-            print(f"cfs_array: {cf_array}")
+            # print(f"cfs_array: {cf_array}")
             # print("CFS array:", cfs_array)
             # if i == 0 and molecule_idx==0:
                 # print("MMACE CF:", cfs_array)
-            if len(cf_array) == 0:
-                print("No CFS found for this molecule.")
-                continue
+            # if len(cf_array) == 0:
+            #     print("No CFS found for this molecule.")
+            #     continue
             # if cfs_array is not None:
             # export_plots_exmol(cfs_array,i,molecule_idx)
             # print("Exported plots for exmol explanations.")
