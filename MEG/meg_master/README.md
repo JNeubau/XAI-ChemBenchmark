@@ -32,7 +32,7 @@ To generate counterfactual explanations for a specific sample, run:
 ```
 python train_meg.py [tox21 | esol] <experiment_name> --sample <INTEGER>
 ```
-Results will be saved at ```runs/<dataset_name>/<experiment_name>/meg_output```.
+Results will be saved at ```runs_meg/<dataset_name>/<experiment_name>/meg_output```.
 
 # Bibtex
 ```

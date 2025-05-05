@@ -25,7 +25,7 @@ def main_old(dataset_name: str,
 
     dataset_name = dataset_name.lower()
 
-    base_path = './runs/' + dataset_name  + '/' + experiment_name
+    base_path = './runs_meg/' + dataset_name  + '/' + experiment_name
     if not osp.exists(base_path):
         os.makedirs(base_path + "/ckpt")
         os.makedirs(base_path + "/plots")
@@ -106,7 +106,7 @@ def main(dataset_name: str,
     dataset_name = dataset_name.lower()
     
     work_dir = os.getcwd()
-    base_path = osp.join(work_dir, 'runs', dataset_name, experiment_name)
+    base_path = osp.join(work_dir, 'runs_meg', dataset_name, experiment_name)
     
     if not osp.exists(base_path):
         os.makedirs(base_path + "/ckpt")

@@ -37,7 +37,6 @@ def battery_1(general_params,
     
     # For battery dataset we don't have SMILES, use a placeholder ID
     molecule_id = f"battery_sample_{args['sample']}"
-    # molecule_id = f"org_battery_sample_{getattr(original_molecule, 'battery_id', f'id')}_s{args['sample']}" if hasattr(original_molecule, 'battery_id') else f"battery_sample_{args['sample']}"
     smiles = getattr(original_molecule, 'smiles', None)
     
     print(f'Battery sample ID: {molecule_id}')
@@ -421,6 +420,13 @@ def meg_train(writer,
         steps_left = args['max_steps_per_episode'] - environment.num_steps_taken
         valid_actions = list(environment.get_valid_actions())
 
+        # Check if there are valid actions available
+        if not valid_actions:
+            print(f"No valid actions available at episode {episode}, reinitializing environment")
+            environment.initialize()
+            episode += 1  # Count this as a completed episode
+            continue      # Skip to the next iteration
+        
         observations = np.vstack(
             [
                 np.append(action_encoder(action), steps_left)
@@ -447,12 +453,28 @@ def meg_train(writer,
 
         steps_left = args['max_steps_per_episode'] - environment.num_steps_taken
 
-        action_embeddings = np.vstack(
-            [
-                np.append(action_encoder(action), steps_left)
-                for action in environment.get_valid_actions()
-            ]
-        )
+        # Check if there are valid actions after taking a step
+        valid_next_actions = list(environment.get_valid_actions())
+        if valid_next_actions:
+            action_embeddings = np.vstack(
+                [
+                    np.append(action_encoder(action), steps_left)
+                    for action in valid_next_actions
+                ]
+            )
+        else:
+            # If no valid actions, create a dummy action embedding with zeros
+            # This allows training to continue but signals that no further actions are possible
+            print(f"No valid next actions available at episode {episode}, step {environment.num_steps_taken}")
+            action_embeddings = np.zeros((1, n_input + 1))
+            done = True  # Force episode to end
+        
+        # action_embeddings = np.vstack(
+        #     [
+        #         np.append(action_encoder(action), steps_left)
+        #         for action in valid_actions
+        #     ]
+        # )
 
         agent.replay_buffer.push(
             torch.as_tensor(action_embedding).float(),
@@ -604,8 +626,11 @@ def main(dataset: str,
 
     torch.manual_seed(seed)
 
-    base_path = f'./runs/{dataset.lower()}/{experiment_name}'
+    base_path = f'./runs_meg/{dataset.lower()}/{experiment_name}'
 
+    print('num samples test: ', len(get_split(dataset.lower(), 'test', experiment_name)))
+    print('num samples: train', len(get_split(dataset.lower(), 'train', experiment_name)))
+    print('num samples: val', len(get_split(dataset.lower(), 'val', experiment_name)))
     print('Running meg on dataset: ', dataset)
     meg(general_params,
         base_path,

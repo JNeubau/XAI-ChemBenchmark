@@ -418,11 +418,12 @@ def create_cf_pdf(data, output_path, max_cf=10):
     print(f"SVG images saved to: {svg_dir}")
     return output_path, smiles_path, svg_dir
 
-# Example usage
-if __name__ == "__main__":
-    # 1, 3, 5
+def main(dataset_name:str,
+         experiment_name: str = 'test',
+         sample: int = 0):
     work_dir = os.getcwd()
-    sample_dir = os.path.join(work_dir, 'runs/battery/test/meg_output/1')
+    sample_dir = os.path.join(work_dir, 'runs_meg', dataset_name, experiment_name, 'meg_output', str(sample))
+    print(sample_dir)
     json_path = os.path.join(sample_dir, 'data.json')
     plots_dir = os.path.join(sample_dir, 'cf_plots')
     os.makedirs(plots_dir, exist_ok=True)
@@ -444,3 +445,7 @@ if __name__ == "__main__":
         print(f"  Reward: {cf.get('reward', 'N/A')}")
         print(f"  Prediction: {cf['prediction']['output']:.2f}")
         print(f"  Difference: {cf['prediction']['difference']:+.2f}")
+        
+if __name__ == "__main__":
+    # 1, 3, 5
+    main('battery', 'test', 3)

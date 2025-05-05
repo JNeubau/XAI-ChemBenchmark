@@ -57,9 +57,9 @@ def get_split(dataset_name, split, experiment):
         ds = BatteryInMemory()
 
 
-    # ds.data, ds.slices = torch.load(f"runs/{dataset_name.lower()}/{experiment}/splits/{split}.pth")
+    # ds.data, ds.slices = torch.load(f"runs_meg/{dataset_name.lower()}/{experiment}/splits/{split}.pth")
     # Load the split data
-    split_file = f"runs/{dataset_name.lower()}/{experiment}/splits/{split}.pth"
+    split_file = f"runs_meg/{dataset_name.lower()}/{experiment}/splits/{split}.pth"
     
     if dataset_name.lower() == 'battery':
         # For battery, we saved the collated data directly
@@ -77,7 +77,7 @@ def preprocess(dataset_name, experiment_name, batch_size):
 
 def _preprocess_battery(experiment_name, batch_size):    
     # Create directory structure if needed
-    os.makedirs(f'runs/battery/{experiment_name}/splits', exist_ok=True)
+    os.makedirs(f'runs_meg/battery/{experiment_name}/splits', exist_ok=True)
     
     # Load data from CSV
     csv_path = osp.join(os.getcwd(), 'data', 'maccs_merged.csv')
@@ -154,9 +154,9 @@ def _preprocess_battery(experiment_name, batch_size):
     test_collated = InMemoryDataset.collate(test_data)
     
     # Save the splits
-    torch.save(train_collated, f'runs/battery/{experiment_name}/splits/train.pth')
-    torch.save(val_collated, f'runs/battery/{experiment_name}/splits/val.pth')
-    torch.save(test_collated, f'runs/battery/{experiment_name}/splits/test.pth')
+    torch.save(train_collated, f'runs_meg/battery/{experiment_name}/splits/train.pth')
+    torch.save(val_collated, f'runs_meg/battery/{experiment_name}/splits/val.pth')
+    torch.save(test_collated, f'runs_meg/battery/{experiment_name}/splits/test.pth')
     
     # Class for PyG DataLoader compatibility
     class BatteryInMemory(InMemoryDataset):
@@ -241,9 +241,9 @@ def _preprocess_tox21(experiment_name, batch_size):
     val.data, val.slices = train.collate(val_data)
     test.data, test.slices = train.collate(test_data)
 
-    torch.save((train.data, train.slices), f'runs/tox21/{experiment_name}/splits/train.pth')
-    torch.save((val.data, val.slices), f'runs/tox21/{experiment_name}/splits/val.pth')
-    torch.save((test.data, test.slices), f'runs/tox21/{experiment_name}/splits/test.pth')
+    torch.save((train.data, train.slices), f'runs_meg/tox21/{experiment_name}/splits/train.pth')
+    torch.save((val.data, val.slices), f'runs_meg/tox21/{experiment_name}/splits/val.pth')
+    torch.save((test.data, test.slices), f'runs_meg/tox21/{experiment_name}/splits/test.pth')
 
     return (
         DataLoader(train, batch_size=batch_size),
@@ -285,10 +285,10 @@ def _preprocess_esol(experiment_name, batch_size):
     val.data, val.slices = train.collate(val_data)
     test.data, test.slices = train.collate(test_data)
 
-    os.makedirs(f'runs/esol/{experiment_name}/splits', exist_ok=True)
-    torch.save((train.data, train.slices), f'runs/esol/{experiment_name}/splits/train.pth')
-    torch.save((val.data, val.slices), f'runs/esol/{experiment_name}/splits/val.pth')
-    torch.save((test.data, test.slices), f'runs/esol/{experiment_name}/splits/test.pth')
+    os.makedirs(f'runs_meg/esol/{experiment_name}/splits', exist_ok=True)
+    torch.save((train.data, train.slices), f'runs_meg/esol/{experiment_name}/splits/train.pth')
+    torch.save((val.data, val.slices), f'runs_meg/esol/{experiment_name}/splits/val.pth')
+    torch.save((test.data, test.slices), f'runs_meg/esol/{experiment_name}/splits/test.pth')
 
 
     return (

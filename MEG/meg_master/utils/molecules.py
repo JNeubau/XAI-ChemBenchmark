@@ -35,7 +35,7 @@ def get_fingerprints(smiles):
     # Generate MACCS fingerprints for the input SMILES
     # print(f"Generating MACCS fingerprints for SMILES: {x}")
     fps = [list(MACCSkeys.GenMACCSKeys(Chem.MolFromSmiles(smiles)).ToBitString())]
-    fps_df = pd.DataFrame(fps, columns=[f'maccsfingerprint{i}' for i in range(1, len(fps[0]) + 1)])
+    fps_df = pd.DataFrame(fps, columns=[f'maccsfingerprint{i}' for i in range(len(fps[0]))])
 
     # Load the MACCS merge file and filter columns based on selected keys
     parent_dir = os.getcwd()
@@ -192,7 +192,7 @@ def get_dgn(dataset, experiment):
     from models.encoder.GCNN import GCNN
     import json
 
-    base_path = 'runs/' + dataset.lower() + "/" + experiment
+    base_path = 'runs_meg/' + dataset.lower() + "/" + experiment
     params = None
 
     with open(base_path + '/hyperparams.json') as file:
@@ -217,7 +217,7 @@ def get_battery_rf(experiment):
     import joblib
     import os
     
-    base_path = f'runs/battery/{experiment}'
+    base_path = f'runs_meg/battery/{experiment}'
     model_path = f'{base_path}/ckpt/model.joblib'
 
     # Load existing model

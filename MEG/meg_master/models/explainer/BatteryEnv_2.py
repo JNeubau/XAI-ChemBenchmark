@@ -43,7 +43,6 @@ class CF_Battery(Molecule):
         molecule = mol_from_smiles(self._state)
         molecule = mol_to_battery_pyg(molecule)
 
-        print('mol shape x: ', molecule.x.shape)
         # Convert PyG representation to flat feature vector for RF
         features = molecule.x.reshape(1, -1)
         

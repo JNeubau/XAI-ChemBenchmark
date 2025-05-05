@@ -9,17 +9,17 @@ Implemented
 
 Implemented
 
-* max order =< 2
+* max order => 2
 
 Implemented
 
 ## LIME
-In progress - M
+Implemented - M
 
 ## MMACE
 In progress - M
 
 ## MEG
-In progress - A
+Inplemented - A
 
 ## OBS
