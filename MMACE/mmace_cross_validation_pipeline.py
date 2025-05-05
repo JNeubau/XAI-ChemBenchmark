@@ -32,7 +32,7 @@ class CrossValidationMMACEPipeline:
         data_name: str,
         hyperparam_opt: bool = True,
         verbose: bool = False,
-        custom_alphabet: set = None,  # Add this parameter
+        custom_alphabet: set = None
     ):
         """
         Initialize the cross-validation pipeline.
@@ -147,25 +147,24 @@ class CrossValidationMMACEPipeline:
         with open(save_scores_path, "a", encoding="utf-8") as f:
             f.writelines(lines)
 
-    def generate_MMACE_explanations(self, model, X_test: pd.DataFrame, list_smiles: pd.Series, y_pred: np.array, fold: int = 0) -> tuple:
+    def generate_MMACE_explanations(self, model, X_test: pd.DataFrame, list_smiles: pd.Series, fold: int = 0) -> tuple:
         """
         Generate MMACE explanations using the exmol library.
         :param model: trained model.
         :param X_test: test data.
-        :param list_smiles: series with SMILES string dla każdej instancji.
-        :return: lista słowników z wyjaśnieniami dla poszczególnych instancji.
+        :param list_smiles: series with SMILES string for each instance.
+        :param fold: fold number for tracking.
+        :return: tuple with explanations, samples and counterfactuals.
         """
         MMACE_explanations = []
-        datetime_now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        samples_fold = []
+        cfs_fold = []
 
         def local_predict_fn(x):
-            # Generate MACCS fingerprints for the input SMILES
-            # print(f"Generating MACCS fingerprints for SMILES: {x}")
             fps = [list(Chem.MACCSkeys.GenMACCSKeys(Chem.MolFromSmiles(x)).ToBitString())]
             fps = np.array(fps)[:, 1:]
             fps_df = pd.DataFrame(fps, columns=[f'maccsfingerprint{i}' for i in range(len(fps[0]))])
 
-            # Load the MACCS merge file and filter columns based on selected keys
             parent_dir = os.path.dirname(os.getcwd())
             maccs_merge_path = os.path.join(parent_dir, 'data', 'maccs_merged.csv')
 
@@ -177,101 +176,16 @@ class CrossValidationMMACEPipeline:
             selected_keys = maccs_merge.columns.tolist()
 
             selected_keys = [key for key in selected_keys if key in fps_df.columns]
-
-            # Filter the fingerprints DataFrame to include only the selected keys
             filtered_fps = fps_df[selected_keys]
-
-            # Convert the filtered DataFrame to a labeled DataFrame for prediction
             # labeled_fps = pd.DataFrame(filtered_fps, columns=selected_keys)
+            return model.predict(filtered_fps).flatten()
 
-            # Use the labeled DataFrame for prediction
-            prediction = model.predict(filtered_fps).flatten()
-
-            # print(f"Prediction for SMILES {x}: {prediction}")
-
-            return prediction
-            # # Check if the prediction for the newly generated SMILES matches the original SMILES
-            # original_prediction = y_pred[X_test.index[i]]
-            # print(f"Comparing predictions {i}: {prediction} vs {original_prediction}")
-            # if not np.array_equal(prediction, original_prediction):
-            #     return 0
-
-            # return 1
-        @timeout(60)
-        def plot_with_timeout(cfs):
-            fkw = {"figsize": (10, 3)}
-            exmol.plot_cf(cfs, figure_kwargs=fkw, mol_size=(450, 400), nrows=1)
-
-        def export_plots_exmol(cfs, fold, i):
-            
-            datetime_now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            try:
-                # plot_path = os.path.join(os.path.join(
-                #         os.path.dirname(os.getcwd())), 'results', 'plots', 'MMACE', "local", datetime.today().strftime("%d-%m-%Y"))
-                plot_dir = os.path.join(
-                        os.path.dirname(os.getcwd()), 'results', 'plots', 'MMACE', "local","counterfactuals", datetime.today().strftime("%d-%m-%Y")
-                    )
-                os.makedirs(plot_dir, exist_ok=True)
-                plot_path = os.path.join(
-                        plot_dir, f"explanation_fold_{fold}_instance_{i}_{datetime_now}.png"
-                    )
-                # fkw = {"figsize": (10, 3)}
-                print(f"fkw")
-                plot_with_timeout(cfs)
-                print(f"exmol plot_cf")
-                plt.savefig(plot_path, bbox_inches="tight", dpi=180)
-                print(f"Plot saved to {plot_path}")
-            except Exception as e:
-                print(f"An error occurred while plotting CFS: {e}")
-            finally:
-                plt.close('all')
-            
-            # exmol.plot_descriptors(sample_space)
-            # plt.savefig("my_descriptor_plot.png", bbox_inches="tight")
-            # plt.close()
-            return 0
-
-        @timeout(60)
-        def plot_space_with_timeout(space, cfs):
-            fkw = {"figsize": (10, 3)}
-            exmol.plot_space(space, cfs, figure_kwargs=fkw, mol_size=(200, 200), offset=1)
-
-        def export_plots_exmol_space(space,cfs, fold, i):
-            datetime_now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            try:
-                plot_dir = os.path.join(
-                        os.path.dirname(os.getcwd()), 'results', 'plots', 'MMACE', "local","space", datetime.today().strftime("%d-%m-%Y")
-                    )
-                os.makedirs(plot_dir, exist_ok=True)
-                plot_path = os.path.join(
-                        plot_dir, f"explanation_space_fold_{fold}_instance_{i}_{datetime_now}.png"
-                    )
-                # fkw = {"figsize": (10, 3)}
-                print(f"fkw")
-                fkw = {"figsize": (8, 6)}
-                font = {"family": "normal", "weight": "normal", "size": 22}
-
-
-                # exmol.plot_space(space, cfs, figure_kwargs=fkw, mol_size=(200, 200), offset=1)
-                plot_space_with_timeout(space, cfs)
-                ax = plt.gca()
-                plt.colorbar(ax.get_children()[1], ax=[ax], location="left")
-                plt.savefig(plot_path, bbox_inches="tight", dpi=180)
-                print(f"Plot saved to {plot_path}")
-            except Exception as e:
-                print(f"An error occurred while plotting CFS: {e}")
-            finally:
-                plt.close('all')
-            return 0
-
-        samples_fold = []
-        cfs_fold = []
         for i, instance in X_test.iterrows():
             smiles = list_smiles.iloc[i]
             print(f"Processing instance {i} with SMILES: {smiles}")
             try:
                 stoned_kwargs = {
-                    "num_samples": 20,
+                    "num_samples": 200,
                     "alphabet": self.custom_alphabet if self.custom_alphabet else exmol.get_basic_alphabet(),
                     "max_mutations": 1,
                 }
@@ -284,14 +198,6 @@ class CrossValidationMMACEPipeline:
                     batched=False)
                 samples_fold.append(samples)
                     
-                # samples = exmol.sample_space(
-                #     smiles, 
-                #     local_predict_fn, 
-                #     batched=False,
-                #     # preset='chemed',
-                #     num_samples=4,
-                #     quiet=True,
-                #     use_selfies=False)
             except Exception as e:
                 print(f"An error occurred while sampling space: {e}")
                 cfs_fold.append([])
@@ -301,19 +207,13 @@ class CrossValidationMMACEPipeline:
             cfs = exmol.rcf_explain(
                 samples,
                 filter_nondrug = False,
-                # delta=[-0.5,0.5],
                 delta=0.5,
                 nmols=2
                 )
             
-            # export_plots_exmol(cfs, fold, i)
-            # export_plots_exmol_space(samples, cfs, fold, i)
             cfs_fold.append(cfs)
-            # print(f"cfs_folds: {cfs_fold}")
         
         self.MMACE_results.append({"fold": fold, "explanations": cfs_fold})
-
-           
 
         return MMACE_explanations, samples_fold, cfs_fold
 
@@ -349,11 +249,7 @@ class CrossValidationMMACEPipeline:
             model_scores = self.eval_model(y_pred, y_test_numpy)
             self.update_scores(model_scores)
 
-            # if i == 0:
-            self.generate_MMACE_explanations(model, X_test, smiles['smiles'], fold=foldid,y_pred=y_pred)
-            # self.MMACE_results.append({"fold": fold[1], "explanations": MMACE_explanations})
-            # i+=1
-            
+            self.generate_MMACE_explanations(model, X_test, smiles['smiles'], fold=foldid)
             foldid+=1
 
         results = self.aggregate_scores()
