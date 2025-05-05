@@ -84,7 +84,7 @@ def save_mmace_explanations_to_excel(MMACE_Explanations, results_dir):
                 
                 worksheet.insert_image(row_num, 3, '', {'image_data': img_buffer})
                 
-            worksheet.set_row(row_num, 150)  # Set row height to accommodate images
+            worksheet.set_row(row_num, 250)  # Set row height to accommodate images
             
         # Adjust column widths
         worksheet.set_column('A:A', 20)  # Original molecule column
