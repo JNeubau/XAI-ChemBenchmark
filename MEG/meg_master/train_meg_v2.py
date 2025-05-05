@@ -1,21 +1,18 @@
 import torch
-import utils
 import numpy as np
-import torchvision
 import json
 import os
-import utils
 import networkx as nx
 import typer
 import random
 
 from models.explainer import CF_Tox21, NCF_Tox21, Agent, CF_Esol, NCF_Esol, CF_Battery
 from torch.utils.tensorboard import SummaryWriter
-from utils import SortedQueue, morgan_bit_fingerprint, get_split, get_dgn, mol_to_smiles, x_map_tox21, pyg_to_mol_tox21, mol_from_smiles, mol_to_tox21_pyg
+from utils import SortedQueue, morgan_bit_fingerprint, get_split, get_dgn, mol_to_smiles, x_map_tox21, pyg_to_mol_tox21, mol_from_smiles, mol_to_tox21_pyg, pyg_to_mol_battery
 from torch.nn import functional as F
 from torch_geometric.utils import to_networkx
 
-def battery(general_params,
+def battery_1(general_params,
           base_path,
           writer,
           num_counterfactuals,
@@ -39,8 +36,8 @@ def battery(general_params,
     print(f'Original prediction: {pred_value}, Actual: {actual_value}')
     
     # For battery dataset we don't have SMILES, use a placeholder ID
-    # molecule_id = f"battery_sample_{args['sample']}"
-    molecule_id = f"org_battery_sample_{getattr(original_molecule, 'battery_id', f'id')}_s{args['sample']}" if hasattr(original_molecule, 'battery_id') else f"battery_sample_{args['sample']}"
+    molecule_id = f"battery_sample_{args['sample']}"
+    # molecule_id = f"org_battery_sample_{getattr(original_molecule, 'battery_id', f'id')}_s{args['sample']}" if hasattr(original_molecule, 'battery_id') else f"battery_sample_{args['sample']}"
     smiles = getattr(original_molecule, 'smiles', None)
     
     print(f'Battery sample ID: {molecule_id}')
@@ -96,6 +93,176 @@ def battery(general_params,
     
     save_results(base_path, overall_queue, args)
 
+def battery(general_params,
+          base_path,
+          writer,
+          num_counterfactuals,
+          original_molecule,
+          model_to_explain,
+          **args):
+    print('Running MEG on battery dataset...')
+    
+    # First check if we need to create a graph structure
+    if not hasattr(original_molecule, 'edge_index') or original_molecule.edge_index is None:
+        # Get SMILES if available
+        smiles = getattr(original_molecule, 'smiles', None)
+        print('original SMILES: ', smiles)
+        
+        if smiles:
+            # Create a graph from SMILES
+            from utils.molecules import mol_from_smiles, mol_to_battery_pyg
+            rdkit_mol = mol_from_smiles(smiles)
+            if rdkit_mol:
+                # Extract graph structure from RDKit mol and add it to original_molecule
+                pyg_mol = mol_to_battery_pyg(rdkit_mol)
+                original_molecule.edge_index = pyg_mol.edge_index
+                original_molecule.edge_attr = pyg_mol.edge_attr
+            else:
+                # Fallback to dummy structure
+                num_nodes = original_molecule.x.size(0) if len(original_molecule.x.shape) > 1 else 1
+                original_molecule.edge_index = torch.zeros((2, 0), dtype=torch.long)
+                original_molecule.edge_attr = torch.zeros((0, 4), dtype=torch.float)
+    
+    
+    # out, (_, original_encoding) = model_to_explain(original_molecule.x, original_molecule.edge_index)
+    features = original_molecule.x.reshape(1, -1)
+    print(f"Feature shape for prediction: {features.shape}")
+    
+    # Make prediction with RF model
+    out = model_to_explain.predict(features.numpy())
+    original_encoding = features  # Use the features as encoding
+
+    # logits = F.softmax(out, dim=-1).detach().squeeze()
+    # pred_class = logits.argmax().item()
+    pred_value = float(out[0])  # Convert to Python float for easier handling
+
+    # assert pred_class == original_molecule.y.item()
+    print(original_molecule)
+
+    # original_molecule.smiles = mol_to_smiles(pyg_to_mol_battery(original_molecule))
+
+    print(f'Molecule: {original_molecule.smiles}')
+
+    # atoms_ = [
+    #     x_map_tox21(e).name
+    #     for e in np.unique(
+    #         [x.tolist().index(1) for x in original_molecule.x.numpy()]
+    #     )
+    # ]
+    atoms_ = np.unique(
+        [x.GetSymbol() for x in mol_from_smiles(original_molecule.smiles).GetAtoms()]
+    )
+
+    params = {
+        # General-purpose params
+        **general_params,
+        'init_mol': original_molecule.smiles,
+        'atom_types': set(atoms_),
+        # Task-specific params
+        'original_molecule': original_molecule,
+        'model_to_explain': model_to_explain,
+        'weight_sim': 0.2,
+        'similarity_measure': 'tanimoto'
+    }
+
+    cf_queue = SortedQueue(num_counterfactuals, sort_predicate=lambda mol: mol['reward'])
+    cf_env = CF_Battery(**params)
+    cf_env.initialize()
+
+    def action_encoder(action):
+        return morgan_bit_fingerprint(action, args['fp_length'], args['fp_radius']).numpy()
+
+    meg_train(writer,
+              action_encoder,
+              args['fp_length'],
+              cf_env,
+              cf_queue,
+              marker="cf",
+              tb_name="battery",
+              id_function=lambda action: action,
+              args=args)
+
+    overall_queue = []
+    overall_queue.append({
+        'pyg': original_molecule,
+        'marker': 'og',
+        'smiles': original_molecule.smiles,
+        'encoding': original_encoding.numpy(),
+        'prediction': {
+            'type': 'regression',
+            'output': pred_value,
+            'for_explanation': original_molecule.y.item(),
+            'class': original_molecule.y.item()
+        }
+    })
+    overall_queue.extend(cf_queue.data_)
+
+    save_results(base_path, overall_queue, args)
+
+def battery_2(general_params,
+        base_path,
+        writer,
+        num_counterfactuals,
+        original_molecule,
+        model_to_explain,
+        **args):
+    
+    print('Running MEG on ESOL dataset...')
+    original_molecule.x = original_molecule.x.float()
+
+    og_prediction, original_encoding = model_to_explain(original_molecule.x, original_molecule.edge_index)
+    print(f'Molecule: {original_molecule.smiles}')
+
+    atoms_ = np.unique(
+        [x.GetSymbol() for x in mol_from_smiles(original_molecule.smiles).GetAtoms()]
+    )
+
+    params = {
+        # General-purpose params
+        **general_params,
+        'init_mol': original_molecule.smiles,
+        'atom_types': set(atoms_),
+        # Task-specific params
+        'model_to_explain': model_to_explain,
+        'original_molecule': original_molecule,
+        'weight_sim': 0.2,
+        'similarity_measure': 'tanimoto',
+    }
+
+    cf_queue = SortedQueue(num_counterfactuals, sort_predicate=lambda mol: mol['reward'])
+    cf_env = CF_Esol(**params)
+    cf_env.initialize()
+
+    def action_encoder(action):
+        return morgan_bit_fingerprint(action, args['fp_length'], args['fp_radius']).numpy()
+
+    meg_train(writer,
+              action_encoder,
+              args['fp_length'],
+              cf_env,
+              cf_queue,
+              marker="cf",
+              tb_name="battery",
+              id_function=lambda action: action,
+              args=args)
+
+    overall_queue = []
+    overall_queue.append({
+        'pyg': original_molecule,
+        'marker': 'og',
+        'smiles': original_molecule.smiles,
+        'encoding': original_encoding,
+        # 'encoding': original_encoding.numpy(),
+        'prediction': {
+            'type': 'regression',
+            'output': og_prediction.squeeze().detach().numpy().tolist(),
+            'for_explanation': og_prediction.squeeze().detach().numpy().tolist()
+        }
+    })
+    overall_queue.extend(cf_queue.data_)
+
+    save_results(base_path, overall_queue, args)
+    
 def tox21(general_params,
           base_path,
           writer,
@@ -220,7 +387,8 @@ def esol(general_params,
         'pyg': original_molecule,
         'marker': 'og',
         'smiles': original_molecule.smiles,
-        'encoding': original_encoding.numpy(),
+        'encoding': original_encoding,
+        # 'encoding': original_encoding.numpy(),
         'prediction': {
             'type': 'regression',
             'output': og_prediction.squeeze().detach().numpy().tolist(),

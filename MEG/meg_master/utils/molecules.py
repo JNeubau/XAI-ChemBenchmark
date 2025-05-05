@@ -1,9 +1,10 @@
 import sys
 import os
 import torch
+import pandas as pd
 
 from rdkit import Chem
-from rdkit.Chem import AllChem, RDConfig
+from rdkit.Chem import AllChem, RDConfig, MACCSkeys
 from enum import Enum
 from torch_geometric.data import Data
 from torch_geometric.datasets.molecule_net import e_map as e_map_esol, x_map as x_map_esol
@@ -29,6 +30,71 @@ def check_molecule_validity(mol, transform):
         mol = transform(mol)
 
     return Chem.SanitizeMol(mol, catchErrors=True) == Chem.SANITIZE_NONE
+
+def get_fingerprints(smiles):
+    # Generate MACCS fingerprints for the input SMILES
+    # print(f"Generating MACCS fingerprints for SMILES: {x}")
+    fps = [list(MACCSkeys.GenMACCSKeys(Chem.MolFromSmiles(smiles)).ToBitString())]
+    fps_df = pd.DataFrame(fps, columns=[f'maccsfingerprint{i}' for i in range(1, len(fps[0]) + 1)])
+
+    # Load the MACCS merge file and filter columns based on selected keys
+    parent_dir = os.getcwd()
+    maccs_merge_path = os.path.join(parent_dir, 'data', 'maccs_merged.csv')
+
+    if not os.path.exists(maccs_merge_path):
+        raise FileNotFoundError(f"MACCS merge file not found: {maccs_merge_path}")
+
+    maccs_merge = pd.read_csv(maccs_merge_path)
+    maccs_merge = maccs_merge.loc[:, maccs_merge.columns.str.contains('maccs', case=False)]
+    selected_keys = maccs_merge.columns.tolist()
+
+    selected_keys = [key for key in selected_keys if key in fps_df.columns]
+
+    # Filter the fingerprints DataFrame to include only the selected keys
+    filtered_fps = fps_df[selected_keys]
+    return filtered_fps
+            
+def mol_to_battery_pyg(molecule):
+
+    if isinstance(molecule, str):
+        molecule = mol_from_smiles(molecule)
+        
+    fingerprints = get_fingerprints(mol_to_smiles(molecule))
+    numeric_fingerprints = fingerprints.applymap(lambda x: int(x) if isinstance(x, str) else x)
+    fingerprints_tensor = torch.tensor(numeric_fingerprints.values, dtype=torch.float32)
+
+    # X = torch.nn.functional.one_hot(
+    #     torch.tensor([
+    #         x_map_tox21[atom.GetSymbol()].value
+    #         for atom in molecule.GetAtoms()
+    #     ]),
+    #     num_classes=53
+    # ).float()
+    X = fingerprints_tensor
+
+    E = torch.tensor([
+        [bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()]
+        for bond in molecule.GetBonds()
+    ] + [
+        [bond.GetEndAtomIdx(), bond.GetBeginAtomIdx()]
+        for bond in molecule.GetBonds()
+    ]).t()
+
+    edge_attr = torch.nn.functional.one_hot(
+        torch.tensor([
+            e_map_tox21(bond.GetBondType())
+            for bond in molecule.GetBonds()
+        ] + [
+            e_map_tox21(bond.GetBondType())
+            for bond in molecule.GetBonds()
+        ]),
+        num_classes=4
+    ).float()
+
+    pyg_mol = Data(x=X, edge_index=E, edge_attr=edge_attr)
+    pyg_mol.batch = torch.zeros(X.shape[0]).long()
+    pyg_mol.smiles = mol_to_smiles(molecule)
+    return pyg_mol
 
 def mol_to_tox21_pyg(molecule):
 
@@ -157,6 +223,34 @@ def get_battery_rf(experiment):
     # Load existing model
     print(f"Loading existing Random Forest model from {model_path}")
     return joblib.load(model_path)
+
+def pyg_to_mol_battery(pyg_mol):
+    mol = Chem.RWMol()
+
+    X = pyg_mol.x.numpy().tolist()
+    print(X)
+    X = [
+        Chem.Atom(x_map_tox21(x.index(1)).name)
+        for x in X
+    ]
+
+    E = pyg_mol.edge_index.t()
+
+    for x in X:
+        mol.AddAtom(x)
+
+    for (u, v), attr in zip(E, pyg_mol.edge_attr):
+        u = u.item()
+        v = v.item()
+        attr = attr.numpy().tolist()
+        attr = e_map_tox21(attr.index(1), reverse=True)
+
+        if mol.GetBondBetweenAtoms(u, v):
+            continue
+
+        mol.AddBond(u, v, attr)
+
+    return mol
 
 def pyg_to_mol_tox21(pyg_mol):
     mol = Chem.RWMol()
