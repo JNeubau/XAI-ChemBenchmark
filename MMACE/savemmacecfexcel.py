@@ -183,6 +183,14 @@ def draw_molecule_with_highlights(mol, changed_atoms=None, changed_bonds=None, m
     png_data = drawer.GetDrawingText()
     return Image.open(io.BytesIO(png_data))
 
+def format_smiles(smiles, max_len=80):
+    if len(smiles) <= max_len:
+        return smiles
+    chunks = []
+    for i in range(0, len(smiles), max_len):
+        chunks.append(smiles[i:i+max_len])
+    return '\n'.join(chunks)
+    
 def create_mmace_pdf(MMACE_results, fold_idx, output_dir):
     """
     Create PDF visualizations for MMACE counterfactuals.
@@ -217,7 +225,7 @@ def create_mmace_pdf(MMACE_results, fold_idx, output_dir):
             ax2 = plt.subplot(gs[1])
             ax2.axis('off')
             pred_text = [
-                f"SMILES: {original.smiles}",
+                f"SMILES: {format_smiles(original.smiles)}",
                 f"Prediction: {float(original.yhat):.4f}"
             ]
             ax2.text(0.5, 0.7, '\n'.join(pred_text), ha='center', va='center', fontsize=14)
@@ -261,7 +269,7 @@ def create_mmace_pdf(MMACE_results, fold_idx, output_dir):
                 ax3 = plt.subplot(gs[2, :])
                 ax3.axis('off')
                 info_text = [
-                    f"SMILES: {cf.smiles}",
+                    f"SMILES: {format_smiles(cf.smiles)}",
                     f"Original Prediction: {float(original.yhat):.4f}",
                     f"Counterfactual Prediction: {float(cf.yhat):.4f}",
                     f"Difference: {float(cf.yhat - original.yhat):+.4f}",
