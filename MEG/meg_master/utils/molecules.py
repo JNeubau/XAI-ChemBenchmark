@@ -2,6 +2,7 @@ import sys
 import os
 import torch
 import pandas as pd
+import numpy as np
 
 from rdkit import Chem
 from rdkit.Chem import AllChem, RDConfig, MACCSkeys
@@ -35,6 +36,7 @@ def get_fingerprints(smiles):
     # Generate MACCS fingerprints for the input SMILES
     # print(f"Generating MACCS fingerprints for SMILES: {x}")
     fps = [list(MACCSkeys.GenMACCSKeys(Chem.MolFromSmiles(smiles)).ToBitString())]
+    fps = np.array(fps)[:, 1:]
     fps_df = pd.DataFrame(fps, columns=[f'maccsfingerprint{i}' for i in range(len(fps[0]))])
 
     # Load the MACCS merge file and filter columns based on selected keys

@@ -10,6 +10,8 @@ import argparse
 from utils import get_fingerprints
 import torch
 
+cf_1 = [0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,1.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0,0.0,1.0,0.0,0.0,1.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0,1.0,1.0,1.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,1.0,0.0,1.0,0.0,1.0,1.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,1.0,0.0,1.0,1.0,0.0,1.0,1.0,1.0,1.0,1.0]
+cf_2 = [0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,1.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0,0.0,1.0,0.0,0.0,1.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0,1.0,1.0,1.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,1.0,0.0,1.0,0.0,1.0,1.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,1.0,0.0,1.0,1.0,0.0,1.0,1.0,1.0,1.0,1.0]
 
 """
 This is a test file to make sure the model will predict certain value for given smiles.
@@ -124,12 +126,6 @@ def predict_property_from_dataset(smiles, model_path, dataset_path="data/maccs_m
     # Get features from dataset
     features, original_capacity = get_features_from_dataset(smiles, dataset_path)
     
-    # if features is None:
-    #     print("Using fingerprint calculation as fallback")
-    #     # Fall back to fingerprint calculation if not found in dataset
-    #     features = smiles_to_fingerprint(smiles, "maccs")
-    #     original_capacity = None
-    
     # Load model
     model = load_model(model_path)
     
@@ -169,8 +165,26 @@ def predict_property_from_fp(smiles, model_path, dataset_path="data/maccs_marged
     
     return features_reshaped, original_capacity, predicted_capacity
 
+def compare_lists(list1, list2):
+    """
+    Compare two lists and return the indices of mismatches
+    
+    Args:
+        list1: First list to compare
+        list2: Second list to compare
+        
+    Returns:
+        List of indices where the lists differ
+    """
+    count = 0
+    for i in range(len(list1)):
+        if list1[i] != list2[i]:
+            print(f"Feature {i} mismatch: {list1[i]} vs {list2[i]}")
+            count += 1
+    print(f"Number of mismatches: {count}")
+    
 def main():
-    smiles = 'O=C(O[Na])C(=O)O[Na]'
+    smiles = 'Nc1ccc(-n2c3ccc(N)cc3c3cc(/N=C/c4ccc(-c5cc(-c6ccc(C=O)cc6)cc(-c6ccc(C=O)cc6)n5)cc4)ccc32)cc1'
     model_path = os.path.join(os.getcwd(), 'runs_meg', 'battery', 'test', 'ckpt', 'model.joblib')
     dataset_path = os.path.join(os.getcwd(), 'data', 'maccs_merged.csv')
     
@@ -189,13 +203,9 @@ def main():
     features_fp = features_fp.flatten().detach().cpu().numpy().astype(int).tolist()
     
     print(f"Features from fp: {features_fp}")
-    
-    count = 0
-    for i in range(len(features)):
-        if features[i] != features_fp[i]:
-            print(f"Feature {i} mismatch: {features[i]} vs {features_fp[i]}")
-            count += 1
-    print(f"Number of mismatches: {count}")
+    compare_lists(features, features_fp)
 
 if __name__ == "__main__":
     main()
+    # compare_lists(cf_1, cf_2)
+      
