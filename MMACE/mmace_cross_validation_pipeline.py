@@ -32,6 +32,7 @@ class CrossValidationMMACEPipeline:
         data_name: str,
         hyperparam_opt: bool = True,
         verbose: bool = False,
+        custom_alphabet: set = None,  # Add this parameter
     ):
         """
         Initialize the cross-validation pipeline.
@@ -57,6 +58,7 @@ class CrossValidationMMACEPipeline:
         self.MMACE_results = None
         self.cfs = None
         self.samples = None
+        self.custom_alphabet = custom_alphabet
 
     def tune_model(self, X_train: pd.DataFrame, y_train: pd.DataFrame, model: object, param_grid: dict | None) -> object:
         """
@@ -261,7 +263,6 @@ class CrossValidationMMACEPipeline:
                 plt.close('all')
             return 0
 
-        
         for i, instance in X_test.iterrows():
             samples_fold = []
             cfs_fold = []
@@ -270,7 +271,7 @@ class CrossValidationMMACEPipeline:
             try:
                 stoned_kwargs = {
                     "num_samples": 25,
-                    # "alphabet": exmol.get_basic_alphabet(),
+                    # "alphabet": self.custom_alphabet if self.custom_alphabet else exmol.get_basic_alphabet(),
                     "max_mutations": 1,
                 }
                 
@@ -281,6 +282,7 @@ class CrossValidationMMACEPipeline:
                     quiet=True,
                     batched=False)
                 samples_fold.append(samples)
+                    
                 # samples = exmol.sample_space(
                 #     smiles, 
                 #     local_predict_fn, 
@@ -322,6 +324,7 @@ class CrossValidationMMACEPipeline:
         if self.verbose:
             print(f"Training model {proper_model_name}")
         foldid=0
+
         for fold in self.folds:
             train_idx, test_idx = fold
 

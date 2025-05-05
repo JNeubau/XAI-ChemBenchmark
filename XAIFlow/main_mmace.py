@@ -22,6 +22,7 @@ def mainMMACEFlow():
     print("Running MMACE explanation pipeline...")
     parent_dir = os.path.dirname(os.getcwd())
     print("Parent directory:", parent_dir)
+    
 
     maccs_fingerprints = os.path.join(parent_dir, 'data', 'maccs_merged.csv')
     results_dir = os.path.join(parent_dir, 'results', 'battery', 'MMACE', 'local', datetime.today().strftime("%d-%m-%Y"))
@@ -29,6 +30,8 @@ def mainMMACEFlow():
     data = pd.read_csv(maccs_fingerprints, index_col=0)
     print(data.head())
     os.makedirs(results_dir, exist_ok=True)
+    custom_alphabet = get_custom_alphabet(data)
+
 
     folds = custom_data_kfold(data.drop(columns=['capacity_max']), data[['capacity_max']], 5)
 
@@ -43,7 +46,8 @@ def mainMMACEFlow():
         metrics=['smape', 'pairwise_accuracy_score', 'rmse', 'ndcg_score'],
         save_dir=results_dir,
         data_name='battery',
-        verbose=True
+        verbose=True,
+        custom_alphabet=custom_alphabet  
     )
 
     results, scores,cfs,samples = cv_pipeline.train_pipeline('RFReg')
@@ -61,6 +65,22 @@ def mainMMACEFlow():
     #
     # excel_data = prepare_data_for_excel_export(match_molecules_all, smarts_top_all, molecules_statistics_all)
     # save_molecules_to_excel(excel_data, results_dir)
+def get_custom_alphabet(data):
+    """
+    Generate custom alphabet from SMILES data.
+    """
+    import selfies as sf
+    import exmol
+    
+    selfies_list = []
+    for s in data.smiles:  # Changed from SMILES to smiles to match your DataFrame
+        try:
+            selfies_list.append(sf.encoder(exmol.sanitize_smiles(s)[1]))
+        except sf.EncoderError:
+            selfies_list.append(None)
+    
+    custom_alphabet = sf.get_alphabet_from_selfies([s for s in selfies_list if s is not None])
+    return custom_alphabet
 
 def process_folds_local(folds,data,samples,cfs):
     print("Processing folds for local MMACE...")
