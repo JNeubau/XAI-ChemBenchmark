@@ -263,15 +263,15 @@ class CrossValidationMMACEPipeline:
                 plt.close('all')
             return 0
 
+        samples_fold = []
+        cfs_fold = []
         for i, instance in X_test.iterrows():
-            samples_fold = []
-            cfs_fold = []
             smiles = list_smiles.iloc[i]
             print(f"Processing instance {i} with SMILES: {smiles}")
             try:
                 stoned_kwargs = {
                     "num_samples": 25,
-                    # "alphabet": self.custom_alphabet if self.custom_alphabet else exmol.get_basic_alphabet(),
+                    "alphabet": self.custom_alphabet if self.custom_alphabet else exmol.get_basic_alphabet(),
                     "max_mutations": 1,
                 }
                 
@@ -304,9 +304,13 @@ class CrossValidationMMACEPipeline:
                 nmols=4
                 )
             
-            export_plots_exmol(cfs, fold, i)
+            # export_plots_exmol(cfs, fold, i)
             # export_plots_exmol_space(samples, cfs, fold, i)
             cfs_fold.append(cfs)
+            # print(f"cfs_folds: {cfs_fold}")
+        
+        self.MMACE_results.append({"fold": fold, "explanations": cfs_fold})
+
            
 
         return MMACE_explanations, samples_fold, cfs_fold
@@ -344,11 +348,10 @@ class CrossValidationMMACEPipeline:
             self.update_scores(model_scores)
 
             # if i == 0:
-            MMACE_explanations,samples,cfs = self.generate_MMACE_explanations(model, X_test, smiles['smiles'], fold=foldid,y_pred=y_pred)
+            self.generate_MMACE_explanations(model, X_test, smiles['smiles'], fold=foldid,y_pred=y_pred)
             # self.MMACE_results.append({"fold": fold[1], "explanations": MMACE_explanations})
             # i+=1
-            self.samples.append(samples)
-            self.cfs.append(cfs)
+            
             foldid+=1
 
         results = self.aggregate_scores()
@@ -356,4 +359,4 @@ class CrossValidationMMACEPipeline:
         if len(self.save_dir) > 0:
             self.save_results(results, proper_model_name, model.get_params())
 
-        return results, self.scores, self.cfs, self.samples
+        return results, self.scores, self.cfs, self.samples, self.MMACE_results

@@ -50,9 +50,14 @@ def mainMMACEFlow():
         custom_alphabet=custom_alphabet  
     )
 
-    results, scores,cfs,samples = cv_pipeline.train_pipeline('RFReg')
+    results, scores,cfs,samples,MMACE_Explanations = cv_pipeline.train_pipeline('RFReg')
     print("Results:", results)
     print("Scores:", scores)
+
+    # print("MMACE Explanations:", MMACE_Explanations)
+    process_folds_local(folds, data, samples, cfs,MMACE_Explanations)
+
+
     # print("MMACE explanations:", MMACE_explanations)
 
     # process_folds_local(folds, data, samples,cfs)
@@ -82,30 +87,30 @@ def get_custom_alphabet(data):
     custom_alphabet = sf.get_alphabet_from_selfies([s for s in selfies_list if s is not None])
     return custom_alphabet
 
-def process_folds_local(folds,data,samples,cfs):
+def process_folds_local(folds,data,samples,cfs,MMACE_Explanations):
     print("Processing folds for local MMACE...")
     smarts_top_all = {}
     match_molecules_all = {}
     molecules_statistics_all = {}
-    print(f"Number of folds: {len(folds)}")
-    print(f"Number of molecules: {len(data)}")
-    print(f"Number of samples: {len(samples)}")
-    print(f"Number of MMACE explanations: {len(cfs)}")
-    print(f"MMACE explanations: {cfs}") 
+    # print(f"Number of folds: {len(folds)}")
+    # print(f"Number of molecules: {len(data)}")
+    # print(f"Number of samples: {len(samples)}")
+    # print(f"Number of MMACE explanations: {len(cfs)}")
+    # print(f"MMACE explanations: {cfs}") 
     for i, fold in enumerate(folds):
         test_f = data.loc[fold[1]]
-        mmace_cf = cfs[i]
-        samples_fold = samples[i]
-        # print(f"test_f :{test_f}")
-        print(F"samples_fold :{samples_fold}")
-        print(f"mmace_cf :{mmace_cf}")
+        mmace_cf = MMACE_Explanations[i]["explanations"]
+        # samples_fold = samples[i]
+        # # print(f"test_f :{test_f}")
+        # print(F"samples_fold :{samples_fold}")
+        # print(f"mmace_cf :{mmace_cf}")
         
         print(f"length of mmace_cf: {len(mmace_cf)}")
-        print(f"length of samples_fold: {len(samples_fold)}")
+        # print(f"length of samples_fold: {len(samples_fold)}")
         for molecule_idx, cf_array in enumerate(mmace_cf):
             print(f"=============================\n Fold {i}, Molecule {molecule_idx}")
             # print(f"SMILES: {test_f.iloc[molecule_idx]['smiles']}")
-            # print(f"cfs_array: {cf_array}")
+            print(f"cfs_array: {cf_array}")
             # print("CFS array:", cfs_array)
             # if i == 0 and molecule_idx==0:
                 # print("MMACE CF:", cfs_array)
