@@ -166,7 +166,8 @@ class CrossValidationMMACEPipeline:
             fps_df = pd.DataFrame(fps, columns=[f'maccsfingerprint{i}' for i in range(len(fps[0]))])
 
             parent_dir = os.path.dirname(os.getcwd())
-            maccs_merge_path = os.path.join(parent_dir, 'data', 'maccs_merged.csv')
+            maccs_merge_path = os.path.join(parent_dir, 'data', 'new_maccs_merged.csv')
+            # maccs_merge_path = os.path.join(parent_dir, 'data', 'maccs_merged.csv')
 
             if not os.path.exists(maccs_merge_path):
                 raise FileNotFoundError(f"MACCS merge file not found: {maccs_merge_path}")
