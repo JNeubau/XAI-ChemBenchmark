@@ -19,14 +19,14 @@ def mainXaiFlow(train_RF_again: bool = True, dataset_name='battery', experiment_
             batch_size=32,
             seed=0)
     
-    sample = list(range(4, 9))
+    sample = list(range(0, 6))
     print("Starting MEG explainations...")
     for i in sample:
         train_meg(dataset=dataset_name,
             experiment_name=experiment_name,
             sample=i,
-            epochs=500, # 5000
-            max_steps_per_episode=10,
+            epochs=1000, # 5000
+            max_steps_per_episode=6,
             num_counterfactuals=12,
             fp_length=1024,  
             fp_radius=2,
@@ -47,4 +47,4 @@ def mainXaiFlow(train_RF_again: bool = True, dataset_name='battery', experiment_
 
 
 if __name__ == '__main__':
-    mainXaiFlow(False, 'battery', 'test')
+    mainXaiFlow(False, 'battery', 'cv_test')

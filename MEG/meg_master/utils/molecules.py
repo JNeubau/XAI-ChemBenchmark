@@ -41,7 +41,7 @@ def get_fingerprints(smiles):
 
     # Load the MACCS merge file and filter columns based on selected keys
     parent_dir = os.getcwd()
-    maccs_merge_path = os.path.join(parent_dir, 'data', 'maccs_merged.csv')
+    maccs_merge_path = os.path.join(parent_dir, 'data', 'new_maccs_merged.csv')
 
     if not os.path.exists(maccs_merge_path):
         raise FileNotFoundError(f"MACCS merge file not found: {maccs_merge_path}")
@@ -185,9 +185,7 @@ def mol_to_esol_pyg(molecule):
     return data
 
 
-def get_dgn(dataset, experiment):
-    print('get_DGN')
-    
+def get_dgn(dataset, experiment):    
     if dataset.lower() == 'battery':
         return get_battery_rf(experiment)
     

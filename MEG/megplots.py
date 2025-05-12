@@ -448,4 +448,4 @@ def main(dataset_name:str,
         
 if __name__ == "__main__":
     # 1, 3, 5
-    main('battery', 'test', 3)
+    main('battery', 'test_2', 3)

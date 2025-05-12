@@ -80,7 +80,7 @@ def _preprocess_battery(experiment_name, batch_size):
     os.makedirs(f'runs_meg/battery/{experiment_name}/splits', exist_ok=True)
     
     # Load data from CSV
-    csv_path = osp.join(os.getcwd(), 'data', 'maccs_merged.csv')
+    csv_path = osp.join(os.getcwd(), 'data', 'new_maccs_merged.csv')
     df = pd.read_csv(csv_path)
     
     # Extract features and target variable
@@ -88,7 +88,7 @@ def _preprocess_battery(experiment_name, batch_size):
     # Adjust this according to your actual CSV structure
     fingerprint_cols = [col for col in df.columns if col.startswith('maccsfinger')]
     # feature_cols = ['Unnamed: 0'] + fingerprint_cols  # Include ID column
-    ids = df['Unnamed: 0'].values  # Extract IDs from first column
+    # ids = df['Unnamed: 0'].values  # Extract IDs from first column
     smiles_col = df['smiles'].values   # Numerical target (smiles)
     
     features = df[fingerprint_cols].values    # All fingerprint features
@@ -108,7 +108,7 @@ def _preprocess_battery(experiment_name, batch_size):
         
         # Create a Data object
         data = Data(x=x, y=y)
-        data.battery_id = str(ids[i])  # Store the ID as an attribute
+        # data.battery_id = str(ids[i])  # Store the ID as an attribute
         data.smiles = str(smiles_col[i])  # Store the SMILES string as an attribute
         data_list.append(data)
     
