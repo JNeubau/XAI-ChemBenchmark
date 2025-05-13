@@ -12,85 +12,6 @@ from utils import SortedQueue, morgan_bit_fingerprint, get_split, get_dgn, mol_t
 from torch.nn import functional as F
 from torch_geometric.utils import to_networkx
 
-def battery_1(general_params,
-          base_path,
-          writer,
-          num_counterfactuals,
-          original_molecule,
-          model_to_explain,
-          **args):
-    print('Running MEG on Battery dataset...')
-    
-    # Different prediction approach for Random Forest
-    # RF expects flattened features, not graph structure
-    features = original_molecule.x.reshape(1, -1)
-    print(f"Feature shape for prediction: {features.shape}")            
-    
-    out = model_to_explain.predict(features.numpy())
-    original_encoding = features  # Use the features as encoding since RF doesn't have internal representations
-    
-    # For regression, we don't have classes, just the predicted value
-    pred_value = float(out[0])
-    actual_value = float(original_molecule.y.item())
-    
-    print(f'Original prediction: {pred_value}, Actual: {actual_value}')
-    
-    # For battery dataset we don't have SMILES, use a placeholder ID
-    molecule_id = f"battery_sample_{args['sample']}"
-    smiles = getattr(original_molecule, 'smiles', None)
-    
-    print(f'Battery sample ID: {molecule_id}')
-    print(f'Battery SMILES: {smiles}')
-    
-    # For battery dataset we're using MACCS fingerprints, not atoms
-    feature_names = [f'feature_{i}' for i in range(features.shape[1])]
-    print(f"Number of features for explanation: {len(feature_names)}")
-
-    params = {
-        # General-purpose params
-        **general_params,
-        'init_mol': molecule_id,  # Use the ID instead of SMILES
-        'feature_names': feature_names,  # Use feature names instead of atom types
-        # Task-specific params
-        'original_molecule': original_molecule,
-        'model_to_explain': model_to_explain,
-        'weight_sim': 0.2,
-        'similarity_measure': 'tanimoto'  # Use euclidean distance for numerical features
-    }
-    
-    cf_queue = SortedQueue(num_counterfactuals, sort_predicate=lambda mol: mol['reward'])
-    cf_env = CF_Battery(**params)
-    cf_env.initialize()
-
-    def action_encoder(action):
-        # For battery, the action is already the feature vector
-        return action
-
-    meg_train(writer,
-              action_encoder,
-              len(feature_names),  # Use the number of features
-              cf_env,
-              cf_queue,
-              marker="cf",
-              tb_name="battery",
-              id_function=lambda action: molecule_id,  # Use the ID since we don't have SMILES
-              args=args)
-
-    overall_queue = []
-    overall_queue.append({
-        'pyg': original_molecule,
-        'marker': 'og',
-        'smiles': smiles,  # Use the ID since we don't have SMILES
-        'encoding': original_encoding.numpy(),
-        'prediction': {
-            'type': 'regression',
-            'output': float(pred_value),
-            'for_explanation': float(actual_value)
-        }
-    })
-    overall_queue.extend(cf_queue.data_)
-    
-    save_results(base_path, overall_queue, args)
 
 def battery(general_params,
           base_path,
@@ -101,11 +22,15 @@ def battery(general_params,
           **args):
     print('Running MEG on battery dataset...')
     
+    print(base_path)
+    with open(os.path.join(base_path, "molecule_smiles_mapping.txt"), "a") as file:
+        file.write(f"{args['fold']}_{args['sample']}: {original_molecule.smiles}\n")
+    
     # First check if we need to create a graph structure
     if not hasattr(original_molecule, 'edge_index') or original_molecule.edge_index is None:
         # Get SMILES if available
         smiles = getattr(original_molecule, 'smiles', None)
-        print('original SMILES: ', smiles)
+        # print('original SMILES: ', smiles)
         
         if smiles:
             # Create a graph from SMILES
@@ -125,7 +50,7 @@ def battery(general_params,
     
     # out, (_, original_encoding) = model_to_explain(original_molecule.x, original_molecule.edge_index)
     features = original_molecule.x.reshape(1, -1)
-    print(f"Feature shape for prediction: {features.shape}")
+    # print(f"Feature shape for prediction: {features.shape}")
     
     # Make prediction with RF model
     out = model_to_explain.predict(features.numpy())
@@ -136,11 +61,11 @@ def battery(general_params,
     pred_value = float(out[0])  # Convert to Python float for easier handling
 
     # assert pred_class == original_molecule.y.item()
-    print(original_molecule)
+    # print(original_molecule)
 
     # original_molecule.smiles = mol_to_smiles(pyg_to_mol_battery(original_molecule))
 
-    print(f'Molecule: {original_molecule.smiles}')
+    # print(f'Molecule: {original_molecule.smiles}')
 
     # atoms_ = [
     #     x_map_tox21(e).name
@@ -163,6 +88,9 @@ def battery(general_params,
         'weight_sim': 0.2,
         'similarity_measure': 'tanimoto'
     }
+    
+    if 'fold' in params:
+        params.pop('fold')
 
     cf_queue = SortedQueue(num_counterfactuals, sort_predicate=lambda mol: mol['reward'])
     cf_env = CF_Battery(**params)
@@ -191,71 +119,8 @@ def battery(general_params,
             'type': 'regression',
             'output': pred_value,
             'for_explanation': original_molecule.y.item(),
-            'class': original_molecule.y.item()
-        }
-    })
-    overall_queue.extend(cf_queue.data_)
-
-    save_results(base_path, overall_queue, args)
-
-def battery_2(general_params,
-        base_path,
-        writer,
-        num_counterfactuals,
-        original_molecule,
-        model_to_explain,
-        **args):
-    
-    print('Running MEG on ESOL dataset...')
-    original_molecule.x = original_molecule.x.float()
-
-    og_prediction, original_encoding = model_to_explain(original_molecule.x, original_molecule.edge_index)
-    print(f'Molecule: {original_molecule.smiles}')
-
-    atoms_ = np.unique(
-        [x.GetSymbol() for x in mol_from_smiles(original_molecule.smiles).GetAtoms()]
-    )
-
-    params = {
-        # General-purpose params
-        **general_params,
-        'init_mol': original_molecule.smiles,
-        'atom_types': set(atoms_),
-        # Task-specific params
-        'model_to_explain': model_to_explain,
-        'original_molecule': original_molecule,
-        'weight_sim': 0.2,
-        'similarity_measure': 'tanimoto',
-    }
-
-    cf_queue = SortedQueue(num_counterfactuals, sort_predicate=lambda mol: mol['reward'])
-    cf_env = CF_Esol(**params)
-    cf_env.initialize()
-
-    def action_encoder(action):
-        return morgan_bit_fingerprint(action, args['fp_length'], args['fp_radius']).numpy()
-
-    meg_train(writer,
-              action_encoder,
-              args['fp_length'],
-              cf_env,
-              cf_queue,
-              marker="cf",
-              tb_name="battery",
-              id_function=lambda action: action,
-              args=args)
-
-    overall_queue = []
-    overall_queue.append({
-        'pyg': original_molecule,
-        'marker': 'og',
-        'smiles': original_molecule.smiles,
-        'encoding': original_encoding,
-        # 'encoding': original_encoding.numpy(),
-        'prediction': {
-            'type': 'regression',
-            'output': og_prediction.squeeze().detach().numpy().tolist(),
-            'for_explanation': og_prediction.squeeze().detach().numpy().tolist()
+            'class': original_molecule.y.item(),
+            'fold': args['fold']
         }
     })
     overall_queue.extend(cf_queue.data_)
@@ -528,7 +393,7 @@ def meg_train(writer,
 
 def save_results(base_path, queue, args):
     print('Saving results...')
-    output_dir = base_path + f"/meg_output/{args['sample']}"
+    output_dir = base_path + f"/meg_output/{args['fold']}_{args['sample']}"
     embedding_dir = output_dir + "/embeddings"
 
     if not os.path.exists(output_dir):
@@ -599,8 +464,8 @@ def main(dataset: str,
          allow_node_addition: bool = typer.Option(True),
          allow_edge_addition: bool = typer.Option(True),
          allow_bonds_between_rings: bool = typer.Option(True),
-         seed: int = typer.Option(random.randint(0, 2**12))
-):
+         seed: int = typer.Option(random.randint(0, 2**12)),
+         fold: int = typer.Option(0)):
 
     general_params = {
         # General-purpose params
@@ -613,7 +478,8 @@ def main(dataset: str,
         'allowed_ring_sizes': set([5, 6]),
         'max_steps': max_steps_per_episode,
         'fp_len': fp_length,
-        'fp_rad': fp_radius
+        'fp_rad': fp_radius,
+        'fold': fold,
     }
 
     dataset = dataset.lower()
@@ -628,15 +494,15 @@ def main(dataset: str,
 
     base_path = f'./runs_meg/{dataset.lower()}/{experiment_name}'
 
-    print('num samples test: ', len(get_split(dataset.lower(), 'test', experiment_name)))
-    print('num samples: train', len(get_split(dataset.lower(), 'train', experiment_name)))
-    print('num samples: val', len(get_split(dataset.lower(), 'val', experiment_name)))
+    # print('num samples test: ', len(get_split(dataset.lower(), 'test', experiment_name, fold)))
+    # print('num samples: train', len(get_split(dataset.lower(), 'train', experiment_name, fold)))
+    # print('num samples: val', len(get_split(dataset.lower(), 'val', experiment_name, fold)))
     print('Running meg on dataset: ', dataset)
     meg(general_params,
         base_path,
         SummaryWriter(f'{base_path}/plots'),
         num_counterfactuals,
-        get_split(dataset.lower(), 'test', experiment_name)[sample],
+        get_split(dataset.lower(), 'test', experiment_name, fold)[sample],
         model_to_explain=get_dgn(dataset.lower(), experiment_name),
         experiment_name=experiment_name,
         sample=sample,
@@ -651,7 +517,8 @@ def main(dataset: str,
         replay_buffer_size=replay_buffer_size,
         batch_size=batch_size,
         update_interval=update_interval,
-        seed=seed)
+        seed=seed,
+        fold=fold)
 
 
 if __name__ == '__main__':

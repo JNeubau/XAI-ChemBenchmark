@@ -33,6 +33,12 @@ def check_molecule_validity(mol, transform):
     return Chem.SanitizeMol(mol, catchErrors=True) == Chem.SANITIZE_NONE
 
 def get_fingerprints(smiles):
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        print(f"Error: Invalid SMILES string: {smiles}")
+        # Return a dummy fingerprint with all zeros
+        dummy_fps = np.zeros((1, 166), dtype=int)
+        return pd.DataFrame(dummy_fps, columns=[f'maccsfingerprint{i}' for i in range(166)])
     # Generate MACCS fingerprints for the input SMILES
     # print(f"Generating MACCS fingerprints for SMILES: {x}")
     fps = [list(MACCSkeys.GenMACCSKeys(Chem.MolFromSmiles(smiles)).ToBitString())]

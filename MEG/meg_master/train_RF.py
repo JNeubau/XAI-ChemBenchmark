@@ -118,7 +118,7 @@ def main(dataset_name: str,
         shutil.rmtree(base_path + "/plots", ignore_errors=True)
         os.makedirs(base_path + "/plots")
 
-    train_loader, val_loader, test_loader, *extra = preprocess(dataset_name, experiment_name, batch_size)
+    train_loader, val_loader, test_loader, *extra = preprocess(dataset_name, experiment_name, batch_size, seed)
     train_ds, val_ds, test_ds, num_features, num_classes = extra
 
     len_train = len(train_ds)

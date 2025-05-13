@@ -373,8 +373,8 @@ def create_cf_pdf(data, output_path, max_cf=10):
             pdf.savefig(fig, dpi=300)  # Save with high DPI
             plt.close()
     
-    print(f"High-resolution PDF created at: {output_path}")
-    print(f"SMILES saved to: {smiles_path}")
+    # print(f"High-resolution PDF created at: {output_path}")
+    # print(f"SMILES saved to: {smiles_path}")
     
     # Also save SVG versions of the molecules if you want vector graphics
     svg_dir = os.path.splitext(output_path)[0] + '_svg'
@@ -415,14 +415,15 @@ def create_cf_pdf(data, output_path, max_cf=10):
         with open(cf_svg, 'w') as f:
             f.write(drawer.GetDrawingText())
     
-    print(f"SVG images saved to: {svg_dir}")
+    # print(f"SVG images saved to: {svg_dir}")
     return output_path, smiles_path, svg_dir
 
 def main(dataset_name:str,
          experiment_name: str = 'test',
-         sample: int = 0):
+         sample: int = 0,
+         fold: int = 0):
     work_dir = os.getcwd()
-    sample_dir = os.path.join(work_dir, 'runs_meg', dataset_name, experiment_name, 'meg_output', str(sample))
+    sample_dir = os.path.join(work_dir, 'runs_meg', dataset_name, experiment_name, 'meg_output', f'{str(fold)}_{str(sample)}')
     print(sample_dir)
     json_path = os.path.join(sample_dir, 'data.json')
     plots_dir = os.path.join(sample_dir, 'cf_plots')
@@ -436,15 +437,15 @@ def main(dataset_name:str,
     create_cf_pdf(data, pdf_path)
     
     print(f"PDF created at: {pdf_path}")
-    print(f"Original molecule target: {data['original']['prediction']['output']}")
+    # print(f"Original molecule target: {data['original']['prediction']['output']}")
     print(f"Found {len(data['counterfactuals'])} counterfactuals")
     
     # Show counterfactuals
-    for i, cf in enumerate(data['counterfactuals']):
-        print(f"\nCounterfactual #{i+1}:")
-        print(f"  Reward: {cf.get('reward', 'N/A')}")
-        print(f"  Prediction: {cf['prediction']['output']:.2f}")
-        print(f"  Difference: {cf['prediction']['difference']:+.2f}")
+    # for i, cf in enumerate(data['counterfactuals']):
+    #     print(f"\nCounterfactual #{i+1}:")
+    #     print(f"  Reward: {cf.get('reward', 'N/A')}")
+    #     print(f"  Prediction: {cf['prediction']['output']:.2f}")
+    #     print(f"  Difference: {cf['prediction']['difference']:+.2f}")
         
 if __name__ == "__main__":
     # 1, 3, 5

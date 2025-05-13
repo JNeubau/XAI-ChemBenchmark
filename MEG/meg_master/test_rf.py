@@ -97,7 +97,6 @@ def get_features_from_dataset(smiles, dataset_path="maccs_marged.csv"):
         
         # Extract features and predicted_capacity
         feature_columns = [col for col in df.columns if col.startswith('maccsfingerprint')]
-        print(len(feature_columns))
         
         # Extract features as numpy array
         features = row[feature_columns].values

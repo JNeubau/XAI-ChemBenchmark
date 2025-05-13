@@ -147,7 +147,6 @@ def fingerprints_dataset(
     smiles_list = df[smiles_col].tolist()
     target_list = df[target_col].tolist()
     feature_list, features_names = Fingerprints().apply(fingerprint_type, smiles_list, **kwargs["kwargs"])
-    print(features_names)
     df_features = pd.DataFrame(feature_list, columns=features_names)
     df_features[target_col] = target_list
     df_features[smiles_col] = smiles_list
@@ -172,7 +171,6 @@ if __name__ == "__main__":
     common_indices = [i for i, name in enumerate(f_names) if name in common_columns]
     filtered_fp = [fp[0][i] for i in common_indices]
     print(filtered_fp, f_names[common_indices])
-
 
     # df_fingerprints = fingerprints_dataset(df, "smiles", "capacity_max", "maccs", kwargs={"count": True})
     # print(df_fingerprints.head())
