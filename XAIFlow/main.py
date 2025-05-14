@@ -27,7 +27,7 @@ def mainXaiFlow(model, local_explanation=True, max_order_iq=1):
     parent_dir = os.path.dirname(os.getcwd())
     print("Parent directory:", parent_dir)
     
-    maccs_fingerprints = os.path.join(parent_dir, 'data', 'maccs_merged.csv')
+    maccs_fingerprints = os.path.join(parent_dir, 'data', 'new_maccs_merged.csv')
     smarts_mapping_path = os.path.join(parent_dir, 'data', 'maccs_smarts_mapping.json')
     if max_order_iq > 1:
         explenation_type = 'local_interactions'
@@ -37,7 +37,7 @@ def mainXaiFlow(model, local_explanation=True, max_order_iq=1):
         explenation_type = 'global'
     results_dir = os.path.join(parent_dir, 'results', 'battery', model, explenation_type, datetime.today().strftime("%d-%m-%Y"))
     
-    data = pd.read_csv(maccs_fingerprints, index_col=0)
+    data = pd.read_csv(maccs_fingerprints)
     print(data.head())
     os.makedirs(results_dir, exist_ok=True)
 
@@ -48,7 +48,7 @@ def mainXaiFlow(model, local_explanation=True, max_order_iq=1):
     results, scores, shap_values = cv_pipeline.train_pipeline('RFReg')
     
     plots_dir = os.path.join(parent_dir, 'results', 'plots', model, explenation_type, datetime.today().strftime("%d-%m-%Y"))
-    create_plots(plots_dir, data, model, shap_values, max_order_iq)   
+    create_plots(plots_dir, data, folds,model, shap_values, max_order_iq)   
     
     if max_order_iq > 1: 
         smarts_top_all, molecules_statistics_all = process_folds_local_interactions(folds, data, shap_values, smarts_mapping_path, 10)
@@ -71,16 +71,16 @@ def mainXaiFlow(model, local_explanation=True, max_order_iq=1):
     save_scores_to_excel(scores_data, results_dir)
     
 
-def create_plots(plots_dir, data, model, shap_values, max_order_iq=1):
+def create_plots(plots_dir, data,folds, model, shap_values, max_order_iq=1):
     if model == 'SHAP':
         plot_shap.generate_shap_plots_folds(data,shap_values, plots_dir,['all'])
-        plot_shap.generate_shap_plots_local(data, shap_values, plots_dir, ['force', 'waterfall'])
+        plot_shap.generate_shap_plots_local(data, shap_values,folds, plots_dir, ['force', 'waterfall'])
     if model == 'SHAP_IQ':
         if max_order_iq > 1:
-            plot_iq.plot_shapiq_local(data, shap_values, plots_dir, ['all'])
+            plot_iq.plot_shapiq_local(data, shap_values,folds, plots_dir, ['all'])
             plot_iq.plot_shapiq_fold(data, shap_values, plots_dir, ['bar'])
         else:
-            plot_iq.plot_shapiq_local(data, shap_values, plots_dir, ['force', 'waterfall'])
+            plot_iq.plot_shapiq_local(data, shap_values,folds, plots_dir, ['force', 'waterfall'])
             plot_iq.plot_shapiq_fold(data, shap_values, plots_dir, ['bar'])
     print("Plots saved to: ", plots_dir)
 
@@ -419,7 +419,7 @@ def process_folds(folds, data, shap_values, smarts_mapping_path, local_explanati
 
 
 if __name__ == '__main__':
-    model = ['SHAP_IQ'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
+    model = ['SHAP','SHAP_IQ'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
     local_explanation = True
-    max_order_iq = 2
+    max_order_iq = 1
     [mainXaiFlow(m, local_explanation, max_order_iq) for m in model]

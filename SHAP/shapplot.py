@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
 
-def generate_shap_plots_local(data, shap_values, plots_dir, plots_to_run=None):
+def generate_shap_plots_local(data, shap_values, folds,plots_dir, plots_to_run=None):
     """
     Generate SHAP local plots (force and waterfall) for each SMILES and save them in a PDF.
 
@@ -27,9 +27,10 @@ def generate_shap_plots_local(data, shap_values, plots_dir, plots_to_run=None):
 
     pdf_path = os.path.join(plots_dir, f"shap_local_plots_{datetime.now().strftime('%H_%M_%S')}.pdf")
     with PdfPages(pdf_path) as pdf:
-        for i, fold_shap_values in enumerate(shap_values):
+        for i, (fold_shap_values, fold_data) in enumerate(zip(shap_values,folds)):
+            test_f = data.loc[fold_data[1]]
             for j, shap_value in enumerate(fold_shap_values):
-                smiles = data.iloc[j]['smiles']
+                smiles = test_f.iloc[j]['smiles']
                 features = data.drop(columns=['capacity_max', 'smiles']).iloc[j]
                 feature_names = data.drop(columns=['capacity_max', 'smiles']).columns
 

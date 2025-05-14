@@ -9,11 +9,12 @@ from datetime import datetime
 from XAIFlow.AI_models.models import Models
 from XAIFlow.AI_models.eval_metrics import EvalMetrics, smape
 from XAIFlow.utils.data_split import custom_data_split
+# from XAIFlow.utils.fingerprints import Fingerprints
 import exmol
-# from exmol import explanation
 from rdkit import Chem
+import signal
 import matplotlib.pyplot as plt
-
+from MMACE.timeoutexception import timeout
 
 class CrossValidationMMACEPipeline:
     """
@@ -31,6 +32,7 @@ class CrossValidationMMACEPipeline:
         data_name: str,
         hyperparam_opt: bool = True,
         verbose: bool = False,
+        custom_alphabet: set = None
     ):
         """
         Initialize the cross-validation pipeline.
@@ -56,6 +58,7 @@ class CrossValidationMMACEPipeline:
         self.MMACE_results = None
         self.cfs = None
         self.samples = None
+        self.custom_alphabet = custom_alphabet
 
     def tune_model(self, X_train: pd.DataFrame, y_train: pd.DataFrame, model: object, param_grid: dict | None) -> object:
         """
@@ -144,26 +147,27 @@ class CrossValidationMMACEPipeline:
         with open(save_scores_path, "a", encoding="utf-8") as f:
             f.writelines(lines)
 
-    def generate_MMACE_explanations(self, model, X_test: pd.DataFrame, list_smiles: pd.Series,fold: int = 0) -> tuple:
+    def generate_MMACE_explanations(self, model, X_test: pd.DataFrame, list_smiles: pd.Series, fold: int = 0) -> tuple:
         """
         Generate MMACE explanations using the exmol library.
         :param model: trained model.
         :param X_test: test data.
-        :param list_smiles: series with SMILES string dla każdej instancji.
-        :return: lista słowników z wyjaśnieniami dla poszczególnych instancji.
+        :param list_smiles: series with SMILES string for each instance.
+        :param fold: fold number for tracking.
+        :return: tuple with explanations, samples and counterfactuals.
         """
         MMACE_explanations = []
+        samples_fold = []
+        cfs_fold = []
 
         def local_predict_fn(x):
-            # print(f"Local predict function called with x: {x}")
+            fps = [list(Chem.MACCSkeys.GenMACCSKeys(Chem.MolFromSmiles(x)).ToBitString())]
+            fps = np.array(fps)[:, 1:]
+            fps_df = pd.DataFrame(fps, columns=[f'maccsfingerprint{i}' for i in range(len(fps[0]))])
 
-            # Generate MACCS fingerprints for the input SMILES
-            fps = [list(Chem.MACCSkeys.GenMACCSKeys(Chem.MolFromSmiles(x)).ToBitString()) for smile in x]
-            fps_df = pd.DataFrame(fps, columns=[f'maccsfingerprint{i}' for i in range(1,len(fps[0])+1)])
-
-            # Load the MACCS merge file and filter columns based on selected keys
             parent_dir = os.path.dirname(os.getcwd())
-            maccs_merge_path = os.path.join(parent_dir, 'data', 'maccs_merged.csv')
+            maccs_merge_path = os.path.join(parent_dir, 'data', 'new_maccs_merged.csv')
+            # maccs_merge_path = os.path.join(parent_dir, 'data', 'maccs_merged.csv')
 
             if not os.path.exists(maccs_merge_path):
                 raise FileNotFoundError(f"MACCS merge file not found: {maccs_merge_path}")
@@ -173,58 +177,46 @@ class CrossValidationMMACEPipeline:
             selected_keys = maccs_merge.columns.tolist()
 
             selected_keys = [key for key in selected_keys if key in fps_df.columns]
-
-            # Filter the fingerprints DataFrame to include only the selected keys
             filtered_fps = fps_df[selected_keys]
-
-            # Convert the filtered DataFrame to a numpy array (maccs_array)
-            maccs_array = filtered_fps.to_numpy()
-            return model.predict(maccs_array[0].reshape(1,-1)).flatten()
+            # labeled_fps = pd.DataFrame(filtered_fps, columns=selected_keys)
+            return model.predict(filtered_fps).flatten()
 
         for i, instance in X_test.iterrows():
-
             smiles = list_smiles.iloc[i]
-           
+            print(f"Processing instance {i} with SMILES: {smiles}")
             try:
+                stoned_kwargs = {
+                    "num_samples": 2500,
+                    "alphabet": self.custom_alphabet if self.custom_alphabet else exmol.get_basic_alphabet(),
+                    "max_mutations": 2,
+                }
+                
                 samples = exmol.sample_space(
                     smiles, 
-                    local_predict_fn, 
-                    batched=False,
-                    # preset='chemed',
-                    num_samples=4,
+                    local_predict_fn,
+                    stoned_kwargs=stoned_kwargs, 
                     quiet=True,
-                    use_selfies=False)
+                    batched=False,)
+                samples_fold.append(samples)
+                    
             except Exception as e:
                 print(f"An error occurred while sampling space: {e}")
+                cfs_fold.append([])
                 continue
             
             print(f"Samples: {len(samples)}")
-            cfs = exmol.cf_explain(
+            cfs = exmol.rcf_explain(
                 samples,
-                nmols=2
+                filter_nondrug = False,
+                delta=0.25,
+                nmols=4
                 )
-            self.cfs.append(cfs)
-            plot_path = os.path.join(
-                self.save_dir, 
-                f"explanation_fold_{fold}_instance_{i}_{datetime.now().strftime('%H_%M_%S')}.svg"
-)            # exmol.plot_cf(cfs,output_file=plot_path)
-            fig = plt.figure(figsize=(10, 10))  # Adjust the figure size as needed
+            
+            cfs_fold.append(cfs)
+        
+        self.MMACE_results.append({"fold": fold, "explanations": cfs_fold})
 
-            try:
-                # Pass the figure to exmol.plot_cf
-                exmol.plot_cf(samples, fig=fig, mol_size=(200, 200), mol_fontsize=10)
-                # Save the figure
-                fig.savefig(plot_path, bbox_inches="tight")
-                print(f"Plot saved to {plot_path}")
-            except Exception as e:
-                print(f"An error occurred while plotting descriptors: {e}")
-            finally:
-                # Close the figure to free up memory
-                plt.close(fig)
-
-            MMACE_explanations.append(cfs)
-
-        return MMACE_explanations, samples
+        return MMACE_explanations, samples_fold, cfs_fold
 
     def train_pipeline(self, model_name: str, model_path: str | None = None) -> tuple:
         """
@@ -239,6 +231,7 @@ class CrossValidationMMACEPipeline:
         if self.verbose:
             print(f"Training model {proper_model_name}")
         foldid=0
+
         for fold in self.folds:
             train_idx, test_idx = fold
 
@@ -257,10 +250,7 @@ class CrossValidationMMACEPipeline:
             model_scores = self.eval_model(y_pred, y_test_numpy)
             self.update_scores(model_scores)
 
-            # if i == 0:
-            MMACE_explanations,samples = self.generate_MMACE_explanations(model, X_test, smiles['smiles'], fold=foldid)
-            self.MMACE_results.append({"fold": fold[1], "explanations": MMACE_explanations})
-            # i+=1
+            self.generate_MMACE_explanations(model, X_test, smiles['smiles'], fold=foldid)
             foldid+=1
 
         results = self.aggregate_scores()
@@ -268,4 +258,4 @@ class CrossValidationMMACEPipeline:
         if len(self.save_dir) > 0:
             self.save_results(results, proper_model_name, model.get_params())
 
-        return results, self.scores, self.MMACE_results, self.cfs, self.samples
+        return results, self.scores, self.cfs, self.samples, self.MMACE_results

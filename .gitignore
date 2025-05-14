@@ -179,6 +179,10 @@ cython_debug/
 .pypirc
 /XAIFlow/png
 /XAIFlow/results
+XAIFlow/lime_explanations
+battery/results/plots/LIME/23-04-2025/
+XAIFlow/lime_results/
+results/plots/
 
 
 # Byte-compiled / optimized / DLL files
