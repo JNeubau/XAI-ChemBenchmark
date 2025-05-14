@@ -1,5 +1,6 @@
 GRETEL_main/*
 runs_meg/*
+RFReg/*
 
 # results
 results/battery/*

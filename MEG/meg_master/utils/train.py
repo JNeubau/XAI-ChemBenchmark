@@ -271,7 +271,7 @@ def train_rf_classifier(task, train_loader, val_loader, test_loader, len_train, 
 
 
 def train_rf_regressor(task, train_loader, val_loader, test_loader, len_train, len_val, len_test, 
-                       base_path, n_estimators=100, max_depth=None, random_state=0):
+                       base_path, n_estimators=100, max_depth=None, random_state=0, fold_num=0):
     # Extract features and labels from data loaders
     X_train, y_train = [], []
     X_val, y_val = [], []
@@ -362,7 +362,7 @@ def train_rf_regressor(task, train_loader, val_loader, test_loader, len_train, l
         "test_r2": float(test_r2)
     }
     
-    with open(base_path + '/rf_regressor_results.json', 'w') as f:
+    with open(base_path + f'/rf_regressor_results_{fold_num}.json', 'w') as f:
         json.dump(results, f, indent=2)
         
     # Feature importance plot
@@ -373,6 +373,6 @@ def train_rf_regressor(task, train_loader, val_loader, test_loader, len_train, l
     plt.xlabel('Importance')
     plt.ylabel('Features')
     plt.tight_layout()
-    plt.savefig(base_path + '/plots/rf_feature_importance.png')
+    plt.savefig(base_path + f'/plots/rf_feature_importance_{fold_num}.png')
     
     return rf, results

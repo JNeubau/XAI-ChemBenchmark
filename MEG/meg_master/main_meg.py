@@ -9,27 +9,25 @@ from train_meg_v2 import main as train_meg
 from train_RF import main as train_RF
 from megplots import main as megplots
 import json
-
-
-def mainXaiFlow(train_RF_again: bool = True, dataset_name='battery', experiment_name='test'):
+    
+    
+def mainXaiFlow(train_RF_again: bool = True, dataset_name='battery', experiment_name='test', num_folds=5, data_file=''):
     if train_RF_again:
-        print(f"Starting RF training...")
-        train_RF(dataset_name=dataset_name,
+        train_RF(data_file=data_file,
+            dataset_name=dataset_name,
             experiment_name=experiment_name,
             n_estimators=100,
             max_depth=None,
             batch_size=32,
+            folds=num_folds,
             seed=42)
     
-    # Load the split information only once
-    split_dir = os.path.join('runs_meg', dataset_name.lower(), experiment_name, 'splits')
+    split_dir = os.path.join('RFReg', experiment_name, 'folds')
     split_file = os.path.join(split_dir, 'split_info.json')
 
     with open(split_file, 'r') as f:
         split_data_list = json.load(f)
         
-    # Convert the list to a dictionary for easier lookup
-    # Use only the first instance of each fold
     split_data = {}
     for entry in split_data_list:
         fold = entry['fold']
@@ -74,4 +72,4 @@ def mainXaiFlow(train_RF_again: bool = True, dataset_name='battery', experiment_
 
 
 if __name__ == '__main__':
-    mainXaiFlow(True, 'battery', 'cv_test_2')
+    mainXaiFlow(True, 'battery', 'rf_test', 5, os.path.join(os.getcwd(), 'data', 'new_maccs_merged.csv'))

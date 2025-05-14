@@ -58,12 +58,14 @@ def get_split(dataset_name, split, experiment, fold=0):
         
         ds = BatteryInMemory()
 
+    base_path = osp.join(os.getcwd(), 'RFReg', experiment, 'folds')
 
     # split_file = f"runs_meg/{dataset_name.lower()}/{experiment}/splits/{split}.pth"
     # Construct the file path based on dataset and fold
     if dataset_name.lower() == 'battery':
         # Use the fold for battery dataset
-        split_file = f"runs_meg/{dataset_name.lower()}/{experiment}/splits/{split}_{fold}.pth"
+        split_file = f"{base_path}/{split}_{fold}.pth"
+        # split_file = f"runs_meg/{dataset_name.lower()}/{experiment}/splits/{split}_{fold}.pth"
     else:
         # Other datasets don't use folds
         split_file = f"runs_meg/{dataset_name.lower()}/{experiment}/splits/{split}.pth"
@@ -80,16 +82,14 @@ def get_split(dataset_name, split, experiment, fold=0):
     return ds
 
 
-def preprocess(dataset_name, experiment_name, batch_size, seed=0):
-    return _PREPROCESS[dataset_name.lower()](experiment_name, batch_size, seed)
+def preprocess(data_file, dataset_name, experiment_name, batch_size, folds, seed=0):
+    return _PREPROCESS[dataset_name.lower()](data_file, experiment_name, batch_size, folds, seed)
 
-def _preprocess_battery(experiment_name, batch_size, seed=0):    
-    # Create directory structure if needed
-    os.makedirs(f'runs_meg/battery/{experiment_name}/splits', exist_ok=True)
+def _preprocess_battery(data_file, experiment_name, batch_size, folds, seed=0):   
+    folds_dir = osp.join(os.getcwd(), 'RFReg', experiment_name, 'folds')
+    os.makedirs(folds_dir, exist_ok=True)
     
-    # Load data from CSV
-    csv_path = osp.join(os.getcwd(), 'data', 'new_maccs_merged.csv')
-    df = pd.read_csv(csv_path)
+    df = pd.read_csv(data_file)
     
     # Extract features and target variable
     fingerprint_cols = [col for col in df.columns if col.startswith('maccsfinger')]
@@ -101,7 +101,6 @@ def _preprocess_battery(experiment_name, batch_size, seed=0):
     targets = df['capacity_max'].values   # Numerical target (capacity)
     
     num_features = features.shape[1]
-    # print(f"Number of fingerprint features: {num_features}")
     
     # Convert to PyG data format
     data_list = []
@@ -123,26 +122,26 @@ def _preprocess_battery(experiment_name, batch_size, seed=0):
     # total_sample
     
     # Initialize the K-fold splitter
-    kf = KFold(n_splits=5, shuffle=True, random_state=42)
+    kf = KFold(n_splits=folds, shuffle=True, random_state=42)
 
     # Get your dataset indices
     indices = list(range(len(data_list)))
 
     # Generate the folds
-    folds = []
+    folds_list = []
     for _, test_idx in kf.split(indices):
-        folds.append([data_list[i] for i in test_idx])
+        folds_list.append([data_list[i] for i in test_idx])
     
      # For each fold, create train/val/test splits
-    for fold_idx in range(5):
+    for fold_idx in range(folds):
         # Use current fold as test set
-        test_data = folds[fold_idx]
+        test_data = folds_list[fold_idx]
         
         # Combine remaining folds for train/val
         remaining_data = []
-        for i in range(5):
+        for i in range(folds):
             if i != fold_idx:
-                remaining_data.extend(folds[i])
+                remaining_data.extend(folds_list[i])
         
         # Split remaining data into train/val (90/10)
         val_size = len(remaining_data) // 10
@@ -161,7 +160,7 @@ def _preprocess_battery(experiment_name, batch_size, seed=0):
             }
         }
 
-        json_path = f'runs_meg/battery/{experiment_name}/splits/split_info.json'
+        json_path = folds_dir + '/split_info.json'
         if not os.path.exists(json_path):
             split_data = []
         else:
@@ -170,6 +169,9 @@ def _preprocess_battery(experiment_name, batch_size, seed=0):
 
         split_data.append(split_info)
 
+        if os.path.exists(json_path):
+            os.remove(json_path)
+            
         with open(json_path, 'w') as f:
             json.dump(split_data, f, indent=4)
         
@@ -205,53 +207,9 @@ def _preprocess_battery(experiment_name, batch_size, seed=0):
         test_collated = InMemoryDataset.collate(test_data)
         
         # Save the splits with fold index
-        torch.save(train_collated, f'runs_meg/battery/{experiment_name}/splits/train_{fold_idx}.pth')
-        torch.save(val_collated, f'runs_meg/battery/{experiment_name}/splits/val_{fold_idx}.pth')
-        torch.save(test_collated, f'runs_meg/battery/{experiment_name}/splits/test_{fold_idx}.pth')
-    
-    
-    # # Split into train/val/test
-    # n = len(data_list) // 10
-    # train_data = data_list[n:]
-    # val_data = data_list[:n]
-    # test_data = train_data[:n]
-    # train_data = train_data[n:]
-    
-    # # Create PyG datasets
-    # class SimpleBatteryDataset:
-    #     def __init__(self, data_list):
-    #         self.data_list = data_list
-    #         self._num_features = num_features
-    #         self._num_classes = 1
-            
-    #     def __len__(self):
-    #         return len(self.data_list)
-            
-    #     def get(self, idx):
-    #         return self.data_list[idx]
-            
-    #     @property
-    #     def num_features(self):
-    #         return self._num_features
-            
-    #     @property
-    #     def num_classes(self):
-    #         return self._num_classes
-    
-    # # Create the simple dataset instances
-    # train = SimpleBatteryDataset(train_data)
-    # val = SimpleBatteryDataset(val_data)
-    # test = SimpleBatteryDataset(test_data)
-    
-    # # Use the collate functionality directly from InMemoryDataset
-    # train_collated = InMemoryDataset.collate(train_data)
-    # val_collated = InMemoryDataset.collate(val_data)
-    # test_collated = InMemoryDataset.collate(test_data)
-    
-    # # Save the splits
-    # torch.save(train_collated, f'runs_meg/battery/{experiment_name}/splits/train.pth')
-    # torch.save(val_collated, f'runs_meg/battery/{experiment_name}/splits/val.pth')
-    # torch.save(test_collated, f'runs_meg/battery/{experiment_name}/splits/test.pth')
+        torch.save(train_collated, f'{folds_dir}/train_{fold_idx}.pth')
+        torch.save(val_collated, f'{folds_dir}/val_{fold_idx}.pth')
+        torch.save(test_collated, f'{folds_dir}/test_{fold_idx}.pth')
     
     # Class for PyG DataLoader compatibility
     class BatteryInMemory(InMemoryDataset):
@@ -274,32 +232,198 @@ def _preprocess_battery(experiment_name, batch_size, seed=0):
             return len(self.slices['x']) - 1
     
     # Load the first fold for default return values
-    train_collated = torch.load(f'runs_meg/battery/{experiment_name}/splits/train_0.pth')
-    val_collated = torch.load(f'runs_meg/battery/{experiment_name}/splits/val_0.pth')
-    test_collated = torch.load(f'runs_meg/battery/{experiment_name}/splits/test_0.pth')
+    # train_collated = torch.load(f'{folds_dir}/train_0.pth')
+    # val_collated = torch.load(f'{folds_dir}/val_0.pth')
+    # test_collated = torch.load(f'{folds_dir}/test_0.pth')
     
-    # Create the final dataset objects for the DataLoader
-    train_dataset = BatteryInMemory(train_collated[0], train_collated[1])
-    val_dataset = BatteryInMemory(val_collated[0], val_collated[1])
-    test_dataset = BatteryInMemory(test_collated[0], test_collated[1])
+    # # Create the final dataset objects for the DataLoader
+    # train_dataset = BatteryInMemory(train_collated[0], train_collated[1])
+    # val_dataset = BatteryInMemory(val_collated[0], val_collated[1])
+    # test_dataset = BatteryInMemory(test_collated[0], test_collated[1])
     
-    # Also save the full dataset
-    full_collated = InMemoryDataset.collate(data_list)
-    torch.save(full_collated, f'runs_meg/battery/{experiment_name}/splits/full.pth')
+    create_smiles_mapping('battery', experiment_name, folds)
+     
+    return get_battery_loaders(experiment_name, batch_size, fold=0)
     
-    return (
-        DataLoader(train_dataset, batch_size=batch_size),
-        DataLoader(val_dataset, batch_size=batch_size),
-        DataLoader(test_dataset, batch_size=batch_size),
-        train,
-        val,
-        test,
-        num_features,
-        1,  # num_classes
-    )
+def get_battery_loaders(experiment_name, batch_size, fold=0):
+    """
+    Load the battery dataset for a specific fold and return DataLoaders.
     
+    Args:
+        experiment_name: Name of the experiment
+        batch_size: Batch size for the DataLoader
+        fold: Fold index to load (default: 0)
+        
+    Returns:
+        Tuple of (train_loader, val_loader, test_loader, train_dataset, val_dataset, test_dataset, num_features, num_classes)
+    """
+    print(f"Loading battery dataset for fold {fold}...")
+    
+    # Define the path to the fold data
+    folds_dir = osp.join(os.getcwd(), 'RFReg', experiment_name, 'folds')
+    
+    # Try to load split info to get feature count
+    try:
+        with open(f'{folds_dir}/split_info.json', 'r') as f:
+            split_info = json.load(f)
+    except:
+        print("Warning: Could not load split info - using default feature count")
+        num_features = 166  # Default for MACCS fingerprints
+    
+    # Class for PyG DataLoader compatibility
+    class BatteryInMemory(InMemoryDataset):
+        def __init__(self, data, slices, num_features=166):
+            super(BatteryInMemory, self).__init__()
+            self.data = data
+            self.slices = slices
+            self._num_features = num_features
+            self._num_classes = 1
+            
+        @property
+        def num_features(self):
+            return self._num_features
+            
+        @property
+        def num_classes(self):
+            return self._num_classes
+            
+        def __len__(self):
+            return len(self.slices['x']) - 1
+            
+        def get(self, idx):
+            data = self.data.__class__()
+            if hasattr(self.data, '__num_nodes__'):
+                data.num_nodes = self.data.__num_nodes__[idx]
 
-def _preprocess_tox21(experiment_name, batch_size, seed=0):
+            for key in self.slices.keys():
+                item, slices = self.data[key], self.slices[key]
+                start, end = slices[idx].item(), slices[idx + 1].item()
+                if torch.is_tensor(item):
+                    s = list(item.size())
+                    s[self.data.__cat_dim__(key, item)] = end - start
+                    data[key] = item.narrow(self.data.__cat_dim__(key, item), start, end - start)
+                elif start + 1 == end:
+                    data[key] = item[start]
+                else:
+                    data[key] = item[start:end]
+            return data
+    
+    try:
+        # Load the data for the specified fold
+        train_collated = torch.load(f'{folds_dir}/train_{fold}.pth')
+        val_collated = torch.load(f'{folds_dir}/val_{fold}.pth')
+        test_collated = torch.load(f'{folds_dir}/test_{fold}.pth')
+        
+        # Determine number of features from the data
+        num_features = train_collated[0].x.size(-1)
+        
+        # Create the dataset objects
+        train_dataset = BatteryInMemory(train_collated[0], train_collated[1], num_features)
+        val_dataset = BatteryInMemory(val_collated[0], val_collated[1], num_features)
+        test_dataset = BatteryInMemory(test_collated[0], test_collated[1], num_features)
+        
+        # Create DataLoaders
+        train_loader = DataLoader(train_dataset, batch_size=batch_size)
+        val_loader = DataLoader(val_dataset, batch_size=batch_size)
+        test_loader = DataLoader(test_dataset, batch_size=batch_size)
+        
+        print(f"Successfully loaded data for fold {fold}")
+        print(f"Train: {len(train_dataset)}, Val: {len(val_dataset)}, Test: {len(test_dataset)}")
+        
+        # Create simple dataset versions
+        class SimpleBatteryDataset:
+            def __init__(self, dataset):
+                self._dataset = dataset
+                self._num_features = dataset.num_features
+                self._num_classes = dataset.num_classes
+                
+            def __len__(self):
+                return len(self._dataset)
+                
+            def get(self, idx):
+                return self._dataset.get(idx)
+                           
+            @property
+            def num_features(self):
+                return self._num_features
+                
+            @property
+            def num_classes(self):
+                return self._num_classes
+        
+        train_simple = SimpleBatteryDataset(train_dataset)
+        val_simple = SimpleBatteryDataset(val_dataset)
+        test_simple = SimpleBatteryDataset(test_dataset)
+        
+        return (
+            train_loader,
+            val_loader,
+            test_loader,
+            train_simple,
+            val_simple,
+            test_simple,
+            num_features,
+            1  # num_classes
+        )
+             
+    except Exception as e:
+        print(f"Error loading data for fold {fold}: {e}")
+        print(f"Trying to load fold 0 as fallback...")
+        
+        if fold != 0:
+            return get_battery_loaders(experiment_name, batch_size, fold=0)
+        else:
+            raise ValueError(f"Could not load any fold data for experiment {experiment_name}")
+        
+    
+def create_smiles_mapping(dataset_name, experiment_name, num_folds=5):
+    """
+    Create a mapping file that maps fold_id: SMILES for all molecules across all folds.
+    
+    Args:
+        dataset_name: Name of the dataset (e.g. 'battery')
+        experiment_name: Name of the experiment
+        num_folds: Number of folds to process
+    """
+    print(f"Creating SMILES mapping for {dataset_name}/{experiment_name}...")
+    
+    # Create mapping directory
+    mapping_dir = os.path.join(os.getcwd(), 'RFReg', experiment_name)
+    os.makedirs(mapping_dir, exist_ok=True)
+    
+    # Initialize mapping dictionary
+    smiles_mapping = {}
+    
+    # Process each fold
+    for fold in range(num_folds):
+        print(f"Processing fold {fold}...")
+
+        # Get the dataset for this split and fold
+        dataset = get_split(dataset_name, 'test', experiment_name, fold)
+        
+        # Extract SMILES strings and create mappings
+        for i in range(len(dataset)):
+            # Get the molecule
+            data = dataset.get(i)
+            
+            # Get SMILES if available
+            if hasattr(data, 'smiles'):
+                smiles = data.smiles
+                # Create the key as fold_id
+                key = f"{fold}_{i}"
+                smiles_mapping[key] = smiles
+            
+    
+    # Save the complete mapping to a file
+    mapping_file = os.path.join(mapping_dir, "smiles_mapping.txt")
+    with open(mapping_file, "w") as f:
+        for key, smiles in smiles_mapping.items():
+            f.write(f"{key}: {smiles}\n")
+    
+    print(f"SMILES mapping saved to {mapping_file}")    
+    return smiles_mapping
+
+def _preprocess_tox21(data_file, experiment_name, batch_size, folds, seed=0):
 
     dataset_tr = TUDataset('data/tox21',
                            name='Tox21_AhR_training',
@@ -361,7 +485,7 @@ def _preprocess_tox21(experiment_name, batch_size, seed=0):
     )
 
 
-def _preprocess_esol(experiment_name, batch_size, seed=0):
+def _preprocess_esol(data_file, experiment_name, batch_size, folds, seed=0):
 
     dataset = MoleculeNet(
         'data/esol',
