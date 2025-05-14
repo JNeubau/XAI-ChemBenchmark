@@ -19,7 +19,7 @@ def mainXaiFlow(train_RF_again: bool = True, dataset_name='battery', experiment_
             n_estimators=100,
             max_depth=None,
             batch_size=32,
-            seed=0)
+            seed=42)
     
     # Load the split information only once
     split_dir = os.path.join('runs_meg', dataset_name.lower(), experiment_name, 'splits')

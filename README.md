@@ -17,9 +17,17 @@ Implemented
 Implemented - M
 
 ## MMACE
-In progress - M
+Implemented - M
 
 ## MEG
-Inplemented - A
+Required: seperate conda env with python 3.7
 
-## OBS
+Implemented - A
+
+
+# Folder structure:
+- *data* - raw data
+- *SHAP, SHAP-IQ, LIME, MMACE, MEG* - seperate folders for methods
+- *XAIFlow* - collective running for SHAP, SHAP-IQ, LIME, MMACE
+- *RFReg* - saved model and split data
+- *results* - subfolders seperated by methods
