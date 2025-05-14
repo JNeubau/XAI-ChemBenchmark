@@ -186,9 +186,9 @@ class CrossValidationMMACEPipeline:
             print(f"Processing instance {i} with SMILES: {smiles}")
             try:
                 stoned_kwargs = {
-                    "num_samples": 200,
+                    "num_samples": 2500,
                     "alphabet": self.custom_alphabet if self.custom_alphabet else exmol.get_basic_alphabet(),
-                    "max_mutations": 1,
+                    "max_mutations": 2,
                 }
                 
                 samples = exmol.sample_space(
@@ -196,7 +196,7 @@ class CrossValidationMMACEPipeline:
                     local_predict_fn,
                     stoned_kwargs=stoned_kwargs, 
                     quiet=True,
-                    batched=False)
+                    batched=False,)
                 samples_fold.append(samples)
                     
             except Exception as e:
@@ -208,8 +208,8 @@ class CrossValidationMMACEPipeline:
             cfs = exmol.rcf_explain(
                 samples,
                 filter_nondrug = False,
-                delta=0.5,
-                nmols=2
+                delta=0.25,
+                nmols=4
                 )
             
             cfs_fold.append(cfs)

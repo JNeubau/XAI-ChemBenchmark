@@ -19,8 +19,8 @@ from MMACE.savemmacecfexcel import save_mmace_explanations_to_excel,create_mmace
 
 
 def mainMMACEFlow():
-    np.random.seed(0)
-    random.seed(0)
+    np.random.seed(42)
+    random.seed(42)
     print("Running MMACE explanation pipeline...")
     parent_dir = os.path.dirname(os.getcwd())
     print("Parent directory:", parent_dir)

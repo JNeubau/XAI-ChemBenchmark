@@ -27,7 +27,7 @@ def mainXaiFlow(model, local_explanation=True, max_order_iq=1):
     parent_dir = os.path.dirname(os.getcwd())
     print("Parent directory:", parent_dir)
     
-    maccs_fingerprints = os.path.join(parent_dir, 'data', 'maccs_merged.csv')
+    maccs_fingerprints = os.path.join(parent_dir, 'data', 'new_maccs_merged.csv')
     smarts_mapping_path = os.path.join(parent_dir, 'data', 'maccs_smarts_mapping.json')
     if max_order_iq > 1:
         explenation_type = 'local_interactions'
@@ -37,7 +37,7 @@ def mainXaiFlow(model, local_explanation=True, max_order_iq=1):
         explenation_type = 'global'
     results_dir = os.path.join(parent_dir, 'results', 'battery', model, explenation_type, datetime.today().strftime("%d-%m-%Y"))
     
-    data = pd.read_csv(maccs_fingerprints, index_col=0)
+    data = pd.read_csv(maccs_fingerprints)
     print(data.head())
     os.makedirs(results_dir, exist_ok=True)
 
@@ -419,7 +419,7 @@ def process_folds(folds, data, shap_values, smarts_mapping_path, local_explanati
 
 
 if __name__ == '__main__':
-    model = ['SHAP_IQ'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
+    model = ['SHAP','SHAP_IQ'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
     local_explanation = True
     max_order_iq = 1
     [mainXaiFlow(m, local_explanation, max_order_iq) for m in model]
