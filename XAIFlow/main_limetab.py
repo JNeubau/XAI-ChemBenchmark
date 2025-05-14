@@ -224,9 +224,100 @@ def process_folds_local(folds, data, lime_values, smarts_mapping_path, top_i=5):
     return smarts_top_all, match_molecules_all, molecules_statistics_all
 
 
-def process_folds_global(folds, data, lime_values, smarts_mapping_path, top_i=10):
-   
-    return 0
+def process_folds_global(folds, data, lime_values, smarts_mapping_path, top_i=5):
+    smarts_top_all = {}
+    match_molecules_all = {}
+    molecules_statistics_all = {}
+    
+    # Create plots directory
+    parent_dir = os.path.dirname(os.getcwd())
+    plots_dir = os.path.join(parent_dir, 'results', 'plots', "LIME", datetime.today().strftime("%d-%m-%Y"))
+    os.makedirs(plots_dir, exist_ok=True)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+
+    for i, fold in enumerate(folds):
+        test_f = data.loc[fold[1]]
+        lime_fold_values, lime_fold_explanations = lime_values[i]
+        feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
+
+        # Calculate mean absolute LIME values across all molecules in the fold
+        lime_arrays = [np.array([item[1] for item in array]) for array in lime_fold_values]
+        mean_abs_lime_values = np.mean(np.abs(lime_arrays), axis=0)
+        
+        print("Fold:", i)
+        print("Mean absolute LIME values:", mean_abs_lime_values)
+        print("LIME arrays:", lime_arrays)
+        # # Generate global importance plot for the fold
+        # plt.figure(figsize=(12, 6))
+        # top_features_idx = np.argsort(mean_abs_lime_values)[-top_i:]
+        # plt.barh([feature_names[idx] for idx in top_features_idx],
+        #         [mean_abs_lime_values[idx] for idx in top_features_idx])
+        # plt.title(f'Global LIME Feature Importance - Fold {i}')
+        # plt.xlabel('Mean |LIME value|')
+        # plot_path = os.path.join(plots_dir, f"lime_global_importance_fold_{i}_{timestamp}.svg")
+        # plt.savefig(plot_path, bbox_inches='tight', dpi=300, format='svg')
+        # plt.close()
+
+        # # Generate correlation plot
+        # plt.figure(figsize=(12, 6))
+        # correlations = []
+        # for feat_idx in top_features_idx:
+        #     feature = feature_names[feat_idx]
+        #     lime_values_for_feature = [array[feat_idx] for array in lime_arrays]
+        #     capacity_values = test_f['capacity_max'].values
+        #     correlation = np.corrcoef(lime_values_for_feature, capacity_values)[0, 1]
+        #     correlations.append(correlation)
+        
+        # plt.barh([feature_names[idx] for idx in top_features_idx], correlations)
+        # plt.title(f'LIME Values vs Capacity Correlation - Fold {i}')
+        # plt.xlabel('Correlation coefficient')
+        # plot_path = os.path.join(plots_dir, f"lime_correlation_fold_{i}_{timestamp}.svg")
+        # plt.savefig(plot_path, bbox_inches='tight', dpi=300, format='svg')
+        # plt.close()
+
+        top_i_indices = np.argsort(mean_abs_lime_values)[-top_i:][::-1]
+        top_i_indices = [idx for idx in top_i_indices if mean_abs_lime_values[idx] != 0]
+        top_i_feature_names = [feature_names[i] for i in top_i_indices]
+
+        print("\n==================================\nTop features:", top_i_feature_names)
+        print("Mean absolute LIME values for top features:", mean_abs_lime_values[top_i_indices])
+
+        with open(smarts_mapping_path, 'r') as f:
+            smarts_mapping = json.load(f)
+
+        smarts_topi = {
+            (i, match_molecule_global(feature, test_f, data), feature): smarts_mapping[f'maccsfingerprint{int(feature.replace("maccsfingerprint", ""))+1}'][0]
+            for feature in top_i_feature_names
+        }
+
+        match_molecules = {key: [] for key in smarts_topi.keys()}
+        molecules_statistics = {s: {
+            "number_of_molecules_where_fingerprint": 0,
+            "number_where_important": 0,
+            "lime_value": mean_abs_lime_values[feature_names.index(s[2])],
+            "lime_sign": '',
+            "feature_in_smiles": True,
+            "capacity_max": 0,
+            "capacity_pred": 0
+        } for s in smarts_topi.keys()}
+
+        for key in molecules_statistics.keys():
+            feature = key[2]
+            lime_values_for_feature = [array[feature_names.index(feature)] for array in lime_arrays]
+            capacity_values = test_f['capacity_max'].values
+            df = pd.DataFrame({
+                'lime_values': lime_values_for_feature,
+                'capacity_values': capacity_values
+            })
+            correlation = df.corr(method='spearman').loc['lime_values', 'capacity_values']
+            molecules_statistics[key]["lime_sign"] = f'Positive|{correlation}' if correlation > 0 else f'Negative|{correlation}'
+
+        smarts_top_all.update(smarts_topi)
+        match_molecules_all.update(match_molecules)
+        molecules_statistics_all.update(molecules_statistics)
+
+    molecules_statistics_all = number_where_important_global(molecules_statistics_all, match_molecules_all)
+    return smarts_top_all, match_molecules_all, molecules_statistics_all
 
 
 def match_molecule_global(feature, test_f, full_data):
@@ -279,6 +370,6 @@ def process_folds(folds, data, lime_values, smarts_mapping_path, local_explanati
 
 if __name__ == '__main__':
     model = ['LIME'] 
-    local_explanation = True
-    experiment_name = 'battery'
+    local_explanation = False
+    experiment_name = 'global'
     [mainXaiFlow(m, local_explanation,experiment_name) for m in model]
