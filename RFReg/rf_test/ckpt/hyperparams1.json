@@ -1,0 +1,1 @@
+{"model": "RandomForest", "n_estimators": 100, "max_depth": "None", "num_input": 117, "num_output": 1, "batch_size": 32, "seed": 42, "device": "cpu"}
