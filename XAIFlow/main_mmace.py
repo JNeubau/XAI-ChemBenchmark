@@ -28,7 +28,7 @@ def mainMMACEFlow():
 
     maccs_fingerprints = os.path.join(parent_dir, 'data', 'new_maccs_merged.csv')
     # maccs_fingerprints = os.path.join(parent_dir, 'data', 'maccs_merged.csv')
-    results_dir = os.path.join(parent_dir, 'results', 'battery', 'MMACE', 'local', datetime.today().strftime("%d-%m-%Y"))
+    results_dir = os.path.join(parent_dir, 'results', experiment_name, 'MMACE', 'local', datetime.today().strftime("%d-%m-%Y"))
 
     data = pd.read_csv(maccs_fingerprints)
     print(data.head())
@@ -104,4 +104,5 @@ def process_folds_local(folds,data,samples,cfs,MMACE_Explanations,results_dir):
         print(f"Created PDF report for fold {i} at: {pdf_path}")
        
 if __name__ == '__main__':
-    mainMMACEFlow()
+    experiment_name = 'battery'
+    mainMMACEFlow(experiment_name)

@@ -9,20 +9,14 @@ import matplotlib.pyplot as plt
 from AI_models.models import Models
 from AI_models.eval_metrics import EvalMetrics
 from utils.data_split import custom_data_kfold
-from utils.exportlib import save_data_to_excel_with_highlights_lime, save_scores_to_excel_new_sheet, save_interactions_to_excel_with_highlights
+from utils.exportlib import save_data_to_excel_with_highlights_lime, save_scores_to_excel_new_sheet
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.dirname(os.getcwd()))
 
 from LIME.lime_tabular_explainer import CrossValidationLimePipeline
-# from LIME.lime_cross_validation import CrossValidationLimePipeline
-# # from LIME.limeplot import generate_lime_plots
-# import LIME.limeplot as plot_lime
-# from LIME_IQ.limeiq_cross_validation import CrossValidationLimeIqPipeline
-# import LIME_IQ.limeiqplot as plot_iq
 
-
-def mainXaiFlow(model, local_explanation=True):
+def mainXaiFlow(model, local_explanation=True,experiment_name='battery'):
     print("Model: ", model)
     parent_dir = os.path.dirname(os.getcwd())
     print("Parent directory:", parent_dir)
@@ -30,7 +24,7 @@ def mainXaiFlow(model, local_explanation=True):
     maccs_fingerprints = os.path.join(parent_dir, 'data', 'new_maccs_merged.csv')
     smarts_mapping_path = os.path.join(parent_dir, 'data', 'maccs_smarts_mapping.json')
     explenation_type = 'local'    
-    results_dir = os.path.join(parent_dir, 'results', 'battery', model, explenation_type, datetime.today().strftime("%d-%m-%Y"))
+    results_dir = os.path.join(parent_dir, 'results', experiment_name, model, explenation_type, datetime.today().strftime("%d-%m-%Y"))
     
     data = pd.read_csv(maccs_fingerprints)
     print(data.head())
@@ -150,12 +144,6 @@ def save_molecules_to_excel(excel_data, results_dir):
     results_dir = results_dir + f'\\molecule_results_with_highlights_{datetime.now().strftime("%H-%M-%S")}.xlsx'
     save_data_to_excel_with_highlights_lime(excel_data, results_dir)
     print(f"Molecule results with highlights saved to {results_dir}")
-    
-    
-def save_interactions_to_excel(excel_data, results_dir):
-    results_dir = results_dir + f'\\interactions_results_{datetime.now().strftime("%H-%M-%S")}.xlsx'
-    save_interactions_to_excel_with_highlights(excel_data, results_dir)
-    print(f"Interaction results saved to {results_dir}")
 
 
 def save_scores_to_excel(scores_data, results_dir):
@@ -292,4 +280,5 @@ def process_folds(folds, data, lime_values, smarts_mapping_path, local_explanati
 if __name__ == '__main__':
     model = ['LIME'] 
     local_explanation = True
-    [mainXaiFlow(m, local_explanation) for m in model]
+    experiment_name = 'battery'
+    [mainXaiFlow(m, local_explanation,experiment_name) for m in model]

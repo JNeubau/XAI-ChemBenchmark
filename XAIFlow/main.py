@@ -20,7 +20,7 @@ from SHAP_IQ.shapiq_cross_validation import CrossValidationShapIqPipeline
 import SHAP_IQ.shapiqplot as plot_iq
 
 
-def mainXaiFlow(model, local_explanation=True, max_order_iq=1):
+def mainXaiFlow(model, local_explanation=True, max_order_iq=1,experiment_name='battery'):
     if model != 'SHAP_IQ':
         max_order_iq = 1
     print("Model: ", model)
@@ -35,7 +35,7 @@ def mainXaiFlow(model, local_explanation=True, max_order_iq=1):
         explenation_type = 'local'
     else:
         explenation_type = 'global'
-    results_dir = os.path.join(parent_dir, 'results', 'battery', model, explenation_type, datetime.today().strftime("%d-%m-%Y"))
+    results_dir = os.path.join(parent_dir, 'results', experiment_name, model, explenation_type, datetime.today().strftime("%d-%m-%Y"))
     
     data = pd.read_csv(maccs_fingerprints)
     print(data.head())
@@ -421,5 +421,6 @@ def process_folds(folds, data, shap_values, smarts_mapping_path, local_explanati
 if __name__ == '__main__':
     model = ['SHAP','SHAP_IQ'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
     local_explanation = True
+    experiment_name= 'battery_test'
     max_order_iq = 1
-    [mainXaiFlow(m, local_explanation, max_order_iq) for m in model]
+    [mainXaiFlow(m, local_explanation, max_order_iq,experiment_name) for m in model]
