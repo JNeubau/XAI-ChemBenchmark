@@ -31,3 +31,20 @@ Implemented - A
 - *XAIFlow* - collective running for SHAP, SHAP-IQ, LIME, MMACE
 - *RFReg* - saved model and split data
 - *results* - subfolders seperated by methods
+
+# Running the experiments:
+
+The script is at the mottom of the file available at:
+**"MEG/meg_master/main_meg.py"**
+
+#### Args:
+- bool: do you want to train the model during this run
+- dataset name (only roks for battery)
+- experiment name: for directory structure
+- number of folds
+- path to raw data file
+
+#### Example:
+```python
+mainXaiFlow(True, 'battery', 'rf_test', 5, os.path.join(os.getcwd(), 'data', 'new_maccs_merged.csv'))
+```
