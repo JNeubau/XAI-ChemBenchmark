@@ -36,7 +36,7 @@ def mainXaiFlow(train_RF_again: bool = True, dataset_name='battery', experiment_
             
     print(f"Loaded split information for {len(split_data)} folds")  
     
-    methods = ['MEG']
+    methods = ['SHAP', 'SHAP_IQ']
     for method in methods:  
         if method == 'MEG':
             for fold in range(num_folds):    
@@ -73,8 +73,8 @@ def mainXaiFlow(train_RF_again: bool = True, dataset_name='battery', experiment_
                         print(f"Error processing sample {sam} in fold {fold}: {e}")
                         continue
         elif method in ['SHAP', 'SHAP_IQ']:
-            os.system(f"{os.path.join(os.getcwd(), '.venv', 'Scripts', 'python')} {os.path.join(os.getcwd(), 'XAIFlow', 'main')}.py --dataset_name {dataset_name} --experiment_name {experiment_name} --fold {fold}")
-            os.system("wait")
+            os.system(f"{os.path.join(os.getcwd(), '.venv', 'Scripts', 'python')} {os.path.join(os.getcwd(), 'XAIFlow', 'main')}.py --dataset_name {dataset_name} --experiment_name {experiment_name} --fold {fold} --model {method} --local --max_order 2")
+            print(method, ' done')
             
         elif method in ['LIME', 'MMACE']:
             pass

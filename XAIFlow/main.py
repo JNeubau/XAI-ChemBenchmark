@@ -478,7 +478,7 @@ if __name__ == '__main__':
     parser.add_argument('--experiment_name', type=str, default='test', help='Name of the experiment (default: test)')
     parser.add_argument('--fold', type=int, default=5, help='Number of folds to process (default: 5)')
     parser.add_argument('--model', type=str, choices=['SHAP', 'SHAP_IQ', 'both'], default='both', help='Model to use (default: both)')
-    parser.add_argument('--local', action='store_true', default=True, help='Use local explanations (default: True)')
+    parser.add_argument('--local', action='store_true', default=False, help='Use local explanations (default: False)')
     parser.add_argument('--max_order', type=int, default=1, help='Maximum interaction order for SHAP_IQ (default: 1)')
     
     args = parser.parse_args()
@@ -493,14 +493,14 @@ if __name__ == '__main__':
     # Run the main flow with the specified arguments
     for model in models_to_run:
         print(f"\n=== Running {model} ===\n")
-        mainXaiFlow_all(
-            model=model,
-            local_explanation=args.local,
-            max_order_iq=args.max_order,
-            dataset_name=args.dataset_name,
-            experiment_name=args.experiment_name,
-            fold=args.fold
-        )
+        # mainXaiFlow_all(
+        #     model=model,
+        #     local_explanation=args.local,
+        #     max_order_iq=args.max_order,
+        #     dataset_name=args.dataset_name,
+        #     experiment_name=args.experiment_name,
+        #     fold=args.fold
+        # )
     
     # model = ['SHAP','SHAP_IQ'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
     # local_explanation = True
