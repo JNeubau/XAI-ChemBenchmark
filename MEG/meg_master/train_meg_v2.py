@@ -492,18 +492,17 @@ def main(dataset: str,
 
     torch.manual_seed(seed)
 
-    base_path = f'./runs_meg/{dataset.lower()}/{experiment_name}'
-
-    # print('num samples test: ', len(get_split(dataset.lower(), 'test', experiment_name, fold)))
-    # print('num samples: train', len(get_split(dataset.lower(), 'train', experiment_name, fold)))
-    # print('num samples: val', len(get_split(dataset.lower(), 'val', experiment_name, fold)))
+    base_path = os.path.join(os.getcwd(), 'results', experiment_name, 'MEG')
+    if not os.path.exists(base_path):
+        os.makedirs(base_path)
+        
     print('Running meg on dataset: ', dataset)
     meg(general_params,
         base_path,
         SummaryWriter(f'{base_path}/plots'),
         num_counterfactuals,
         get_split(dataset.lower(), 'test', experiment_name, fold)[sample],
-        model_to_explain=get_dgn(dataset.lower(), experiment_name),
+        model_to_explain=get_dgn(dataset.lower(), experiment_name, fold),
         experiment_name=experiment_name,
         sample=sample,
         epochs=epochs,

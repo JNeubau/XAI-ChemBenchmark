@@ -305,7 +305,7 @@ def main(dataset: str,
 
     torch.manual_seed(seed)
 
-    base_path = f'./runs_meg/{dataset.lower()}/{experiment_name}'
+    base_path = f'./results/{experiment_name}'
 
     print('Running meg on dataset: ', dataset)
     meg(general_params,

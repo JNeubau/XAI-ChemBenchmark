@@ -191,17 +191,17 @@ def mol_to_esol_pyg(molecule):
     return data
 
 
-def get_dgn(dataset, experiment):    
+def get_dgn(dataset, experiment, fold):    
     if dataset.lower() == 'battery':
-        return get_battery_rf(experiment)
+        return get_battery_rf(experiment, fold)
     
     from models.encoder.GCNN import GCNN
     import json
 
-    base_path = 'runs_meg/' + dataset.lower() + "/" + experiment
+    base_path = 'results/' + experiment
     params = None
 
-    with open(base_path + '/hyperparams.json') as file:
+    with open(base_path + f'/hyperparams.json') as file:
         params = json.load(file)
 
     m = GCNN(params['num_input'],
@@ -217,14 +217,13 @@ def get_dgn(dataset, experiment):
     m.eval()
     return m
 
-def get_battery_rf(experiment):
+def get_battery_rf(experiment, fold):
     """Load a trained Random Forest model for battery dataset."""
     print('Loading Random Forest model for battery dataset')
     import joblib
     import os
     
-    base_path = f'runs_meg/battery/{experiment}'
-    model_path = f'{base_path}/ckpt/model.joblib'
+    model_path = os.path.join(os.getcwd(), 'RFReg', experiment, 'ckpt', f'model_{fold}.joblib')
 
     # Load existing model
     print(f"Loading existing Random Forest model from {model_path}")

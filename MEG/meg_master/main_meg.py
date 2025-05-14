@@ -36,7 +36,7 @@ def mainXaiFlow(train_RF_again: bool = True, dataset_name='battery', experiment_
             
     print(f"Loaded split information for {len(split_data)} folds")    
     
-    for fold in range(5):    
+    for fold in range(num_folds):    
         num_samples = split_data[fold]['test_size']
         
         sample = list(range(0, num_samples))
@@ -46,7 +46,7 @@ def mainXaiFlow(train_RF_again: bool = True, dataset_name='battery', experiment_
                 train_meg(dataset=dataset_name,
                     experiment_name=experiment_name,
                     sample=sam,
-                    epochs=100, # 5000
+                    epochs=10, # 5000
                     max_steps_per_episode=1, #6
                     num_counterfactuals=12,
                     fp_length=1024,  

@@ -423,7 +423,8 @@ def main(dataset_name:str,
          sample: int = 0,
          fold: int = 0):
     work_dir = os.getcwd()
-    sample_dir = os.path.join(work_dir, 'runs_meg', dataset_name, experiment_name, 'meg_output', f'{str(fold)}_{str(sample)}')
+    
+    sample_dir = os.path.join(work_dir, 'results', experiment_name, 'MEG', 'meg_output', f'{str(fold)}_{str(sample)}')
     print(sample_dir)
     json_path = os.path.join(sample_dir, 'data.json')
     plots_dir = os.path.join(sample_dir, 'cf_plots')
