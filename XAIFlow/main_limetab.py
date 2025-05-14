@@ -247,33 +247,33 @@ def process_folds_global(folds, data, lime_values, smarts_mapping_path, top_i=5)
         print("Fold:", i)
         print("Mean absolute LIME values:", mean_abs_lime_values)
         print("LIME arrays:", lime_arrays)
-        # # Generate global importance plot for the fold
-        # plt.figure(figsize=(12, 6))
-        # top_features_idx = np.argsort(mean_abs_lime_values)[-top_i:]
-        # plt.barh([feature_names[idx] for idx in top_features_idx],
-        #         [mean_abs_lime_values[idx] for idx in top_features_idx])
-        # plt.title(f'Global LIME Feature Importance - Fold {i}')
-        # plt.xlabel('Mean |LIME value|')
-        # plot_path = os.path.join(plots_dir, f"lime_global_importance_fold_{i}_{timestamp}.svg")
-        # plt.savefig(plot_path, bbox_inches='tight', dpi=300, format='svg')
-        # plt.close()
+        # Generate global importance plot for the fold
+        plt.figure(figsize=(12, 6))
+        top_features_idx = np.argsort(mean_abs_lime_values)[-top_i:]
+        plt.barh([feature_names[idx] for idx in top_features_idx],
+                [mean_abs_lime_values[idx] for idx in top_features_idx])
+        plt.title(f'Global LIME Feature Importance - Fold {i}')
+        plt.xlabel('Mean |LIME value|')
+        plot_path = os.path.join(plots_dir, f"lime_global_importance_fold_{i}_{timestamp}.svg")
+        plt.savefig(plot_path, bbox_inches='tight', dpi=300, format='svg')
+        plt.close()
 
-        # # Generate correlation plot
-        # plt.figure(figsize=(12, 6))
-        # correlations = []
-        # for feat_idx in top_features_idx:
-        #     feature = feature_names[feat_idx]
-        #     lime_values_for_feature = [array[feat_idx] for array in lime_arrays]
-        #     capacity_values = test_f['capacity_max'].values
-        #     correlation = np.corrcoef(lime_values_for_feature, capacity_values)[0, 1]
-        #     correlations.append(correlation)
+        # Generate correlation plot
+        plt.figure(figsize=(12, 6))
+        correlations = []
+        for feat_idx in top_features_idx:
+            feature = feature_names[feat_idx]
+            lime_values_for_feature = [array[feat_idx] for array in lime_arrays]
+            capacity_values = test_f['capacity_max'].values
+            correlation = np.corrcoef(lime_values_for_feature, capacity_values)[0, 1]
+            correlations.append(correlation)
         
-        # plt.barh([feature_names[idx] for idx in top_features_idx], correlations)
-        # plt.title(f'LIME Values vs Capacity Correlation - Fold {i}')
-        # plt.xlabel('Correlation coefficient')
-        # plot_path = os.path.join(plots_dir, f"lime_correlation_fold_{i}_{timestamp}.svg")
-        # plt.savefig(plot_path, bbox_inches='tight', dpi=300, format='svg')
-        # plt.close()
+        plt.barh([feature_names[idx] for idx in top_features_idx], correlations)
+        plt.title(f'LIME Values vs Capacity Correlation - Fold {i}')
+        plt.xlabel('Correlation coefficient')
+        plot_path = os.path.join(plots_dir, f"lime_correlation_fold_{i}_{timestamp}.svg")
+        plt.savefig(plot_path, bbox_inches='tight', dpi=300, format='svg')
+        plt.close()
 
         top_i_indices = np.argsort(mean_abs_lime_values)[-top_i:][::-1]
         top_i_indices = [idx for idx in top_i_indices if mean_abs_lime_values[idx] != 0]
@@ -371,5 +371,5 @@ def process_folds(folds, data, lime_values, smarts_mapping_path, local_explanati
 if __name__ == '__main__':
     model = ['LIME'] 
     local_explanation = False
-    experiment_name = 'global'
+    experiment_name = 'LIME_global'
     [mainXaiFlow(m, local_explanation,experiment_name) for m in model]
