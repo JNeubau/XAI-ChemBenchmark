@@ -4,6 +4,8 @@ from datetime import datetime
 import pandas as pd
 import numpy as np
 import json
+import argparse
+import joblib
     
 from AI_models.models import Models
 from AI_models.eval_metrics import EvalMetrics
@@ -14,7 +16,6 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.dirname(os.getcwd()))
 
 from SHAP.shap_cross_validation import CrossValidationShapPipeline
-# from SHAP.shapplot import generate_shap_plots
 import SHAP.shapplot as plot_shap
 from SHAP_IQ.shapiq_cross_validation import CrossValidationShapIqPipeline
 import SHAP_IQ.shapiqplot as plot_iq
@@ -23,6 +24,59 @@ import SHAP_IQ.shapiqplot as plot_iq
 def mainXaiFlow(model, local_explanation=True, max_order_iq=1,experiment_name='battery'):
     if model != 'SHAP_IQ':
         max_order_iq = 1
+    print("Model: ", model)
+    parent_dir = os.path.dirname(os.getcwd())
+    print("Parent directory:", parent_dir)
+    
+    maccs_fingerprints = os.path.join(parent_dir, 'data', 'new_maccs_merged.csv')
+    smarts_mapping_path = os.path.join(parent_dir, 'data', 'maccs_smarts_mapping.json')
+    if max_order_iq > 1:
+        explenation_type = 'local_interactions'
+    elif local_explanation:
+        explenation_type = 'local'
+    else:
+        explenation_type = 'global'
+    results_dir = os.path.join(parent_dir, 'results', experiment_name, model, explenation_type, datetime.today().strftime("%d-%m-%Y"))
+    
+    data = pd.read_csv(maccs_fingerprints)
+    print(data.head())
+    os.makedirs(results_dir, exist_ok=True)
+
+    folds = custom_data_kfold(data.drop(columns=['capacity_max']), data[['capacity_max']], 5)
+
+    # Train the model
+    cv_pipeline = select_pipeline(model, data, folds, max_order_iq)
+    results, scores, shap_values = cv_pipeline.train_pipeline('RFReg')
+    
+    plots_dir = os.path.join(parent_dir, 'results', 'plots', model, explenation_type, datetime.today().strftime("%d-%m-%Y"))
+    create_plots(plots_dir, data, folds,model, shap_values, max_order_iq)   
+    
+    if max_order_iq > 1: 
+        smarts_top_all, molecules_statistics_all = process_folds_local_interactions(folds, data, shap_values, smarts_mapping_path, 10)
+        match_molecules_all = {}
+    else:
+        if model == 'SHAP_IQ':
+            shap_values = [np.array(shap_values[i]) for i in range(len(shap_values))]
+        smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation)
+    # molecules_statistics_all = predict_capacity(cv_pipeline, smarts_top_all, molecules_statistics_all)
+    molecules_statistics_all = count_molecules_with_fingerprint(data, molecules_statistics_all)
+    molecules_statistics_all = count_important_features(data, molecules_statistics_all)
+    
+    excel_data = prepare_data_for_excel_export(match_molecules_all, smarts_top_all, molecules_statistics_all)
+    if model == 'SHAP_IQ' and max_order_iq > 1:
+        save_interactions_to_excel(excel_data, results_dir)
+    else:
+        save_molecules_to_excel(excel_data, results_dir)
+    
+    scores_data = create_dataframe_from_scores(scores, results)
+    save_scores_to_excel(scores_data, results_dir)
+    
+    
+            
+def mainXaiFlow_all(model, local_explanation=True, max_order_iq=1, dataset_name='battery', experiment_name='test', folds=5):
+    if model != 'SHAP_IQ':
+        max_order_iq = 1
+        
     print("Model: ", model)
     parent_dir = os.path.dirname(os.getcwd())
     print("Parent directory:", parent_dir)
@@ -419,8 +473,37 @@ def process_folds(folds, data, shap_values, smarts_mapping_path, local_explanati
 
 
 if __name__ == '__main__':
-    model = ['SHAP','SHAP_IQ'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
-    local_explanation = True
-    experiment_name= 'battery_test'
-    max_order_iq = 1
-    [mainXaiFlow(m, local_explanation, max_order_iq,experiment_name) for m in model]
+    parser = argparse.ArgumentParser(description='Run XAI Flow with specified parameters')
+    parser.add_argument('--dataset_name', type=str, default='battery', help='Name of the dataset (default: battery)')
+    parser.add_argument('--experiment_name', type=str, default='test', help='Name of the experiment (default: test)')
+    parser.add_argument('--fold', type=int, default=5, help='Number of folds to process (default: 5)')
+    parser.add_argument('--model', type=str, choices=['SHAP', 'SHAP_IQ', 'both'], default='both', help='Model to use (default: both)')
+    parser.add_argument('--local', action='store_true', default=True, help='Use local explanations (default: True)')
+    parser.add_argument('--max_order', type=int, default=1, help='Maximum interaction order for SHAP_IQ (default: 1)')
+    
+    args = parser.parse_args()
+    
+    # Determine which models to run
+    models_to_run = []
+    if args.model == 'both':
+        models_to_run = ['SHAP', 'SHAP_IQ']
+    else:
+        models_to_run = [args.model]
+    
+    # Run the main flow with the specified arguments
+    for model in models_to_run:
+        print(f"\n=== Running {model} ===\n")
+        mainXaiFlow_all(
+            model=model,
+            local_explanation=args.local,
+            max_order_iq=args.max_order,
+            dataset_name=args.dataset_name,
+            experiment_name=args.experiment_name,
+            fold=args.fold
+        )
+    
+    # model = ['SHAP','SHAP_IQ'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
+    # local_explanation = True
+    # experiment_name= 'battery_test'
+    # max_order_iq = 1
+    # [mainXaiFlow(m, local_explanation, max_order_iq,experiment_name) for m in model]

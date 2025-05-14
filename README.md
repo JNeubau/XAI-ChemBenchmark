@@ -48,3 +48,8 @@ The script is at the mottom of the file available at:
 ```python
 mainXaiFlow(True, 'battery', 'rf_test', 5, os.path.join(os.getcwd(), 'data', 'new_maccs_merged.csv'))
 ```
+
+### Note: 
+Make sure you run this from conda env, which can be installed using scripts in: **"MEG/ meg_master/setup"**. 
+
+The script was only checked for windows installation.
