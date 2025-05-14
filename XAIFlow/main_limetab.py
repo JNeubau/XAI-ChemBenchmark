@@ -4,6 +4,7 @@ from datetime import datetime
 import pandas as pd
 import numpy as np
 import json
+import matplotlib.pyplot as plt
     
 from AI_models.models import Models
 from AI_models.eval_metrics import EvalMetrics
@@ -21,9 +22,7 @@ from LIME.lime_tabular_explainer import CrossValidationLimePipeline
 # import LIME_IQ.limeiqplot as plot_iq
 
 
-def mainXaiFlow(model, local_explanation=True, max_order_iq=1):
-    if model != 'LIME':
-        max_order_iq = 1
+def mainXaiFlow(model, local_explanation=True):
     print("Model: ", model)
     parent_dir = os.path.dirname(os.getcwd())
     print("Parent directory:", parent_dir)
@@ -40,7 +39,7 @@ def mainXaiFlow(model, local_explanation=True, max_order_iq=1):
     folds = custom_data_kfold(data.drop(columns=['capacity_max']), data[['capacity_max']], 5)
 
     # Train the model
-    cv_pipeline = select_pipeline(model, data, folds, max_order_iq)
+    cv_pipeline = select_pipeline(model, data, folds)
     results, scores, lime_values = cv_pipeline.train_pipeline('RFReg')
 
     smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, lime_values, smarts_mapping_path, local_explanation)
@@ -89,7 +88,7 @@ def predict_capacity(pipeline, data, molecules_statistics_all):
     return molecules_statistics_all
 
 
-def select_pipeline(model, data, folds, max_order_iq=1):
+def select_pipeline(model, data, folds):
     match model:
         case 'LIME':
             return CrossValidationLimePipeline(
@@ -170,66 +169,72 @@ def process_folds_local(folds, data, lime_values, smarts_mapping_path, top_i=5):
     match_molecules_all = {}
     molecules_statistics_all = {}
     
+    # Create plots directory
+    parent_dir = os.path.dirname(os.getcwd())
+    plots_dir = os.path.join(parent_dir, 'results', 'plots', "LIME", datetime.today().strftime("%d-%m-%Y"))
+    os.makedirs(plots_dir, exist_ok=True)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    
+    # Load SMARTS mapping
+    with open(smarts_mapping_path, 'r') as f:
+        smarts_mapping = json.load(f)
+    
     for i, fold in enumerate(folds):
         test_f = data.loc[fold[1]]
-        lime_f = lime_values[i]
+        lime_fold_values, lime_fold_explanations = lime_values[i]
 
         print("Fold:", i)
-        for molecule_idx, lime_array in enumerate(lime_f):
+        for molecule_idx, (lime_array, lime_explanation) in enumerate(zip(lime_fold_values, lime_fold_explanations)):
+            # Save explanation plots
+            try:
+                smiles = test_f.iloc[molecule_idx]['smiles']
+                
+                # Save PyPlot figure
+                fig = lime_explanation.as_pyplot_figure()
+                fig.suptitle(f'LIME Explanation for SMILES: {smiles}')
+                plot_path = os.path.join(plots_dir, f"lime_explanation_{i}_{molecule_idx}_{timestamp}.svg")
+                fig.savefig(plot_path, bbox_inches='tight', dpi=300, format='svg')
+                plt.close(fig)
+                
+                # Save HTML explanation
+                html_path = os.path.join(plots_dir, f"lime_explanation_{i}_{molecule_idx}_{timestamp}.html")
+                lime_explanation.save_to_file(html_path)
+                print(f"Explanation saved for SMILES {smiles}")
+                
+            except Exception as e:
+                print(f"An error occurred while saving explanation: {e}")
+
+            # Process LIME values
             feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
-            # Convert LIME explanation list to dict
-            # print("molecule_idx:", test_f.iloc[molecule_idx]['smiles'])
             lime_dict = {item[0].split('=')[0]: item[1] for item in lime_array}
-            # print("LIME dict:", lime_dict)
-            # abs_lime_values = lime_dict
-            top_features = lime_dict.items()
-            # top_features = sorted_features
-            feature_names_only = [feature for feature, _ in top_features]
-            # for feature in feature_names_only:
-            #     if data.loc[data['smiles'] == test_f.iloc[molecule_idx]['smiles'], feature].values[0] == 1:
-            #         # molecules_statistics[(i, test_f.iloc[molecule_idx]['smiles'], feature)]["feature_in_smiles"] = True
-            #         print("Feature in SMILES:", feature, "True")
-            #     else:
-            #         # molecules_statistics[(i, test_f.iloc[molecule_idx]['smiles'], feature)]["feature_in_smiles"] = False
-            #         print("Feature in SMILES:", feature, "False")
-            # print("Test fold:", test_f.iloc[molecule_idx]['smiles'])
-            # print("LIME dict:", lime_dict)
-            # print("Top features:", top_features)
-            # print("Feature names only:", feature_names_only)
-
-            with open(smarts_mapping_path, 'r') as f:
-                smarts_mapping = json.load(f)
-
-            smarts_top10 = {
-                (i, test_f.iloc[molecule_idx]['smiles'], feature): smarts_mapping[f'maccsfingerprint{int(feature.replace("maccsfingerprint", ""))+1}'][0]
-                for feature in feature_names_only
-            }
-
-            match_molecules = {s: [] for s in smarts_top10.keys()}
-            molecules_statistics = {s: {
-                "number_of_molecules_where_fingerprint": 0,
-                "number_where_important": 0,
-                "lime_value": 0,
-                "lime_sign": '',
-                "feature_in_smiles": False,
-                "capacity_max": test_f.iloc[molecule_idx]['capacity_max'],
-                "capacity_pred": 0
-            } for s in smarts_top10.keys()}
             
-            for key, value in smarts_top10.items():
-                non_zero_molecules = test_f[test_f[key[2]] == 1]
-                non_zero_molecules = non_zero_molecules['smiles'].tolist()
-                match_molecules[key].extend(non_zero_molecules)
-                # print("Lime value:", lime_dict[key[2]])
-                molecules_statistics[key]["lime_value"] = lime_dict[key[2]]
-                molecules_statistics[key]["lime_sign"] = 'Positive' if lime_dict[key[2]] >= 0 else 'Negative'
-                molecules_statistics[key]["feature_in_smiles"] = bool(data.loc[data['smiles'] == key[1], key[2]].values[0] == 1)
+            # Get top features
+            top_features = sorted(lime_dict.items(), key=lambda x: abs(x[1]), reverse=True)[:top_i]
+            feature_names_only = [feature for feature, _ in top_features]
 
-            smarts_top_all.update(smarts_top10)
-            match_molecules_all.update(match_molecules)
-            molecules_statistics_all.update(molecules_statistics)
+            # Map features to SMARTS and collect statistics
+            for feature in feature_names_only:
+                key = (i, test_f.iloc[molecule_idx]['smiles'], feature)
+                maccs_idx = int(feature.replace("maccsfingerprint", "")) + 1
+                smarts_top_all[key] = smarts_mapping[f'maccsfingerprint{maccs_idx}'][0]
+                
+                # Initialize molecules statistics
+                molecules_statistics_all[key] = {
+                    "number_of_molecules_where_fingerprint": 0,
+                    "number_where_important": 0,
+                    "lime_value": lime_dict[feature],
+                    "lime_sign": 'Positive' if lime_dict[feature] >= 0 else 'Negative',
+                    "feature_in_smiles": bool(data.loc[data['smiles'] == key[1], feature].values[0] == 1),
+                    "capacity_max": test_f.iloc[molecule_idx]['capacity_max'],
+                    "capacity_pred": 0
+                }
+                
+                # Collect matching molecules
+                non_zero_molecules = test_f[test_f[feature] == 1]['smiles'].tolist()
+                match_molecules_all[key] = non_zero_molecules
 
     return smarts_top_all, match_molecules_all, molecules_statistics_all
+
 
 def process_folds_global(folds, data, lime_values, smarts_mapping_path, top_i=10):
    

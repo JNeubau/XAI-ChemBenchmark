@@ -79,26 +79,15 @@ class CrossValidationLimePipeline:
     @staticmethod 
     def explain_model(model: object, X_test: pd.DataFrame, expainer: object, smiles_list: pd.Series,f: int) -> Iterable:
         """
-        Explain the model and save explanation plots.
+        Get LIME explanations for test instances.
         :param model: prediction model.
         :param X_test: test data.
         :param expainer: LIME explainer object
         :param smiles_list: Series containing SMILES strings for molecules
-        :return: lime values.
+        :return: lime values and explanations.
         """
-        # from sklearn.linear_model import Lasso
-        # from sklearn.ensemble import RandomForestRegressor
-
-        # lasso = Lasso(alpha=0.01,random_state=42)
-        # rf = RandomForestRegressor(n_estimators=100, random_state=42)
-
         lime_values = []
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        parent_dir = os.path.dirname(os.getcwd())
-
-        # Create plots directory
-        plots_dir = os.path.join(parent_dir, 'results', 'plots', "LIME", datetime.today().strftime("%d-%m-%Y"))
-        os.makedirs(plots_dir, exist_ok=True)
+        lime_explanations = []
 
         for idx, (instance, smiles) in enumerate(zip(X_test.values, smiles_list)):
             print(f"Processing molecule {idx}, SMILES: {smiles}")
@@ -106,33 +95,9 @@ class CrossValidationLimePipeline:
             lime_explanation = expainer.explain_instance(instance, model.predict, num_features=5)
             lime_value = lime_explanation.as_list()
             lime_values.append(lime_value)
+            lime_explanations.append(lime_explanation)
             
-            try:
-                # Save explanation plot
-                fig = lime_explanation.as_pyplot_figure()
-                fig.suptitle(f'LIME Explanation for SMILES: {smiles}')
-                
-                # Create more detailed filename with timestamp and SMILES
-                plot_path = os.path.join(
-                    plots_dir,
-                    f"lime_explanation_{f}_{idx}_{timestamp}.svg"
-                )
-                
-                # Save high quality vector graphics
-                fig.savefig(plot_path, bbox_inches='tight', dpi=300, format='svg')
-                plt.close(fig)
-                
-                if lime_values:
-                    print(f"Explanation saved for SMILES {smiles} at {plot_path}")
-                
-                # Save explanation to a html file
-                lime_explanation.save_to_file(os.path.join(plots_dir, f"lime_explanation_{f}_{idx}_{timestamp}.html"))
-                print(f"Explanation saved to HTML for SMILES {smiles} at {plot_path}")
-                    
-            except Exception as e:
-                print(f"An error occurred while saving explanation for SMILES {smiles}: {e}")
-        
-        return lime_values
+        return lime_values, lime_explanations
 
     def update_lime(self, model: object, X_test: pd.DataFrame, explainer: object, f: int, smiles_test: pd.Series):
         """
@@ -140,10 +105,9 @@ class CrossValidationLimePipeline:
         :param model: prediction model.
         :param X_test: test data.
         """
-        # Get SMILES from the test data index
         smiles_list = smiles_test
-        lime_values = self.explain_model(model, X_test, explainer, smiles_list,f)
-        self.lime_values.append(lime_values)
+        lime_values, lime_explanations = self.explain_model(model, X_test, explainer, smiles_list, f)
+        self.lime_values.append((lime_values, lime_explanations))
 
     def eval_model(self, y_pred: np.array, y_test: np.array) -> dict:
         """

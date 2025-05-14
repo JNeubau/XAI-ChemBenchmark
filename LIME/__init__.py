@@ -1,1 +1,1 @@
-from .lime_cross_validation import CrossValidationLIMEPipeline
+from .lime_tabular_explainer import CrossValidationLimePipeline
