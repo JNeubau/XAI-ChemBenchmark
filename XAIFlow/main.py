@@ -30,8 +30,10 @@ def mainXaiFlow(model, local_explanation=True, max_order_iq=1,experiment_name='b
     
     maccs_fingerprints = os.path.join(parent_dir, 'data', 'new_maccs_merged.csv')
     smarts_mapping_path = os.path.join(parent_dir, 'data', 'maccs_smarts_mapping.json')
-    if max_order_iq > 1:
+    if max_order_iq > 1 and local_explanation:
         explenation_type = 'local_interactions'
+    elif max_order_iq > 1 and not local_explanation:
+        explenation_type = 'global_interactions'
     elif local_explanation:
         explenation_type = 'local'
     else:
@@ -51,9 +53,13 @@ def mainXaiFlow(model, local_explanation=True, max_order_iq=1,experiment_name='b
     plots_dir = os.path.join(parent_dir, 'results', 'plots', model, explenation_type, datetime.today().strftime("%d-%m-%Y"))
     create_plots(plots_dir, data, folds,model, shap_values, max_order_iq)   
     
-    if max_order_iq > 1: 
+    if max_order_iq > 1 and local_explanation: 
         smarts_top_all, molecules_statistics_all = process_folds_local_interactions(folds, data, shap_values, smarts_mapping_path, 10)
         match_molecules_all = {}
+    elif max_order_iq > 1 and not local_explanation:
+        smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds_global_interactions(folds, data, shap_values, smarts_mapping_path, 10)
+    elif local_explanation:
+        smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation)
     else:
         if model == 'SHAP_IQ':
             shap_values = [np.array(shap_values[i]) for i in range(len(shap_values))]
@@ -83,8 +89,10 @@ def mainXaiFlow_all(model, local_explanation=True, max_order_iq=1, dataset_name=
     
     maccs_fingerprints = os.path.join(parent_dir, 'data', 'new_maccs_merged.csv')
     smarts_mapping_path = os.path.join(parent_dir, 'data', 'maccs_smarts_mapping.json')
-    if max_order_iq > 1:
+    if max_order_iq > 1 and local_explanation:
         explenation_type = 'local_interactions'
+    elif max_order_iq > 1 and not local_explanation:
+        explenation_type = 'global_interactions'
     elif local_explanation:
         explenation_type = 'local'
     else:
@@ -104,13 +112,17 @@ def mainXaiFlow_all(model, local_explanation=True, max_order_iq=1, dataset_name=
     plots_dir = os.path.join(parent_dir, 'results', 'plots', model, explenation_type, datetime.today().strftime("%d-%m-%Y"))
     create_plots(plots_dir, data, folds,model, shap_values, max_order_iq)   
     
-    if max_order_iq > 1: 
+    if max_order_iq > 1 and local_explanation: 
         smarts_top_all, molecules_statistics_all = process_folds_local_interactions(folds, data, shap_values, smarts_mapping_path, 10)
         match_molecules_all = {}
+    elif max_order_iq > 1 and not local_explanation:
+        smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds_global_interactions(folds, data, shap_values, smarts_mapping_path, 10)
+    elif local_explanation:
+        smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation)
     else:
         if model == 'SHAP_IQ':
             shap_values = [np.array(shap_values[i]) for i in range(len(shap_values))]
-        smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation)
+        smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation, max_order_iq)
     # molecules_statistics_all = predict_capacity(cv_pipeline, smarts_top_all, molecules_statistics_all)
     molecules_statistics_all = count_molecules_with_fingerprint(data, molecules_statistics_all)
     molecules_statistics_all = count_important_features(data, molecules_statistics_all)
@@ -424,6 +436,125 @@ def process_folds_global(folds, data, shap_values, smarts_mapping_path, top_i=10
     return smarts_top_all, match_molecules_all, molecules_statistics_all
 
 
+def process_folds_global_interactions(folds, data, shap_values, smarts_mapping_path, top_i=10):
+    smarts_top_all = {}
+    molecules_statistics_all = {}
+    match_molecules_all = {}
+
+    for i, fold in enumerate(folds):
+        test_f = data.loc[fold[1]]
+        shap_f = shap_values[i]
+        # print("Fold number:", i)
+        # print("Test data:", test_f)
+        # print("SHAP values:", shap_f)
+        # print("\n================================================\n")
+        # Calculate mean interaction values across all molecules in the fold
+        mean_interactions = {}
+        for molecule_idx, shap_array in enumerate(shap_f):
+            _, interactions = shap_array.get_top_k(top_i + 1, as_interaction_values=False)
+            interactions = interactions[1:] 
+            
+            for interaction in interactions:
+                key = tuple(sorted(interaction[0]))  # Sort indices to ensure consistent key
+                value = abs(interaction[1])
+                if key not in mean_interactions:
+                    mean_interactions[key] = []
+                mean_interactions[key].append(value)
+
+        # Calculate means and sort to get top interactions
+        mean_interaction_values = {k: np.mean(np.abs(v)) for k, v in mean_interactions.items()}
+        top_interactions = sorted(mean_interaction_values.items(), key=lambda x: x[1], reverse=True)[:top_i]
+
+        feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
+
+
+        # print("mean_interaction_values:", mean_interaction_values)
+        # print("Top interactions:", top_interactions)
+        # # print("Feature names:", feature_names)
+        # print("\n================================================\n")
+        
+        with open(smarts_mapping_path, 'r') as f:
+            smarts_mapping = json.load(f)
+
+        # Create SMARTS dictionary for top interactions
+        smarts_topi = {}
+        match_topi = {}
+        mol_stat = {}
+
+        for indices, mean_value in top_interactions:
+            print("Indices:", indices)
+            features = [feature_names[idx] for idx in indices]
+            print("features:", features)
+            smiles = match_molecule_global(features[0], test_f, data)  # Use first feature to match molecule
+            
+            key = (i, smiles, tuple(features))
+            smarts = [
+                smarts_mapping[f'maccsfingerprint{int(f.replace("maccsfingerprint", ""))+1}'][0]
+                for f in features
+            ]
+            smarts_topi[key] = smarts
+
+            match_molecules = {key: [] for key in smarts_topi.keys()}
+            match_topi[key] = match_molecules
+            # Initialize statistics for this interaction
+            molecules_statistics = {
+                "number_of_molecules_where_fingerprint": 0,
+                "number_where_important": 0,
+                "shap_value": mean_value,
+                "shap_sign": '',
+                "feature_in_smiles": False,
+                "capacity_max": 0,
+                "capacity_pred": 0
+            }
+
+            # Calculate correlation for interaction
+            interaction_values = []
+            capacity_values = []
+            for mol_idx, mol_shap in enumerate(shap_f):
+                _, mol_interactions = mol_shap.get_top_k(len(mol_shap), as_interaction_values=False)
+                for mol_int in mol_interactions:
+                    if tuple(sorted(mol_int[0])) == indices:
+                        interaction_values.append(mol_int[1])
+                        capacity_values.append(test_f.iloc[mol_idx]['capacity_max'])
+                        break
+
+            if interaction_values:
+                df = pd.DataFrame({
+                    'interaction_values': interaction_values,
+                    'capacity_values': capacity_values
+                })
+                correlation = df.corr(method='spearman').loc['interaction_values', 'capacity_values']
+                molecules_statistics["shap_sign"] = f'Positive|{correlation}' if correlation > 0 else f'Negative|{correlation}'
+            mol_stat[key] = molecules_statistics
+
+        match_molecules_all.update(match_topi)
+        molecules_statistics_all.update(mol_stat)
+        smarts_top_all.update(smarts_topi)
+
+    molecules_statistics_all = count_interaction_features(data, molecules_statistics_all)
+    return smarts_top_all, match_molecules_all, molecules_statistics_all
+
+def count_interaction_features(data, molecules_statistics_all):
+    interaction_count = {}
+    
+    # Count occurrences of each feature in interactions
+    for key in molecules_statistics_all.keys():
+        features = key[2]
+        for feature in features:
+            if feature not in interaction_count:
+                interaction_count[feature] = 0
+            interaction_count[feature] += 1
+
+    # Update statistics for each interaction
+    for key in molecules_statistics_all.keys():
+        features = key[2]
+        # Sum the counts of all features in this interaction
+        total_importance = sum(interaction_count.get(feature, 0) for feature in features)
+        molecules_statistics_all[key]["number_where_important"] = total_importance
+
+    return molecules_statistics_all
+
+
 def match_molecule_global(feature, test_f, full_data):
     """
     Match a molecule based on the feature. If no match is found in the test fold,
@@ -502,8 +633,8 @@ if __name__ == '__main__':
         #     fold=args.fold
         # )
     
-    # model = ['SHAP','SHAP_IQ'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
-    # local_explanation = True
-    # experiment_name= 'battery_test'
-    # max_order_iq = 1
-    # [mainXaiFlow(m, local_explanation, max_order_iq,experiment_name) for m in model]
+    model = ['SHAP','SHAP_IQ'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
+    local_explanation = False
+    experiment_name= 'battery_test'
+    max_order_iq = 2
+    [mainXaiFlow(m, local_explanation, max_order_iq,experiment_name) for m in model]
