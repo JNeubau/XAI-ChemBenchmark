@@ -110,7 +110,7 @@ def mainXaiFlow_all(model, local_explanation=True, max_order_iq=1, dataset_name=
     results, scores, shap_values = cv_pipeline.train_pipeline('RFReg')
     
     plots_dir = os.path.join(parent_dir, 'results', 'plots', model, explenation_type, datetime.today().strftime("%d-%m-%Y"))
-    create_plots(plots_dir, data, folds,model, shap_values, max_order_iq)   
+    # create_plots(plots_dir, data, folds,model, shap_values, max_order_iq)   
     
     if max_order_iq > 1 and local_explanation: 
         smarts_top_all, molecules_statistics_all = process_folds_local_interactions(folds, data, shap_values, smarts_mapping_path, 10)
@@ -220,25 +220,19 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
         "Fold_No": [],
         "Smiles_key": [],
         "Feature_key": [],
-        "Fold_No": [],
-        "Smiles_key": [],
-        "Feature_key": [],
         "SMARTS": [],
         "Molecule": [],
         "number_of_molecules_where_fingerprint": [],
         "Number_where_important": [],
         'feature_in_smiles': [],
-        "Shap_value": [],
-        "shap_sign": [],
-        "Capacity Max": [],
-        "Capacity Pred": [],
+        "Explanation_value": [],
+        "Explanation_sign": [],
+        "Capacity_Max": [],
+        "Capacity_Pred": [],
+        "Model": []
     }
             
-    bbbb=0
     for key, smarts in smarts_top.items():
-        # print("=============molecule===============")
-        # print("key:", key)
-        # print("smarts:", smarts)
         excel_data["Fold_No"].append(key[0])
         excel_data["Smiles_key"].append(key[1])
         excel_data["Feature_key"].append(key[2])
@@ -247,12 +241,12 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
         excel_data["number_of_molecules_where_fingerprint"].append(molecules_statistics_all[key]["number_of_molecules_where_fingerprint"])
         excel_data["Number_where_important"].append(molecules_statistics_all[key]["number_where_important"])
         excel_data["feature_in_smiles"].append(molecules_statistics_all[key]["feature_in_smiles"])
-        excel_data["Shap_value"].append(molecules_statistics_all[key]["shap_value"])
-        excel_data["shap_sign"].append(molecules_statistics_all[key]["shap_sign"])
-        excel_data["Capacity Max"].append(molecules_statistics_all[key]["capacity_max"])
-        excel_data["Capacity Pred"].append(molecules_statistics_all[key]["capacity_pred"])
-        bbbb+=1
-    print("bbbb:", bbbb)
+        excel_data["Explanation_value"].append(molecules_statistics_all[key]["shap_value"])
+        excel_data["Explanation_sign"].append(molecules_statistics_all[key]["shap_sign"])
+        excel_data["Capacity_Max"].append(molecules_statistics_all[key]["capacity_max"])
+        excel_data["Capacity_Pred"].append(molecules_statistics_all[key]["capacity_pred"])
+        excel_data["Model"].append("SHAP" if "SHAP_IQ" not in model else "SHAP_IQ")
+    
     return excel_data
 
 
@@ -633,8 +627,8 @@ if __name__ == '__main__':
         #     fold=args.fold
         # )
     
-    model = ['SHAP','SHAP_IQ'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
+    model = ['SHAP'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
     local_explanation = False
     experiment_name= 'battery_test'
-    max_order_iq = 2
+    max_order_iq = 1
     [mainXaiFlow(m, local_explanation, max_order_iq,experiment_name) for m in model]

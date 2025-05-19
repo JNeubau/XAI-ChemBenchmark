@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from AI_models.models import Models
 from AI_models.eval_metrics import EvalMetrics
 from utils.data_split import custom_data_kfold
-from utils.exportlib import save_data_to_excel_with_highlights_lime, save_scores_to_excel_new_sheet
+from utils.exportlib import save_data_to_excel_with_highlights, save_scores_to_excel_new_sheet
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.dirname(os.getcwd()))
@@ -104,25 +104,19 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
         "Fold_No": [],
         "Smiles_key": [],
         "Feature_key": [],
-        "Fold_No": [],
-        "Smiles_key": [],
-        "Feature_key": [],
         "SMARTS": [],
         "Molecule": [],
         "number_of_molecules_where_fingerprint": [],
         "Number_where_important": [],
         'feature_in_smiles': [],
-        "lime_value": [],
-        "lime_sign": [],
-        "Capacity Max": [],
-        "Capacity Pred": [],
+        "Explanation_value": [],
+        "Explanation_sign": [],
+        "Capacity_Max": [],
+        "Capacity_Pred": [],
+        "Model": []
     }
             
-    bbbb=0
     for key, smarts in smarts_top.items():
-        # print("=============molecule===============")
-        # print("key:", key)
-        # print("smarts:", smarts)
         excel_data["Fold_No"].append(key[0])
         excel_data["Smiles_key"].append(key[1])
         excel_data["Feature_key"].append(key[2])
@@ -131,18 +125,18 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
         excel_data["number_of_molecules_where_fingerprint"].append(molecules_statistics_all[key]["number_of_molecules_where_fingerprint"])
         excel_data["Number_where_important"].append(molecules_statistics_all[key]["number_where_important"])
         excel_data["feature_in_smiles"].append(molecules_statistics_all[key]["feature_in_smiles"])
-        excel_data["lime_value"].append(molecules_statistics_all[key]["lime_value"])
-        excel_data["lime_sign"].append(molecules_statistics_all[key]["lime_sign"])
-        excel_data["Capacity Max"].append(molecules_statistics_all[key]["capacity_max"])
-        excel_data["Capacity Pred"].append(molecules_statistics_all[key]["capacity_pred"])
-        bbbb+=1
-    # print("bbbb:", bbbb)
+        excel_data["Explanation_value"].append(molecules_statistics_all[key]["lime_value"])
+        excel_data["Explanation_sign"].append(molecules_statistics_all[key]["lime_sign"])
+        excel_data["Capacity_Max"].append(molecules_statistics_all[key]["capacity_max"])
+        excel_data["Capacity_Pred"].append(molecules_statistics_all[key]["capacity_pred"])
+        excel_data["Model"].append("LIME")
+    
     return excel_data
 
 
 def save_molecules_to_excel(excel_data, results_dir):
     results_dir = results_dir + f'\\molecule_results_with_highlights_{datetime.now().strftime("%H-%M-%S")}.xlsx'
-    save_data_to_excel_with_highlights_lime(excel_data, results_dir)
+    save_data_to_excel_with_highlights(excel_data, results_dir)
     print(f"Molecule results with highlights saved to {results_dir}")
 
 

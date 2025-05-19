@@ -5,8 +5,8 @@ from rdkit.Chem import Draw
 import os
 from matplotlib.colors import ColorConverter
 from io import BytesIO
-from matplotlib.colors import ColorConverter
-from io import BytesIO
+# from matplotlib.colors import ColorConverter
+# from io import BytesIO
 
 
 def save_data_to_excel(data, smiles_list, excel_file):
@@ -107,13 +107,12 @@ def save_data_to_excel_with_highlights(data, excel_file):
     - excel_file (str): The path to the Excel file where the data will be saved.
     """    
     df = pd.DataFrame(data, 
-                      columns=["Fold_No", 'Smiles_key', 'Feature_key', 
-                               'SMARTS', 'Molecule', 'number_of_molecules_where_fingerprint', 'Number_where_important',
-                               'feature_in_smiles','Shap_value', 'shap_sign',
-                               'Capacity Max', 'Capacity Pred'])
-    # df['Shap_sign'] = df['Shap_value'].apply(lambda x: 'Positive' if x >= 0 else 'Negative')
-    # df['Shap_value'] = df['Shap_value'].abs()
-    df = df.sort_values(by=['Molecule', 'Feature_key', 'Fold_No'], ignore_index=True)
+                     columns=["Fold_No", 'Smiles_key', 'Feature_key', 
+                             'SMARTS', 'Molecule', 'number_of_molecules_where_fingerprint', 
+                             'Number_where_important', 'feature_in_smiles',
+                             'Explanation_value', 'Explanation_sign',
+                             'Capacity_Max', 'Capacity_Pred', 'Model'])
+    df = df.sort_values(by=['Model', 'Molecule', 'Feature_key', 'Fold_No'], ignore_index=True)
 
     with pd.ExcelWriter(excel_file, engine="xlsxwriter", mode='w') as writer:
         df.to_excel(writer, index=False, sheet_name="Data", startrow=0, startcol=13)
@@ -126,15 +125,8 @@ def save_data_to_excel_with_highlights(data, excel_file):
             match_smart = Chem.MolFromSmarts(smarts)
             if mol and match_smart:
                 highlight_atoms = [atom for match in mol.GetSubstructMatches(match_smart) for atom in match]
-                
-                # highlight_bonds = []
-                # for match in mol.GetSubstructMatches(match_smart):
-                #     for i in range(len(match) - 1):
-                #         bond = mol.GetBondBetweenAtoms(match[i], match[i + 1])
-                #         if bond:
-                #             highlight_bonds.append(bond.GetIdx())
 
-                if row['shap_sign'].split('|')[0] == 'Negative':
+                if row['Explanation_sign'].split('|')[0] == 'Negative':
                     color = 'lightcoral'
                 else:
                     color = 'aquamarine'
@@ -160,8 +152,7 @@ def save_data_to_excel_with_highlights(data, excel_file):
                 col_smt = 6
                 worksheet.insert_image(row_num, col_smt, '', {'image_data': img_smt_buffer})
                 worksheet.set_row(row_num, 250)
-    # clean_up_png_files_from_dir(image_dir)
-    
+
 def save_interactions_to_excel_with_highlights(data, excel_file):
     """
     Save data to an Excel file with molecule images generated from SMILES strings and highlighted substructures.
@@ -173,11 +164,12 @@ def save_interactions_to_excel_with_highlights(data, excel_file):
     - excel_file (str): The path to the Excel file where the data will be saved.
     """    
     df = pd.DataFrame(data, 
-                      columns=["Fold_No", 'Smiles_key', 'Feature_key', 
-                               'SMARTS', 'Molecule', 'number_of_molecules_where_fingerprint', 'Number_where_important',
-                               'feature_in_smiles','Shap_value', 'shap_sign',
-                               'Capacity Max', 'Capacity Pred'])
-    df = df.sort_values(by=['Molecule', 'Feature_key', 'Fold_No'], ignore_index=True)
+                     columns=["Fold_No", 'Smiles_key', 'Feature_key', 
+                             'SMARTS', 'Molecule', 'number_of_molecules_where_fingerprint', 
+                             'Number_where_important', 'feature_in_smiles',
+                             'Explanation_value', 'Explanation_sign',
+                             'Capacity_Max', 'Capacity_Pred', 'Model'])
+    df = df.sort_values(by=['Model', 'Molecule', 'Feature_key', 'Fold_No'], ignore_index=True)
 
     with pd.ExcelWriter(excel_file, engine="xlsxwriter", mode='w') as writer:
         df.to_excel(writer, index=False, sheet_name="Data", startrow=0, startcol=0)
@@ -191,20 +183,12 @@ def save_interactions_to_excel_with_highlights(data, excel_file):
             highlight_atoms_list = []
             for j, smart in enumerate(smarts):
                 match_smart = Chem.MolFromSmarts(smart)
-                # match_smart = Chem.MolFromSmarts(smart)
                 if mol and match_smart:
                     match_smarts.append(match_smart)
                     highlight_atoms = [atom for match in mol.GetSubstructMatches(match_smart) for atom in match]
                     highlight_atoms_list = highlight_atoms_list + highlight_atoms
-                    
-                    # highlight_bonds = []
-                    # for match in mol.GetSubstructMatches(match_smart):
-                    #     for i in range(len(match) - 1):
-                    #         bond = mol.GetBondBetweenAtoms(match[i], match[i + 1])
-                    #         if bond:
-                    #             highlight_bonds.append(bond.GetIdx())
 
-            if row['shap_sign'].split('|')[0] == 'Negative':
+            if row['Explanation_sign'].split('|')[0] == 'Negative':
                 color = 'lightcoral'
             else:
                 color = 'aquamarine'
@@ -232,73 +216,6 @@ def save_interactions_to_excel_with_highlights(data, excel_file):
                 col_smt = col + (6 * (j +1))
                 worksheet.insert_image(row_num, col_smt, '', {'image_data': img_smt_buffer})
             worksheet.set_row(row_num, 250)
-    # clean_up_png_files_from_dir(image_dir)
-    
-def save_data_to_excel_with_highlights_lime(data, excel_file):
-    """
-    Save data to an Excel file with molecule images generated from SMILES strings and highlighted substructures.
-    The data will be sorted by SMILES and a specified feature.
-
-    Parameters:
-    - data (dict): A dictionary containing the data to be saved.
-                   Keys should be column names, and values should be lists of column data.
-    - excel_file (str): The path to the Excel file where the data will be saved.
-    """    
-    df = pd.DataFrame(data, 
-                      columns=["Fold_No", 'Smiles_key', 'Feature_key', 
-                               'SMARTS', 'Molecule', 'number_of_molecules_where_fingerprint', 'Number_where_important',
-                               'feature_in_smiles','lime_value', 'lime_sign',
-                               'Capacity Max', 'Capacity Pred'])
-    # df['Shap_sign'] = df['Shap_value'].apply(lambda x: 'Positive' if x >= 0 else 'Negative')
-    # df['Shap_value'] = df['Shap_value'].abs()
-    df = df.sort_values(by=['Molecule', 'Feature_key', 'Fold_No'], ignore_index=True)
-
-    with pd.ExcelWriter(excel_file, engine="xlsxwriter", mode='w') as writer:
-        df.to_excel(writer, index=False, sheet_name="Data", startrow=0, startcol=13)
-        worksheet = writer.sheets["Data"]
-
-        for i, row in df.iterrows():
-            smiles = row['Molecule']
-            smarts = row['SMARTS']
-            mol = Chem.MolFromSmiles(smiles)
-            match_smart = Chem.MolFromSmarts(smarts)
-            if mol and match_smart:
-                highlight_atoms = [atom for match in mol.GetSubstructMatches(match_smart) for atom in match]
-                
-                # highlight_bonds = []
-                # for match in mol.GetSubstructMatches(match_smart):
-                #     for i in range(len(match) - 1):
-                #         bond = mol.GetBondBetweenAtoms(match[i], match[i + 1])
-                #         if bond:
-                #             highlight_bonds.append(bond.GetIdx())
-
-                if row['lime_sign'].split('|')[0] == 'Negative':
-                    color = 'lightcoral'
-                else:
-                    color = 'aquamarine'
-                
-                img = Draw.MolToImage(
-                    mol, 
-                    highlightAtoms=highlight_atoms, 
-                    # highlight_bonds=highlight_bonds, 
-                    highlightColor=ColorConverter().to_rgb(color))
-                img_buffer = BytesIO()
-                img.save(img_buffer, format='PNG')
-                img_buffer.seek(0)
-
-                row_num = i + 1
-                col = 0
-                worksheet.insert_image(row_num, col, '', {'image_data': img_buffer})
-
-                img_smt = Draw.MolToImage(match_smart)
-                img_smt_buffer = BytesIO()
-                img_smt.save(img_smt_buffer, format='PNG')
-                img_smt_buffer.seek(0)
-
-                col_smt = 6
-                worksheet.insert_image(row_num, col_smt, '', {'image_data': img_smt_buffer})
-                worksheet.set_row(row_num, 250)
-    # clean_up_png_files_from_dir(image_dir)
     
 def save_scores_to_excel_new_sheet(data, excel_file):
     """
