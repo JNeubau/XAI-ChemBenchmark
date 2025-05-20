@@ -23,7 +23,10 @@ def mainXaiFlow(model, local_explanation=True,experiment_name='battery'):
     
     maccs_fingerprints = os.path.join(parent_dir, 'data', 'new_maccs_merged.csv')
     smarts_mapping_path = os.path.join(parent_dir, 'data', 'maccs_smarts_mapping.json')
-    explenation_type = 'local'    
+    if local_explanation:
+        explenation_type = 'local'    
+    else:
+        explenation_type = 'global'
     results_dir = os.path.join(parent_dir, 'results', experiment_name, model, explenation_type, datetime.today().strftime("%d-%m-%Y"))
     
     data = pd.read_csv(maccs_fingerprints)
@@ -218,7 +221,7 @@ def process_folds_local(folds, data, lime_values, smarts_mapping_path, top_i=5):
     return smarts_top_all, match_molecules_all, molecules_statistics_all
 
 
-def process_folds_global(folds, data, lime_values, smarts_mapping_path, top_i=5):
+def process_folds_global(folds, data, lime_values, smarts_mapping_path, top_i=10):
     smarts_top_all = {}
     match_molecules_all = {}
     molecules_statistics_all = {}
@@ -359,7 +362,7 @@ def process_folds(folds, data, lime_values, smarts_mapping_path, local_explanati
     if local_explanation:
         return process_folds_local(folds, data, lime_values, smarts_mapping_path)
     else:
-        return process_folds_global(folds, data, lime_values, smarts_mapping_path)
+        return process_folds_global(folds, data, lime_values, smarts_mapping_path,10)
 
 
 if __name__ == '__main__':
