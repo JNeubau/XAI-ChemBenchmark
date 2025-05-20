@@ -287,7 +287,7 @@ def process_folds_local(folds, data, shap_values, smarts_mapping_path, top_i=5):
                 smarts_mapping = json.load(f)
 
             smarts_top10 = {
-                (i, test_f.iloc[molecule_idx]['smiles'], feature): smarts_mapping[f'maccsfingerprint{int(feature.replace("maccsfingerprint", ""))+1}'][0]
+                (i, test_f.iloc[molecule_idx]['smiles'], feature): smarts_mapping[f'maccsfingerprint{int(feature.replace("maccsfingerprint", ""))}'][0]
                 for feature in top_10_feature_names
             }
 
@@ -395,7 +395,7 @@ def process_folds_global(folds, data, shap_values, smarts_mapping_path, top_i=10
             smarts_mapping = json.load(f)
 
         smarts_topi = {
-            (i, match_molecule_global(feature,test_f,data), feature): smarts_mapping[f'maccsfingerprint{int(feature.replace("maccsfingerprint", ""))+1}'][0]
+            (i, match_molecule_global(feature,test_f,data), feature): smarts_mapping[f'maccsfingerprint{int(feature.replace("maccsfingerprint", ""))}'][0]
             for feature in top_i_feature_names
         }
         # print("SMARTS Top 10:", smarts_topi)
@@ -483,7 +483,7 @@ def process_folds_global_interactions(folds, data, shap_values, smarts_mapping_p
             
             key = (i, smiles, tuple(features))
             smarts = [
-                smarts_mapping[f'maccsfingerprint{int(f.replace("maccsfingerprint", ""))+1}'][0]
+                smarts_mapping[f'maccsfingerprint{int(f.replace("maccsfingerprint", ""))}'][0]
                 for f in features
             ]
             smarts_topi[key] = smarts

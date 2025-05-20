@@ -92,7 +92,7 @@ class CrossValidationLimePipeline:
         for idx, (instance, smiles) in enumerate(zip(X_test.values, smiles_list)):
             print(f"Processing molecule {idx}, SMILES: {smiles}")
             # Get explanation
-            lime_explanation = expainer.explain_instance(instance, model.predict, num_features=200)
+            lime_explanation = expainer.explain_instance(instance, model.predict, num_features=20)
             lime_value = lime_explanation.as_list()
             lime_values.append(lime_value)
             lime_explanations.append(lime_explanation)

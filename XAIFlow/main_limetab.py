@@ -184,7 +184,7 @@ def process_folds_local(folds, data, lime_values, smarts_mapping_path, top_i=5):
                 # Save HTML explanation
                 html_path = os.path.join(plots_dir, f"lime_explanation_{i}_{molecule_idx}_{timestamp}.html")
                 lime_explanation.save_to_file(html_path)
-                print(f"Explanation saved for SMILES {smiles}")
+                # print(f"Explanation saved for SMILES {smiles}")
                 
             except Exception as e:
                 print(f"An error occurred while saving explanation: {e}")
@@ -200,7 +200,7 @@ def process_folds_local(folds, data, lime_values, smarts_mapping_path, top_i=5):
             # Map features to SMARTS and collect statistics
             for feature in feature_names_only:
                 key = (i, test_f.iloc[molecule_idx]['smiles'], feature)
-                maccs_idx = int(feature.replace("maccsfingerprint", "")) + 1
+                maccs_idx = int(feature.replace("maccsfingerprint", "")) #+ 1
                 smarts_top_all[key] = smarts_mapping[f'maccsfingerprint{maccs_idx}'][0]
                 
                 # Initialize molecules statistics
@@ -276,14 +276,14 @@ def process_folds_global(folds, data, lime_values, smarts_mapping_path, top_i=10
         top_i_indices = [idx for idx in top_i_indices if mean_abs_lime_values[idx] != 0]
         top_i_feature_names = [feature_names[i] for i in top_i_indices]
 
-        print("\n==================================\nTop features:", top_i_feature_names)
-        print("Mean absolute LIME values for top features:", mean_abs_lime_values[top_i_indices])
+        # print("\n==================================\nTop features:", top_i_feature_names)
+        # print("Mean absolute LIME values for top features:", mean_abs_lime_values[top_i_indices])
 
         with open(smarts_mapping_path, 'r') as f:
             smarts_mapping = json.load(f)
 
         smarts_topi = {
-            (i, match_molecule_global(feature, test_f, data), feature): smarts_mapping[f'maccsfingerprint{int(feature.replace("maccsfingerprint", ""))+1}'][0]
+            (i, match_molecule_global(feature, test_f, data), feature): smarts_mapping[f'maccsfingerprint{int(feature.replace("maccsfingerprint", ""))}'][0]
             for feature in top_i_feature_names
         }
 
