@@ -4,6 +4,8 @@ from datetime import datetime
 import numpy as np
 from pathlib import Path
 import sys
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 def load_model_results(results_dir):
     """Load all Excel files from results directory."""
@@ -75,6 +77,99 @@ def compare_feature_importance(df):
     
     return pivot_table, correlation_matrix
 
+def create_ranking_plots(rankings_df, output_dir, timestamp):
+    """Create visualizations for model rankings."""
+    # Set style
+    plt.style.use('default')  # Use default matplotlib style instead of seaborn
+    
+    # Create plots directory
+    plots_dir = os.path.join(output_dir, 'plots')
+    os.makedirs(plots_dir, exist_ok=True)
+    
+    # Common plot settings
+    plt.rcParams.update({
+        'figure.autolayout': True,
+        'font.size': 10,
+        'axes.labelsize': 12,
+        'axes.titlesize': 14,
+        'xtick.labelsize': 10,
+        'ytick.labelsize': 10
+    })
+    
+    # Get top 10 features for each model
+    top_features_by_model = {}
+    common_features = set()
+    first_model = True
+    
+    for model in rankings_df.index.get_level_values('Model').unique():
+        model_data = rankings_df.xs(model)
+        top_10 = set(model_data.nlargest(10, 'Average_Explanation_Value').index)
+        top_features_by_model[model] = top_10
+        if first_model:
+            common_features = top_10
+            first_model = False
+        else:
+            common_features = common_features.union(top_10)
+    
+    # Filter the dataframe to include only common top features
+    plot_data = rankings_df.reset_index()
+    plot_data = plot_data[plot_data['Feature'].isin(common_features)]
+    plot_data = plot_data.sort_values('Average_Explanation_Value', ascending=False)
+    
+    # 1. Bar plot of top features by average explanation value
+    plt.figure(figsize=(15, 8))
+    ax = sns.barplot(data=plot_data, x='Feature', y='Average_Explanation_Value', hue='Model', palette='deep')
+    plt.xticks(rotation=90, ha='right')  # Rotated labels for better readability
+    plt.title('Top Features Across All Models by Average Explanation Value', pad=20)
+    plt.xlabel('Feature', labelpad=10)
+    plt.ylabel('Average Explanation Value', labelpad=10)
+    # Add legend outside of plot to avoid overlap
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+    plt.savefig(os.path.join(plots_dir, f'common_top_features_bar_{timestamp}.png'), dpi=300, bbox_inches='tight', 
+                pad_inches=0.5)  # Added padding for legend
+    plt.close()
+
+    # 2. Box plot showing value distribution
+    # plt.figure(figsize=(15, 8))
+    # plot_data = rankings_df.reset_index()
+    # plot_data['Range'] = plot_data['Max_Value'] - plot_data['Min_Value']
+    # sns.boxplot(data=plot_data, x='Model', y='Range', hue='Model', legend=False)
+    # plt.title('Distribution of Explanation Value Ranges by Model', pad=20)
+    # plt.xlabel('Model', labelpad=10)
+    # plt.ylabel('Value Range', labelpad=10)
+    # plt.tight_layout()
+    # plt.savefig(os.path.join(plots_dir, f'value_distribution_{timestamp}.png'), dpi=300, bbox_inches='tight')
+    # plt.close()
+
+    # 3. Heatmap of metrics
+    # plt.figure(figsize=(12, 8))
+    # metrics = ['Average_Explanation_Value', 'Std_Dev', 'Fold_Count']
+    # heatmap_data = rankings_df[metrics].groupby('Model').mean()
+    # sns.heatmap(heatmap_data, annot=True, cmap='YlOrRd', fmt='.2f', cbar_kws={'label': 'Value'})
+    # plt.title('Model Metrics Heatmap', pad=20)
+    # plt.tight_layout()
+    # plt.savefig(os.path.join(plots_dir, f'metrics_heatmap_{timestamp}.png'), dpi=300, bbox_inches='tight')
+    # plt.close()
+
+    # 4. Scatter plot of Average vs Std Dev
+    # plt.figure(figsize=(10, 8))
+    # colors = sns.color_palette('deep', n_colors=len(rankings_df.index.get_level_values('Model').unique()))
+    # for idx, model in enumerate(rankings_df.index.get_level_values('Model').unique()):
+    #     model_data = rankings_df.xs(model)
+    #     plt.scatter(model_data['Average_Explanation_Value'], 
+    #                model_data['Std_Dev'], 
+    #                label=model, 
+    #                alpha=0.6,
+    #                c=[colors[idx]])
+    # plt.xlabel('Average Explanation Value', labelpad=10)
+    # plt.ylabel('Standard Deviation', labelpad=10)
+    # plt.title('Average Explanation Value vs Standard Deviation', pad=20)
+    # plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    # plt.tight_layout()
+    # plt.savefig(os.path.join(plots_dir, f'avg_vs_std_{timestamp}.png'), dpi=300, bbox_inches='tight')
+    # plt.close()
+
 def generate_comparison_report(results_dir, output_dir):
     """Generate comprehensive comparison report."""
     try:
@@ -95,6 +190,9 @@ def generate_comparison_report(results_dir, output_dir):
         
         # Generate timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # Create plots
+        create_ranking_plots(model_rankings, output_dir, timestamp)
         
         # Save results
         output_file = os.path.join(output_dir, f'model_comparison_{timestamp}.xlsx')

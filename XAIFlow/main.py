@@ -68,7 +68,7 @@ def mainXaiFlow(model, local_explanation=True, max_order_iq=1,experiment_name='b
     molecules_statistics_all = count_molecules_with_fingerprint(data, molecules_statistics_all)
     molecules_statistics_all = count_important_features(data, molecules_statistics_all)
     
-    excel_data = prepare_data_for_excel_export(match_molecules_all, smarts_top_all, molecules_statistics_all)
+    excel_data = prepare_data_for_excel_export(match_molecules_all, smarts_top_all, molecules_statistics_all,model)
     if model == 'SHAP_IQ' and max_order_iq > 1:
         save_interactions_to_excel(excel_data, results_dir)
     else:
@@ -127,7 +127,7 @@ def mainXaiFlow_all(model, local_explanation=True, max_order_iq=1, dataset_name=
     molecules_statistics_all = count_molecules_with_fingerprint(data, molecules_statistics_all)
     molecules_statistics_all = count_important_features(data, molecules_statistics_all)
     
-    excel_data = prepare_data_for_excel_export(match_molecules_all, smarts_top_all, molecules_statistics_all)
+    excel_data = prepare_data_for_excel_export(match_molecules_all, smarts_top_all, molecules_statistics_all,model)
     if model == 'SHAP_IQ' and max_order_iq > 1:
         save_interactions_to_excel(excel_data, results_dir)
     else:
@@ -215,7 +215,7 @@ def select_pipeline(model, data, folds, max_order_iq=1):
             raise ValueError("Model not selected.")
 
 
-def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statistics_all):
+def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statistics_all,model='SHAP'):
     excel_data = {
         "Fold_No": [],
         "Smiles_key": [],
@@ -245,7 +245,12 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
         excel_data["Explanation_sign"].append(molecules_statistics_all[key]["shap_sign"])
         excel_data["Capacity_Max"].append(molecules_statistics_all[key]["capacity_max"])
         excel_data["Capacity_Pred"].append(molecules_statistics_all[key]["capacity_pred"])
-        excel_data["Model"].append("SHAP" if "SHAP_IQ" not in model else "SHAP_IQ")
+        if model == 'SHAP_IQ':
+            if max_order_iq > 1:
+                excel_data["Model"].append("SHAP_IQ_interactions")
+            excel_data["Model"].append("SHAP_IQ")
+        else:
+            excel_data["Model"].append("SHAP")
     
     return excel_data
 
@@ -627,7 +632,7 @@ if __name__ == '__main__':
         #     fold=args.fold
         # )
     
-    model = ['SHAP'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
+    model = ['SHAP','SHAP_IQ'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
     local_explanation = False
     experiment_name= 'battery_test'
     max_order_iq = 1
