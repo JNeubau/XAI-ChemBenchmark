@@ -7,6 +7,44 @@ import sys
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+def normalize_explanation_values(df):
+    """Normalize explanation values for each model to make them comparable."""
+    # Create a copy to avoid modifying the original dataframe
+    df = df.copy()
+    
+    # For each model, normalize the explanation values
+    for model in df['Model'].unique():
+        model_mask = df['Model'] == model
+        values = df.loc[model_mask, 'Explanation_value']
+        # print(f"Normalizing values for model: {model}, Number of rows: {len(values)}")
+        # print(f"Values before normalization: {values.describe()}")
+        # print(f"Values before normalization: {values}")
+        # Get absolute values for normalization
+        # abs_values = abs(values)
+        
+        # Normalize to [0, 1] range while preserving signs
+        sum_value = values.sum()
+        # print(f"Sum of values for model {model}: {sum_value}")
+        # if sum_value > 0:  # Avoid division by zero
+        df.loc[model_mask, 'Explanation_value'] = values / sum_value
+        # print(f"Values after normalization: {df.loc[model_mask, 'Explanation_value'].describe()}")
+        # print(f"Values after normalization: {df.loc[model_mask, 'Explanation_value']}")
+
+    
+    return df
+
+def process_feature_key(feature_key):
+    """Extract feature name from string or tuple representations like "('xxx',)"."""
+    if isinstance(feature_key, str) and feature_key.startswith("('") and feature_key.endswith("',)"):
+        # Extract the string inside the tuple representation
+        return feature_key[2:-3]
+    elif isinstance(feature_key, tuple):
+        # Join tuple elements with 'x' for interactions, or return single element
+        return 'x'.join(str(f) for f in feature_key)
+    else:
+        # Return as is for other cases
+        return str(feature_key)
+
 def load_model_results(results_dir):
     """Load all Excel files from results directory."""
     all_data = []
@@ -28,7 +66,15 @@ def load_model_results(results_dir):
     
     print(f"Data:\n{all_data}\n")
     
-    return pd.concat(all_data, ignore_index=True)
+    combined_data = pd.concat(all_data, ignore_index=True)
+    
+    # Process feature keys for SHAPIQ model
+    combined_data['Feature_key'] = combined_data['Feature_key'].apply(process_feature_key)
+    
+    # Normalize the explanation values
+    combined_data = normalize_explanation_values(combined_data)
+    
+    return combined_data
 
 def calculate_model_rankings(df):
     """Calculate various rankings and metrics for each model."""
@@ -44,6 +90,16 @@ def calculate_model_rankings(df):
             feature_data = model_data[model_data['Feature_key'] == feature_key]
             
             # Create a row for each feature
+            # Extract numeric value from 'Explanation_sign' (e.g., "Positive|0.4010989010989011")
+            def parse_corr_value(val):
+                if isinstance(val, str) and '|' in val:
+                    try:
+                        return float(val.split('|')[1])
+                    except Exception:
+                        return np.nan
+                return np.nan
+
+            corr_values = feature_data['Explanation_sign'].apply(parse_corr_value)
             row = {
                 'Model': model,
                 'Feature': feature_key,
@@ -51,7 +107,8 @@ def calculate_model_rankings(df):
                 'Std_Dev': feature_data['Explanation_value'].std(),
                 'Min_Value': feature_data['Explanation_value'].min(),
                 'Max_Value': feature_data['Explanation_value'].max(),
-                'Fold_Count': feature_data['Fold_No'].nunique()
+                'Fold_Count': feature_data['Fold_No'].nunique(),
+                # 'Corr_value': corr_values.mean(),
             }
             data.append(row)
     
@@ -130,6 +187,119 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
                 pad_inches=0.5)  # Added padding for legend
     plt.close()
 
+    # # 1b. Bar plot: Average Explanation Value with Sign for Every Feature
+    # plt.figure(figsize=(15, 8))
+    # signed_data = rankings_df.reset_index()
+    # # Use Corr_value as the sign (positive/negative correlation)
+    # signed_data['Signed_Avg_Explanation_Value'] = signed_data['Average_Explanation_Value'] * np.sign(signed_data['Corr_value'].fillna(1))
+    # sns.barplot(
+    #     data=signed_data,
+    #     x='Feature',
+    #     y='Signed_Avg_Explanation_Value',
+    #     hue='Model',
+    #     palette='deep'
+    # )
+    # plt.xticks(rotation=90, ha='right')
+    # plt.title('Average Explanation Value (with Sign) for Every Feature', pad=20)
+    # plt.xlabel('Feature', labelpad=10)
+    # plt.ylabel('Signed Average Explanation Value', labelpad=10)
+    # plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    # plt.tight_layout()
+    # plt.savefig(os.path.join(plots_dir, f'signed_avg_expl_value_{timestamp}.png'), dpi=300, bbox_inches='tight', pad_inches=0.5)
+    # plt.close()
+
+    # 1c. Bump chart: Feature ranking changes across models
+    # Prepare data for bump chart
+    bump_data = rankings_df.reset_index()
+    # Rank features within each model (1 = highest average explanation value)
+    bump_data['Rank'] = bump_data.groupby('Model')['Average_Explanation_Value'].rank(ascending=False, method='min')
+    
+    # Fix for deprecation warning: handle top N features selection differently
+    N = 5
+    top_features = []
+    for model in bump_data['Model'].unique():
+        model_data = bump_data[bump_data['Model'] == model].copy()
+        top_n = model_data.nsmallest(N, 'Rank')[['Feature']]
+        top_features.extend(top_n['Feature'].tolist())
+    
+    # Get unique top features across all models
+    top_features_set = set(top_features)
+    bump_data = bump_data[bump_data['Feature'].isin(top_features_set)]
+
+    # Pivot for bump chart: rows=Feature, columns=Model, values=Rank
+    bump_pivot = bump_data.pivot(index='Feature', columns='Model', values='Rank')
+
+    # Sort features by their average rank for plotting order
+    avg_rank = bump_pivot.mean(axis=1).sort_values()
+    bump_pivot = bump_pivot.loc[avg_rank.index]
+
+    plt.figure(figsize=(15, 8))
+    for feature in bump_pivot.index:
+        plt.plot(
+            bump_pivot.columns,
+            bump_pivot.loc[feature],
+            marker='o',
+            label=feature,
+            linewidth=2
+        )
+    plt.gca().invert_yaxis()  # Rank 1 at the top
+    plt.title('Bump Chart: Feature Ranking Across Models', pad=20)
+    plt.xlabel('Model', labelpad=10)
+    plt.ylabel('Feature Rank (1 = Most Important)', labelpad=10)
+    plt.xticks(rotation=45)
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', title='Feature', fontsize='small')
+    plt.tight_layout()
+    plt.savefig(os.path.join(plots_dir, f'bump_chart_{timestamp}.png'), dpi=300, bbox_inches='tight', pad_inches=0.5)
+    plt.close()
+
+    # 1d. Bump chart: Feature ranking changes across models for 5 worst features
+    # Prepare data for bump chart (worst features)
+    bump_data_worst = rankings_df.reset_index()
+    # Rank features within each model (1 = highest, so worst = largest rank)
+    bump_data_worst['Rank'] = bump_data_worst.groupby('Model')['Average_Explanation_Value'].rank(ascending=False, method='min')
+    N_worst = 5
+    worst_features = []
+    for model in bump_data_worst['Model'].unique():
+        model_data = bump_data_worst[bump_data_worst['Model'] == model].copy()
+        worst_n = model_data.nlargest(N_worst, 'Rank')[['Feature']]
+        print(f"Model: {model}, Worst Features: {worst_n['Feature'].tolist()}")
+        worst_features.extend(worst_n['Feature'].tolist())
+    # Get unique worst features across all models
+    worst_features_set = set(worst_features)
+    bump_data_worst = bump_data_worst[bump_data_worst['Feature'].isin(worst_features_set)]
+    # Pivot for bump chart: rows=Feature, columns=Model, values=Rank
+    bump_pivot_worst = bump_data_worst.pivot(index='Feature', columns='Model', values='Rank')
+    # Sort features by their average rank for plotting order (worst at top)
+    avg_rank_worst = bump_pivot_worst.mean(axis=1).sort_values(ascending=False)
+    bump_pivot_worst = bump_pivot_worst.loc[avg_rank_worst.index]
+    plt.figure(figsize=(15, 8))
+    for feature in bump_pivot_worst.index:
+        plt.plot(
+            bump_pivot_worst.columns,
+            bump_pivot_worst.loc[feature],
+            marker='o',
+            label=feature,
+            linewidth=2
+        )
+    plt.gca().invert_yaxis()  # Rank 1 at the top
+    plt.title('Bump Chart: Worst Feature Ranking Across Models', pad=20)
+    plt.xlabel('Model', labelpad=10)
+    plt.ylabel('Feature Rank (1 = Most Important)', labelpad=10)
+    plt.xticks(rotation=45)
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', title='Feature', fontsize='small')
+    plt.tight_layout()
+    plt.savefig(os.path.join(plots_dir, f'bump_chart_worst_{timestamp}.png'), dpi=300, bbox_inches='tight', pad_inches=0.5)
+    plt.close()
+    # 5. Heatmap of correlation between models
+    # pivot_table, correlation_matrix = compare_feature_importance(rankings_df.reset_index().rename(columns={'Feature': 'Feature_key'}))
+    # plt.figure(figsize=(8, 6))
+    # sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', vmin=-1, vmax=1, fmt=".2f", cbar_kws={'label': 'Correlation'})
+    # plt.title('Correlation Between Models (Feature Importance)', pad=20)
+    # plt.tight_layout()
+    # plt.savefig(os.path.join(plots_dir, f'model_correlation_heatmap_{timestamp}.png'), dpi=300, bbox_inches='tight')
+    # plt.close()
+
+
     # 2. Box plot showing value distribution
     # plt.figure(figsize=(15, 8))
     # plot_data = rankings_df.reset_index()
@@ -176,8 +346,8 @@ def generate_comparison_report(results_dir, output_dir):
         # Load and process data
         print(f"Searching for files in: {results_dir}")
         combined_data = load_model_results(results_dir)
-        print(f"Found {len(combined_data)} total rows of data")
-        print(f"Models found: {combined_data['Model'].unique()}")
+        # print(f"Found {len(combined_data)} total rows of data")
+        # print(f"Models found: {combined_data['Model'].unique()}")
         
         # Calculate rankings
         model_rankings = calculate_model_rankings(combined_data)
