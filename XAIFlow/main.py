@@ -287,7 +287,7 @@ def save_molecules_to_excel(excel_data, results_dir):
     
     
 def save_interactions_to_excel(excel_data, results_dir):
-    results_dir = results_dir + f'\\interactions_results_{datetime.now().strftime("%H-%M-%S")}.xlsx'
+    results_dir = results_dir + f'\\molecule_results_with_highlights_{datetime.now().strftime("%H-%M-%S")}.xlsx'
     save_interactions_to_excel_with_highlights(excel_data, results_dir)
     print(f"Interaction results saved to {results_dir}")
 
@@ -664,7 +664,7 @@ if __name__ == '__main__':
         # )
     
     model = ['SHAP', 'SHAP_IQ'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
-    local_explanation = True
+    local_explanation = False
     experiment_name= 'rf_test'
     max_order_iq = 1
     train_model_rf = False
