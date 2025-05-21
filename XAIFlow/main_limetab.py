@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from AI_models.models import Models
 from AI_models.eval_metrics import EvalMetrics
 from utils.data_split import custom_data_kfold
-from utils.exportlib import save_data_to_excel_with_highlights_lime, save_scores_to_excel_new_sheet
+from utils.exportlib import save_data_to_excel_with_highlights, save_scores_to_excel_new_sheet
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.dirname(os.getcwd()))
@@ -23,7 +23,10 @@ def mainXaiFlow(model, local_explanation=True,experiment_name='battery'):
     
     maccs_fingerprints = os.path.join(parent_dir, 'data', 'new_maccs_merged.csv')
     smarts_mapping_path = os.path.join(parent_dir, 'data', 'maccs_smarts_mapping.json')
-    explenation_type = 'local'    
+    if local_explanation:
+        explenation_type = 'local'    
+    else:
+        explenation_type = 'global'
     results_dir = os.path.join(parent_dir, 'results', experiment_name, model, explenation_type, datetime.today().strftime("%d-%m-%Y"))
     
     data = pd.read_csv(maccs_fingerprints)
@@ -36,7 +39,8 @@ def mainXaiFlow(model, local_explanation=True,experiment_name='battery'):
     cv_pipeline = select_pipeline(model, data, folds)
     results, scores, lime_values = cv_pipeline.train_pipeline('RFReg')
 
-    smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, lime_values, smarts_mapping_path, local_explanation)
+    smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(
+        folds, data, lime_values, smarts_mapping_path, local_explanation, cv_pipeline)
     molecules_statistics_all = count_molecules_with_fingerprint(data, molecules_statistics_all)
     molecules_statistics_all = count_important_features(data, molecules_statistics_all)
     
@@ -104,25 +108,19 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
         "Fold_No": [],
         "Smiles_key": [],
         "Feature_key": [],
-        "Fold_No": [],
-        "Smiles_key": [],
-        "Feature_key": [],
         "SMARTS": [],
         "Molecule": [],
         "number_of_molecules_where_fingerprint": [],
         "Number_where_important": [],
         'feature_in_smiles': [],
-        "lime_value": [],
-        "lime_sign": [],
-        "Capacity Max": [],
-        "Capacity Pred": [],
+        "Explanation_value": [],
+        "Explanation_sign": [],
+        "Capacity_Max": [],
+        "Capacity_Pred": [],
+        "Model": []
     }
             
-    bbbb=0
     for key, smarts in smarts_top.items():
-        # print("=============molecule===============")
-        # print("key:", key)
-        # print("smarts:", smarts)
         excel_data["Fold_No"].append(key[0])
         excel_data["Smiles_key"].append(key[1])
         excel_data["Feature_key"].append(key[2])
@@ -131,18 +129,18 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
         excel_data["number_of_molecules_where_fingerprint"].append(molecules_statistics_all[key]["number_of_molecules_where_fingerprint"])
         excel_data["Number_where_important"].append(molecules_statistics_all[key]["number_where_important"])
         excel_data["feature_in_smiles"].append(molecules_statistics_all[key]["feature_in_smiles"])
-        excel_data["lime_value"].append(molecules_statistics_all[key]["lime_value"])
-        excel_data["lime_sign"].append(molecules_statistics_all[key]["lime_sign"])
-        excel_data["Capacity Max"].append(molecules_statistics_all[key]["capacity_max"])
-        excel_data["Capacity Pred"].append(molecules_statistics_all[key]["capacity_pred"])
-        bbbb+=1
-    # print("bbbb:", bbbb)
+        excel_data["Explanation_value"].append(molecules_statistics_all[key]["lime_value"])
+        excel_data["Explanation_sign"].append(molecules_statistics_all[key]["lime_sign"])
+        excel_data["Capacity_Max"].append(molecules_statistics_all[key]["capacity_max"])
+        excel_data["Capacity_Pred"].append(molecules_statistics_all[key]["capacity_pred"])
+        excel_data["Model"].append("LIME")
+    
     return excel_data
 
 
 def save_molecules_to_excel(excel_data, results_dir):
     results_dir = results_dir + f'\\molecule_results_with_highlights_{datetime.now().strftime("%H-%M-%S")}.xlsx'
-    save_data_to_excel_with_highlights_lime(excel_data, results_dir)
+    save_data_to_excel_with_highlights(excel_data, results_dir)
     print(f"Molecule results with highlights saved to {results_dir}")
 
 
@@ -171,7 +169,7 @@ def process_folds_local(folds, data, lime_values, smarts_mapping_path, top_i=5):
         test_f = data.loc[fold[1]]
         lime_fold_values, lime_fold_explanations = lime_values[i]
 
-        print("Fold:", i)
+        # print("Fold:", i)
         for molecule_idx, (lime_array, lime_explanation) in enumerate(zip(lime_fold_values, lime_fold_explanations)):
             # Save explanation plots
             try:
@@ -187,7 +185,7 @@ def process_folds_local(folds, data, lime_values, smarts_mapping_path, top_i=5):
                 # Save HTML explanation
                 html_path = os.path.join(plots_dir, f"lime_explanation_{i}_{molecule_idx}_{timestamp}.html")
                 lime_explanation.save_to_file(html_path)
-                print(f"Explanation saved for SMILES {smiles}")
+                # print(f"Explanation saved for SMILES {smiles}")
                 
             except Exception as e:
                 print(f"An error occurred while saving explanation: {e}")
@@ -203,7 +201,7 @@ def process_folds_local(folds, data, lime_values, smarts_mapping_path, top_i=5):
             # Map features to SMARTS and collect statistics
             for feature in feature_names_only:
                 key = (i, test_f.iloc[molecule_idx]['smiles'], feature)
-                maccs_idx = int(feature.replace("maccsfingerprint", "")) + 1
+                maccs_idx = int(feature.replace("maccsfingerprint", "")) #+ 1
                 smarts_top_all[key] = smarts_mapping[f'maccsfingerprint{maccs_idx}'][0]
                 
                 # Initialize molecules statistics
@@ -224,9 +222,103 @@ def process_folds_local(folds, data, lime_values, smarts_mapping_path, top_i=5):
     return smarts_top_all, match_molecules_all, molecules_statistics_all
 
 
-def process_folds_global(folds, data, lime_values, smarts_mapping_path, top_i=10):
-   
-    return 0
+def process_folds_global(folds, data, lime_values, smarts_mapping_path, top_i=10, cv_pipeline=None):
+    smarts_top_all = {}
+    match_molecules_all = {}
+    molecules_statistics_all = {}
+    
+    # Create plots directory
+    parent_dir = os.path.dirname(os.getcwd())
+    plots_dir = os.path.join(parent_dir, 'results', 'plots', "LIME", datetime.today().strftime("%d-%m-%Y"))
+    os.makedirs(plots_dir, exist_ok=True)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+
+    for i, fold in enumerate(folds):
+        test_f = data.loc[fold[1]]
+        lime_fold_values, lime_fold_explanations = lime_values[i]
+        feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
+
+        # Calculate mean absolute LIME values across all molecules in the fold
+        lime_arrays = [np.array([item[1] for item in array]) for array in lime_fold_values]
+        mean_abs_lime_values = np.mean(np.abs(lime_arrays), axis=0)
+        
+        # print("Fold:", i)
+        # print("Mean absolute LIME values:", mean_abs_lime_values)
+        # print("LIME arrays:", lime_arrays)
+        # Generate global importance plot for the fold
+        plt.figure(figsize=(12, 6))
+        top_features_idx = np.argsort(mean_abs_lime_values)[-top_i:]
+        plt.barh([feature_names[idx] for idx in top_features_idx],
+                [mean_abs_lime_values[idx] for idx in top_features_idx])
+        plt.title(f'Global LIME Feature Importance - Fold {i}')
+        plt.xlabel('Mean |LIME value|')
+        plot_path = os.path.join(plots_dir, f"lime_global_importance_fold_{i}_{timestamp}.svg")
+        plt.savefig(plot_path, bbox_inches='tight', dpi=300, format='svg')
+        plt.close()
+
+        # Generate correlation plot
+        plt.figure(figsize=(12, 6))
+        correlations = []
+        for feat_idx in top_features_idx:
+            feature = feature_names[feat_idx]
+            lime_values_for_feature = [array[feat_idx] for array in lime_arrays]
+            X_test = test_f.drop(columns=['capacity_max', 'smiles'])
+            capacity_pred = cv_pipeline.predict_capacity(X_test)
+            correlation = np.corrcoef(lime_values_for_feature, capacity_pred)[0, 1]
+            correlations.append(correlation)
+        
+        plt.barh([feature_names[idx] for idx in top_features_idx], correlations)
+        plt.title(f'LIME Values vs Predicted Capacity Correlation - Fold {i}')
+        plt.xlabel('Correlation coefficient')
+        plot_path = os.path.join(plots_dir, f"lime_correlation_fold_{i}_{timestamp}.svg")
+        plt.savefig(plot_path, bbox_inches='tight', dpi=300, format='svg')
+        plt.close()
+
+        top_i_indices = np.argsort(mean_abs_lime_values)[-top_i:][::-1]
+        top_i_indices = [idx for idx in top_i_indices if mean_abs_lime_values[idx] != 0]
+        top_i_feature_names = [feature_names[i] for i in top_i_indices]
+
+        # print("\n==================================\nTop features:", top_i_feature_names)
+        # print("Mean absolute LIME values for top features:", mean_abs_lime_values[top_i_indices])
+
+        with open(smarts_mapping_path, 'r') as f:
+            smarts_mapping = json.load(f)
+
+        smarts_topi = {
+            (i, match_molecule_global(feature, test_f, data), feature): smarts_mapping[f'maccsfingerprint{int(feature.replace("maccsfingerprint", ""))}'][0]
+            for feature in top_i_feature_names
+        }
+
+        match_molecules = {key: [] for key in smarts_topi.keys()}
+        molecules_statistics = {s: {
+            "number_of_molecules_where_fingerprint": 0,
+            "number_where_important": 0,
+            "lime_value": mean_abs_lime_values[feature_names.index(s[2])],
+            "lime_sign": '',
+            "feature_in_smiles": True,
+            "capacity_max": 0,
+            "capacity_pred": 0
+        } for s in smarts_topi.keys()}
+
+        for key in molecules_statistics.keys():
+            feature = key[2]
+            lime_values_for_feature = [array[feature_names.index(feature)] for array in lime_arrays]
+            X_test = test_f.drop(columns=['capacity_max', 'smiles'])
+            capacity_pred = cv_pipeline.predict_capacity(X_test)
+            # print("Capacity prediction:", capacity_pred)
+            df = pd.DataFrame({
+                'lime_values': lime_values_for_feature,
+                'capacity_values': capacity_pred
+            })
+            correlation = df.corr(method='spearman').loc['lime_values', 'capacity_values']
+            molecules_statistics[key]["lime_sign"] = f'Positive|{correlation}' if correlation > 0 else f'Negative|{correlation}'
+
+        smarts_top_all.update(smarts_topi)
+        match_molecules_all.update(match_molecules)
+        molecules_statistics_all.update(molecules_statistics)
+
+    molecules_statistics_all = number_where_important_global(molecules_statistics_all, match_molecules_all)
+    return smarts_top_all, match_molecules_all, molecules_statistics_all
 
 
 def match_molecule_global(feature, test_f, full_data):
@@ -270,15 +362,15 @@ def number_where_important_global(molecules_statistics_all, match_molecules_all)
 
     return molecules_statistics_all
 
-def process_folds(folds, data, lime_values, smarts_mapping_path, local_explanation=True):
+def process_folds(folds, data, lime_values, smarts_mapping_path, local_explanation=True, cv_pipeline=None):
     if local_explanation:
         return process_folds_local(folds, data, lime_values, smarts_mapping_path)
     else:
-        return process_folds_global(folds, data, lime_values, smarts_mapping_path)
+        return process_folds_global(folds, data, lime_values, smarts_mapping_path, 10, cv_pipeline)
 
 
 if __name__ == '__main__':
     model = ['LIME'] 
-    local_explanation = True
-    experiment_name = 'battery'
+    local_explanation = False
+    experiment_name = 'LIME_global'
     [mainXaiFlow(m, local_explanation,experiment_name) for m in model]
