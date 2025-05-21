@@ -142,6 +142,7 @@ class CrossValidationRFRegPipeline:
         :param model: trained model.
         :param model_name: name of the model.
         """
+        os.makedirs(self.save_dir, exist_ok=True)
         save_model_path = os.path.join(self.save_dir, f"model_{fold_no}.joblib")
         joblib.dump(model, save_model_path)
         if self.verbose:
