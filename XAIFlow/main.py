@@ -83,17 +83,14 @@ def mainXaiFlow(model, local_explanation=True, max_order_iq=1,experiment_name='b
     
     
             
-def mainXaiFlow_all(model, local_explanation=True, max_order_iq=1, dataset_name='battery', experiment_name='test', folds=5, seed=42):
+def mainXaiFlow_all(model, local_explanation=True, max_order_iq=1, dataset_name='battery', experiment_name='test', folds=5, seed=42, train_rfreg=True):
+    print("Model: ", model)
     if model != 'SHAP_IQ':
         max_order_iq = 1
-        
-    print("Model: ", model)
-    parent_dir = os.path.dirname(os.getcwd())
-    print("Parent directory:", parent_dir)
     
+    parent_dir = os.path.dirname(os.getcwd())
     maccs_fingerprints = os.path.join(parent_dir, 'data', 'new_maccs_merged.csv')
     smarts_mapping_path = os.path.join(parent_dir, 'data', 'maccs_smarts_mapping.json')
-    folds_dir = os.path.join(parent_dir, 'RFReg', experiment_name, 'folds')
     if max_order_iq > 1 and local_explanation:
         explenation_type = 'local_interactions'
     elif max_order_iq > 1 and not local_explanation:
@@ -103,48 +100,56 @@ def mainXaiFlow_all(model, local_explanation=True, max_order_iq=1, dataset_name=
     else:
         explenation_type = 'global'
     results_dir = os.path.join(parent_dir, 'results', experiment_name, model, explenation_type)
+    folds_dir = os.path.join(parent_dir, 'RFReg', experiment_name, 'folds')
     
     data = pd.read_csv(maccs_fingerprints)
-    print(data.head())
     os.makedirs(results_dir, exist_ok=True)
-
-    folds = custom_data_kfold(data.drop(columns=['capacity_max']), data[['capacity_max']], num_splits=folds, random_state=seed)
-    save_fold_indices(folds, folds_dir)
-    folds = load_fold_indices(folds_dir)
         
     # Train the model
+    if train_rfreg:
+        folds = custom_data_kfold(data.drop(columns=['capacity_max']), data[['capacity_max']], num_splits=folds, random_state=seed)
+        save_fold_indices(folds, folds_dir)
+        train_RFReg(experiment_name, folds, data, parent_dir)
+    else:
+        folds = load_fold_indices(folds_dir)
+    
+    # Get explanations
+    cv_pipeline = select_pipeline(model, data, folds, max_order_iq)
+    shap_values = cv_pipeline.load_pipeline(os.path.join(parent_dir, 'RFReg', experiment_name, 'ckpt'))
+    
+    plots_dir = os.path.join(parent_dir, 'results', 'plots', model, explenation_type)
+    create_plots(plots_dir, data, folds,model, shap_values, max_order_iq)   
+    
+    if max_order_iq > 1 and local_explanation: 
+        smarts_top_all, molecules_statistics_all = process_folds_local_interactions(folds, data, shap_values, smarts_mapping_path, 10)
+        match_molecules_all = {}
+    elif max_order_iq > 1 and not local_explanation:
+        smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds_global_interactions(folds, data, shap_values, smarts_mapping_path, 10, cv_pipeline)
+    elif local_explanation:
+        smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation)
+    else:
+        if model == 'SHAP_IQ':
+            shap_values = [np.array(shap_values[i]) for i in range(len(shap_values))]
+        smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation, cv_pipeline)
+    # molecules_statistics_all = predict_capacity(cv_pipeline, smarts_top_all, molecules_statistics_all)
+    molecules_statistics_all = count_molecules_with_fingerprint(data, molecules_statistics_all)
+    molecules_statistics_all = count_important_features(data, molecules_statistics_all)
+    
+    excel_data = prepare_data_for_excel_export(match_molecules_all, smarts_top_all, molecules_statistics_all,model)
+    if model == 'SHAP_IQ' and max_order_iq > 1:
+        save_interactions_to_excel(excel_data, results_dir)
+    else:
+        save_molecules_to_excel(excel_data, results_dir)
+    
+    
+def train_RFReg(experiment_name, folds, data, parent_dir):
     RFReg_cv_pipeline = select_pipeline('RFReg', data, folds, max_order_iq, save_dir=os.path.join(parent_dir, 'RFReg', experiment_name, 'ckpt'))
     results, scores = RFReg_cv_pipeline.train_pipeline('RFReg')
-    
+
     scores_data = create_dataframe_from_scores(scores, results)
     save_scores_to_excel(scores_data, os.path.join(parent_dir, 'RFReg', experiment_name, 'ckpt'))
-    
-    # TODO: get shap values
-    
-    # plots_dir = os.path.join(parent_dir, 'results', 'plots', model, explenation_type)
-    # # create_plots(plots_dir, data, folds,model, shap_values, max_order_iq)   
-    
-    # if max_order_iq > 1 and local_explanation: 
-    #     smarts_top_all, molecules_statistics_all = process_folds_local_interactions(folds, data, shap_values, smarts_mapping_path, 10)
-    #     match_molecules_all = {}
-    # elif max_order_iq > 1 and not local_explanation:
-    #     smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds_global_interactions(folds, data, shap_values, smarts_mapping_path, 10, cv_pipeline)
-    # elif local_explanation:
-    #     smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation)
-    # else:
-    #     if model == 'SHAP_IQ':
-    #         shap_values = [np.array(shap_values[i]) for i in range(len(shap_values))]
-    #     smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation, cv_pipeline)
-    # # molecules_statistics_all = predict_capacity(cv_pipeline, smarts_top_all, molecules_statistics_all)
-    # molecules_statistics_all = count_molecules_with_fingerprint(data, molecules_statistics_all)
-    # molecules_statistics_all = count_important_features(data, molecules_statistics_all)
-    
-    # excel_data = prepare_data_for_excel_export(match_molecules_all, smarts_top_all, molecules_statistics_all,model)
-    # if model == 'SHAP_IQ' and max_order_iq > 1:
-    #     save_interactions_to_excel(excel_data, results_dir)
-    # else:
-    #     save_molecules_to_excel(excel_data, results_dir)
-    
+    return RFReg_cv_pipeline
+
     
 def create_plots(plots_dir, data,folds, model, shap_values, max_order_iq=1):
     if model == 'SHAP':
@@ -658,9 +663,10 @@ if __name__ == '__main__':
         #     fold=args.fold
         # )
     
-    model = ['SHAP'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
+    model = ['SHAP', 'SHAP_IQ'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
     local_explanation = True
     experiment_name= 'rf_test'
     max_order_iq = 1
-    [mainXaiFlow_all(m, local_explanation, max_order_iq, 'battery', experiment_name, 5, 42) for m in model]
+    train_model_rf = False
+    [mainXaiFlow_all(m, local_explanation, max_order_iq, 'battery', experiment_name, folds=5, seed=42, train_rfreg=train_model_rf) for m in model]
     # [mainXaiFlow(m, local_explanation, max_order_iq, experiment_name) for m in model]

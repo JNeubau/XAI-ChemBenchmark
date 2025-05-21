@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import shapiq
 import os
+import joblib
 
 from datetime import datetime
 from XAIFlow.AI_models.models import Models
@@ -241,3 +242,35 @@ class CrossValidationShapIqPipeline:
         """        
         prediction = self.model.predict(X_input)
         return prediction
+    
+    def load_model(self, model_path: str) -> object:
+        """
+        Load a trained model from a file.
+        :param model_path: path to the saved model.
+        :return: loaded model.
+        """
+        if os.path.exists(model_path):
+            loaded_model = joblib.load(model_path)
+            if self.verbose:
+                print(f"Model loaded from {model_path}")
+            return loaded_model
+        else:
+            raise FileNotFoundError(f"Model file not found at {model_path}")
+    
+    def load_pipeline(self, model_path: str | None = None):
+        """
+        Train the model.
+        :param model_path: path to saved model.
+        :return: explanations.
+        """
+        self.init_scores_shap()
+
+        for i, fold in enumerate(self.folds):
+            train_idx, test_idx = fold
+
+            X_test = copy.deepcopy(self.X.loc[test_idx, :]).reset_index(drop=True)
+            model = self.load_model(os.path.join(model_path, f"model_{i}.joblib"))
+            self.model = model
+            self.update_shap(model, X_test)
+
+        return self.shap_values

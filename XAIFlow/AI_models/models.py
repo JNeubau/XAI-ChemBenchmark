@@ -80,7 +80,7 @@ def _get_rf() -> tuple:
         min_samples_split=2
     )
     rf_params = _get_rf_params()
-    return rf, rf_params, "Random_Forest_Regressor"
+    return rf, rf_params, "Random Forest Regressor"
 
 
 def get_trained_model(model_path: str) -> object:

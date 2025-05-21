@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
+import joblib
 from datetime import datetime
 from XAIFlow.AI_models.models import Models
 from XAIFlow.AI_models.eval_metrics import EvalMetrics, smape, rmse, mape
@@ -244,3 +245,80 @@ class CrossValidationLimePipeline:
         """        
         prediction = self.model.predict(X_input)
         return prediction
+    
+    def load_model(self, model_path: str) -> object:
+        """
+        Load a trained model from a file.
+        :param model_path: path to the saved model.
+        :return: loaded model.
+        """
+        if os.path.exists(model_path):
+            loaded_model = joblib.load(model_path)
+            if self.verbose:
+                print(f"Model loaded from {model_path}")
+            return loaded_model
+        else:
+            raise FileNotFoundError(f"Model file not found at {model_path}")
+    
+    
+    def load_pipeline(self, model_path: str | None = None) -> tuple:
+        """
+        Train the model.
+        :param model_path: path to saved model.
+        :return: explanations.
+        """
+        # proper_model_name, model, param_grid = Models().get_model(model_name, model_path=model_path)
+        self.init_scores_lime()
+
+        # if self.verbose:
+            # print(f"Training model {proper_model_name}")
+        f=0
+        for i, fold in enumerate(self.folds):
+            train_idx, test_idx = fold
+
+            # train-test split
+            X_train = copy.deepcopy(self.X.loc[train_idx, :]).reset_index(drop=True)
+            # y_train = copy.deepcopy(self.y.loc[train_idx, :]).reset_index(drop=True)
+            X_test = copy.deepcopy(self.X.loc[test_idx, :]).reset_index(drop=True)
+            # y_test = copy.deepcopy(self.y.loc[test_idx, :]).reset_index(drop=True)
+            # SMILES data
+            # smiles_train = copy.deepcopy(self.z.loc[train_idx]).reset_index(drop=True)
+            smiles_test = copy.deepcopy(self.z.loc[test_idx]).reset_index(drop=True)
+            # model = self.tune_model(X_train, y_train, model, param_grid)
+            model = self.load_model(os.path.join(model_path, f"model_{i}.joblib"))
+            # model training
+            # model.fit(X_train, y_train[y_train.columns[0]])
+            self.model = model
+
+            # y_pred = model.predict(X_test).flatten()
+            feature_names = list(X_train.columns)
+            n_features = X_train.shape[1]
+
+            # All features are categorical (binary)
+            categorical_features = list(range(n_features))
+            categorical_names = {i: [0, 1] for i in categorical_features}
+            # Fit the Explainer on the training data set using the LimeTabularExplainer
+            explainer = lime.lime_tabular.LimeTabularExplainer(X_train.values, 
+                                        feature_names = feature_names,
+                                        mode = 'regression',
+                                        random_state=42,
+                                        verbose=True,
+                                        categorical_features = categorical_features,
+                                        categorical_names = categorical_names,
+                                        discretize_continuous = False,
+                                        )
+
+            # model eval
+            # y_test_numpy = y_test.to_numpy().flatten()
+            # y_pred_eval = self.eval_model(y_pred, y_test_numpy)
+
+            # self.update_scores(y_pred_eval)
+            self.update_lime(model, X_test,explainer,f,smiles_test)
+            f+=1
+
+        # results = self.aggregate_scores()
+
+        # if len(self.save_dir) > 0:
+        #     self.save_results(results, proper_model_name, model.get_params())
+
+        return self.lime_values

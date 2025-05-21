@@ -136,13 +136,13 @@ class CrossValidationRFRegPipeline:
         with open(save_scores_path, "a", encoding="utf-8") as f:
             f.writelines(lines)
             
-    def save_model(self, model: object, model_name: str):
+    def save_model(self, model: object, fold_no: int = 0):
         """
         Save the trained model to a file.
         :param model: trained model.
         :param model_name: name of the model.
         """
-        save_model_path = os.path.join(self.save_dir, f"model_{model_name}.joblib")
+        save_model_path = os.path.join(self.save_dir, f"model_{fold_no}.joblib")
         joblib.dump(model, save_model_path)
         if self.verbose:
             print(f"Model saved to {save_model_path}")
@@ -160,7 +160,7 @@ class CrossValidationRFRegPipeline:
         if self.verbose:
             print(f"Training model {proper_model_name}")
 
-        for fold in self.folds:
+        for i, fold in enumerate(self.folds):
             train_idx, test_idx = fold
 
             # train-test split
@@ -182,28 +182,12 @@ class CrossValidationRFRegPipeline:
             y_pred_eval = self.eval_model(y_pred, y_test_numpy)
 
             self.update_scores(y_pred_eval)
+            if len(self.save_dir) > 0:
+                self.save_model(model, fold_no=i)
+            
 
         results = self.aggregate_scores()
-
-        if len(self.save_dir) > 0:
-            # self.save_results(results, proper_model_name, model.get_params())
-            self.save_model(model, proper_model_name)
-
         return results, self.scores
-    
-    # def load_model(self, model_path: str) -> object:
-    #     """
-    #     Load a trained model from a file.
-    #     :param model_path: path to the saved model.
-    #     :return: loaded model.
-    #     """
-    #     if os.path.exists(model_path):
-    #         loaded_model = joblib.load(model_path)
-    #         if self.verbose:
-    #             print(f"Model loaded from {model_path}")
-    #         return loaded_model
-    #     else:
-    #         raise FileNotFoundError(f"Model file not found at {model_path}")
     
     def predict_capacity(self, X_input):
         """
