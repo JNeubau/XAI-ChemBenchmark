@@ -6,9 +6,10 @@ import numpy as np
 import json
 import matplotlib.pyplot as plt
     
+from AI_models.rfreg_cross_validation import CrossValidationRFRegPipeline
 from AI_models.models import Models
 from AI_models.eval_metrics import EvalMetrics
-from utils.data_split import custom_data_kfold
+from utils.data_split import custom_data_kfold, save_fold_indices, load_fold_indices
 from utils.exportlib import save_data_to_excel_with_highlights, save_scores_to_excel_new_sheet
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -16,7 +17,7 @@ sys.path.append(os.path.dirname(os.getcwd()))
 
 from LIME.lime_tabular_explainer import CrossValidationLimePipeline
 
-def mainXaiFlow(model, local_explanation=True,experiment_name='battery'):
+def mainXaiFlow(model, local_explanation=True, experiment_name='rf_test', folds=5, seed=42, train_rfreg=False):
     print("Model: ", model)
     parent_dir = os.path.dirname(os.getcwd())
     print("Parent directory:", parent_dir)
@@ -27,17 +28,25 @@ def mainXaiFlow(model, local_explanation=True,experiment_name='battery'):
         explenation_type = 'local'    
     else:
         explenation_type = 'global'
-    results_dir = os.path.join(parent_dir, 'results', experiment_name, model, explenation_type, datetime.today().strftime("%d-%m-%Y"))
+    results_dir = os.path.join(parent_dir, 'results', experiment_name, model, explenation_type)
+    folds_dir = os.path.join(parent_dir, 'RFReg', experiment_name, 'folds')
     
     data = pd.read_csv(maccs_fingerprints)
     print(data.head())
     os.makedirs(results_dir, exist_ok=True)
 
-    folds = custom_data_kfold(data.drop(columns=['capacity_max']), data[['capacity_max']], 5)
+    # folds = custom_data_kfold(data.drop(columns=['capacity_max']), data[['capacity_max']], 5)
 
     # Train the model
+    if train_rfreg:
+        folds = custom_data_kfold(data.drop(columns=['capacity_max']), data[['capacity_max']], num_splits=folds, random_state=seed)
+        save_fold_indices(folds, folds_dir)
+        train_RFReg(experiment_name, folds, data, parent_dir)
+    else:
+        folds = load_fold_indices(folds_dir)
+        
     cv_pipeline = select_pipeline(model, data, folds)
-    results, scores, lime_values = cv_pipeline.train_pipeline('RFReg')
+    lime_values = cv_pipeline.load_pipeline(os.path.join(parent_dir, 'RFReg', experiment_name, 'ckpt'))
 
     smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(
         folds, data, lime_values, smarts_mapping_path, local_explanation, cv_pipeline)
@@ -47,9 +56,19 @@ def mainXaiFlow(model, local_explanation=True,experiment_name='battery'):
     excel_data = prepare_data_for_excel_export(match_molecules_all, smarts_top_all, molecules_statistics_all)
     save_molecules_to_excel(excel_data, results_dir)
     
-    scores_data = create_dataframe_from_scores(scores, results)
-    save_scores_to_excel(scores_data, results_dir)
+    # scores_data = create_dataframe_from_scores(scores, results)
+    # save_scores_to_excel(scores_data, results_dir)
     
+    
+def train_RFReg(experiment_name, folds, data, parent_dir):
+    RFReg_cv_pipeline = select_pipeline('RFReg', data, folds, save_dir=os.path.join(parent_dir, 'RFReg', experiment_name, 'ckpt'))
+    results, scores = RFReg_cv_pipeline.train_pipeline('RFReg')
+
+    scores_data = create_dataframe_from_scores(scores, results)
+    save_scores_to_excel(scores_data, os.path.join(parent_dir, 'RFReg', experiment_name, 'ckpt'))
+    return RFReg_cv_pipeline
+
+
 def create_dataframe_from_scores(scores, results):
     df_scores = pd.DataFrame(scores)
     for key, value in results.items():
@@ -86,8 +105,18 @@ def predict_capacity(pipeline, data, molecules_statistics_all):
     return molecules_statistics_all
 
 
-def select_pipeline(model, data, folds):
+def select_pipeline(model, data, folds, save_dir=''):
     match model:
+        case 'RFReg':
+            return CrossValidationRFRegPipeline(
+                X=data.drop(columns=['capacity_max', 'smiles']),
+                y=data[['capacity_max']],
+                folds=folds,
+                metrics=['smape', 'pairwise_accuracy_score', 'rmse', 'ndcg_score'],
+                save_dir=save_dir,
+                data_name='battery',
+                verbose=True
+            )
         case 'LIME':
             return CrossValidationLimePipeline(
                 X=data.drop(columns=['capacity_max', 'smiles']),
@@ -373,4 +402,4 @@ if __name__ == '__main__':
     model = ['LIME'] 
     local_explanation = False
     experiment_name = 'LIME_global'
-    [mainXaiFlow(m, local_explanation,experiment_name) for m in model]
+    [mainXaiFlow(m, local_explanation) for m in model]
