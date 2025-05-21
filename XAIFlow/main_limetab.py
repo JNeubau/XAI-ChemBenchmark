@@ -39,7 +39,8 @@ def mainXaiFlow(model, local_explanation=True,experiment_name='battery'):
     cv_pipeline = select_pipeline(model, data, folds)
     results, scores, lime_values = cv_pipeline.train_pipeline('RFReg')
 
-    smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, lime_values, smarts_mapping_path, local_explanation)
+    smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(
+        folds, data, lime_values, smarts_mapping_path, local_explanation, cv_pipeline)
     molecules_statistics_all = count_molecules_with_fingerprint(data, molecules_statistics_all)
     molecules_statistics_all = count_important_features(data, molecules_statistics_all)
     
@@ -168,7 +169,7 @@ def process_folds_local(folds, data, lime_values, smarts_mapping_path, top_i=5):
         test_f = data.loc[fold[1]]
         lime_fold_values, lime_fold_explanations = lime_values[i]
 
-        print("Fold:", i)
+        # print("Fold:", i)
         for molecule_idx, (lime_array, lime_explanation) in enumerate(zip(lime_fold_values, lime_fold_explanations)):
             # Save explanation plots
             try:
@@ -221,7 +222,7 @@ def process_folds_local(folds, data, lime_values, smarts_mapping_path, top_i=5):
     return smarts_top_all, match_molecules_all, molecules_statistics_all
 
 
-def process_folds_global(folds, data, lime_values, smarts_mapping_path, top_i=10):
+def process_folds_global(folds, data, lime_values, smarts_mapping_path, top_i=10, cv_pipeline=None):
     smarts_top_all = {}
     match_molecules_all = {}
     molecules_statistics_all = {}
@@ -241,9 +242,9 @@ def process_folds_global(folds, data, lime_values, smarts_mapping_path, top_i=10
         lime_arrays = [np.array([item[1] for item in array]) for array in lime_fold_values]
         mean_abs_lime_values = np.mean(np.abs(lime_arrays), axis=0)
         
-        print("Fold:", i)
-        print("Mean absolute LIME values:", mean_abs_lime_values)
-        print("LIME arrays:", lime_arrays)
+        # print("Fold:", i)
+        # print("Mean absolute LIME values:", mean_abs_lime_values)
+        # print("LIME arrays:", lime_arrays)
         # Generate global importance plot for the fold
         plt.figure(figsize=(12, 6))
         top_features_idx = np.argsort(mean_abs_lime_values)[-top_i:]
@@ -261,12 +262,13 @@ def process_folds_global(folds, data, lime_values, smarts_mapping_path, top_i=10
         for feat_idx in top_features_idx:
             feature = feature_names[feat_idx]
             lime_values_for_feature = [array[feat_idx] for array in lime_arrays]
-            capacity_values = test_f['capacity_max'].values
-            correlation = np.corrcoef(lime_values_for_feature, capacity_values)[0, 1]
+            X_test = test_f.drop(columns=['capacity_max', 'smiles'])
+            capacity_pred = cv_pipeline.predict_capacity(X_test)
+            correlation = np.corrcoef(lime_values_for_feature, capacity_pred)[0, 1]
             correlations.append(correlation)
         
         plt.barh([feature_names[idx] for idx in top_features_idx], correlations)
-        plt.title(f'LIME Values vs Capacity Correlation - Fold {i}')
+        plt.title(f'LIME Values vs Predicted Capacity Correlation - Fold {i}')
         plt.xlabel('Correlation coefficient')
         plot_path = os.path.join(plots_dir, f"lime_correlation_fold_{i}_{timestamp}.svg")
         plt.savefig(plot_path, bbox_inches='tight', dpi=300, format='svg')
@@ -301,10 +303,12 @@ def process_folds_global(folds, data, lime_values, smarts_mapping_path, top_i=10
         for key in molecules_statistics.keys():
             feature = key[2]
             lime_values_for_feature = [array[feature_names.index(feature)] for array in lime_arrays]
-            capacity_values = test_f['capacity_max'].values
+            X_test = test_f.drop(columns=['capacity_max', 'smiles'])
+            capacity_pred = cv_pipeline.predict_capacity(X_test)
+            # print("Capacity prediction:", capacity_pred)
             df = pd.DataFrame({
                 'lime_values': lime_values_for_feature,
-                'capacity_values': capacity_values
+                'capacity_values': capacity_pred
             })
             correlation = df.corr(method='spearman').loc['lime_values', 'capacity_values']
             molecules_statistics[key]["lime_sign"] = f'Positive|{correlation}' if correlation > 0 else f'Negative|{correlation}'
@@ -358,11 +362,11 @@ def number_where_important_global(molecules_statistics_all, match_molecules_all)
 
     return molecules_statistics_all
 
-def process_folds(folds, data, lime_values, smarts_mapping_path, local_explanation=True):
+def process_folds(folds, data, lime_values, smarts_mapping_path, local_explanation=True, cv_pipeline=None):
     if local_explanation:
         return process_folds_local(folds, data, lime_values, smarts_mapping_path)
     else:
-        return process_folds_global(folds, data, lime_values, smarts_mapping_path,10)
+        return process_folds_global(folds, data, lime_values, smarts_mapping_path, 10, cv_pipeline)
 
 
 if __name__ == '__main__':

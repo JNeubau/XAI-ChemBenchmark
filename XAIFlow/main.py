@@ -51,19 +51,19 @@ def mainXaiFlow(model, local_explanation=True, max_order_iq=1,experiment_name='b
     results, scores, shap_values = cv_pipeline.train_pipeline('RFReg')
     
     plots_dir = os.path.join(parent_dir, 'results', 'plots', model, explenation_type, datetime.today().strftime("%d-%m-%Y"))
-    create_plots(plots_dir, data, folds,model, shap_values, max_order_iq)   
+    # create_plots(plots_dir, data, folds,model, shap_values, max_order_iq)   
     
     if max_order_iq > 1 and local_explanation: 
         smarts_top_all, molecules_statistics_all = process_folds_local_interactions(folds, data, shap_values, smarts_mapping_path, 10)
         match_molecules_all = {}
     elif max_order_iq > 1 and not local_explanation:
-        smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds_global_interactions(folds, data, shap_values, smarts_mapping_path, 10)
+        smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds_global_interactions(folds, data, shap_values, smarts_mapping_path, 10, cv_pipeline)
     elif local_explanation:
         smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation)
     else:
         if model == 'SHAP_IQ':
             shap_values = [np.array(shap_values[i]) for i in range(len(shap_values))]
-        smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation)
+        smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation, cv_pipeline)
     # molecules_statistics_all = predict_capacity(cv_pipeline, smarts_top_all, molecules_statistics_all)
     molecules_statistics_all = count_molecules_with_fingerprint(data, molecules_statistics_all)
     molecules_statistics_all = count_important_features(data, molecules_statistics_all)
@@ -116,13 +116,13 @@ def mainXaiFlow_all(model, local_explanation=True, max_order_iq=1, dataset_name=
         smarts_top_all, molecules_statistics_all = process_folds_local_interactions(folds, data, shap_values, smarts_mapping_path, 10)
         match_molecules_all = {}
     elif max_order_iq > 1 and not local_explanation:
-        smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds_global_interactions(folds, data, shap_values, smarts_mapping_path, 10)
+        smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds_global_interactions(folds, data, shap_values, smarts_mapping_path, 10, cv_pipeline)
     elif local_explanation:
         smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation)
     else:
         if model == 'SHAP_IQ':
             shap_values = [np.array(shap_values[i]) for i in range(len(shap_values))]
-        smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation, max_order_iq)
+        smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation, cv_pipeline)
     # molecules_statistics_all = predict_capacity(cv_pipeline, smarts_top_all, molecules_statistics_all)
     molecules_statistics_all = count_molecules_with_fingerprint(data, molecules_statistics_all)
     molecules_statistics_all = count_important_features(data, molecules_statistics_all)
@@ -247,8 +247,9 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
         excel_data["Capacity_Pred"].append(molecules_statistics_all[key]["capacity_pred"])
         if model == 'SHAP_IQ':
             if max_order_iq > 1:
-                excel_data["Model"].append("SHAP_IQ_interactions")
-            excel_data["Model"].append("SHAP_IQ")
+                excel_data["Model"].append("SHAP_IQ_I")
+            else:
+                excel_data["Model"].append("SHAP_IQ")
         else:
             excel_data["Model"].append("SHAP")
     
@@ -382,7 +383,7 @@ def process_folds_local_interactions(folds, data, shap_values, smarts_mapping_pa
     return smarts_top_all, molecules_statistics_all
 
 
-def process_folds_global(folds, data, shap_values, smarts_mapping_path, top_i=10):
+def process_folds_global(folds, data, shap_values, smarts_mapping_path, top_i=10, cv_pipeline=None):
     smarts_top_all = {}
     match_molecules_all = {}
     molecules_statistics_all = {}  # Initialize molecules_statistics_all
@@ -419,10 +420,13 @@ def process_folds_global(folds, data, shap_values, smarts_mapping_path, top_i=10
         for key in molecules_statistics.keys():
             feature = key[2]
             shap_values_for_feature = shap_f[:, feature_names.index(feature)]
-            capacity_values = test_f['capacity_max'].values
+            # Use predicted capacity instead of actual
+            X_test = test_f.drop(columns=['capacity_max', 'smiles'])
+            capacity_pred = cv_pipeline.predict_capacity(X_test)
+            print("Capacity prediction:", capacity_pred)
             df = pd.DataFrame({
                 'shap_values': shap_values_for_feature,
-                'capacity_values': capacity_values
+                'capacity_values': capacity_pred
             })
             correlation = df.corr(method='spearman').loc['shap_values', 'capacity_values']
             molecules_statistics[key]["shap_sign"] = f'Positive|{correlation}' if correlation > 0 else f'Negative|{correlation}'
@@ -435,7 +439,7 @@ def process_folds_global(folds, data, shap_values, smarts_mapping_path, top_i=10
     return smarts_top_all, match_molecules_all, molecules_statistics_all
 
 
-def process_folds_global_interactions(folds, data, shap_values, smarts_mapping_path, top_i=10):
+def process_folds_global_interactions(folds, data, shap_values, smarts_mapping_path, top_i=10, cv_pipeline=None):
     smarts_top_all = {}
     molecules_statistics_all = {}
     match_molecules_all = {}
@@ -509,12 +513,15 @@ def process_folds_global_interactions(folds, data, shap_values, smarts_mapping_p
             # Calculate correlation for interaction
             interaction_values = []
             capacity_values = []
+            X_test = test_f.drop(columns=['capacity_max', 'smiles'])
+            capacity_pred = cv_pipeline.predict_capacity(X_test)
+            print("Interactions Capacity prediction:", capacity_pred)
             for mol_idx, mol_shap in enumerate(shap_f):
                 _, mol_interactions = mol_shap.get_top_k(len(mol_shap), as_interaction_values=False)
                 for mol_int in mol_interactions:
                     if tuple(sorted(mol_int[0])) == indices:
                         interaction_values.append(mol_int[1])
-                        capacity_values.append(test_f.iloc[mol_idx]['capacity_max'])
+                        capacity_values.append(capacity_pred[mol_idx])
                         break
 
             if interaction_values:
@@ -595,11 +602,11 @@ def number_where_important_global(molecules_statistics_all, match_molecules_all)
 
     return molecules_statistics_all
 
-def process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation=True):
+def process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation=True, cv_pipeline=None):
     if local_explanation:
         return process_folds_local(folds, data, shap_values, smarts_mapping_path)
     else:
-        return process_folds_global(folds, data, shap_values, smarts_mapping_path)
+        return process_folds_global(folds, data, shap_values, smarts_mapping_path, 10, cv_pipeline)
 
 
 if __name__ == '__main__':
@@ -632,8 +639,9 @@ if __name__ == '__main__':
         #     fold=args.fold
         # )
     
-    model = ['SHAP','SHAP_IQ'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
+    # model = ['SHAP','SHAP_IQ'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
+    model = ['SHAP_IQ'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
     local_explanation = False
     experiment_name= 'battery_test'
-    max_order_iq = 1
+    max_order_iq = 2
     [mainXaiFlow(m, local_explanation, max_order_iq,experiment_name) for m in model]
