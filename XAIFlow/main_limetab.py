@@ -237,7 +237,7 @@ def process_folds_local(folds, data, lime_values, smarts_mapping_path, top_i=5):
                 molecules_statistics_all[key] = {
                     "number_of_molecules_where_fingerprint": 0,
                     "number_where_important": 0,
-                    "lime_value": lime_dict[feature],
+                    "lime_value": np.abs(lime_dict[feature]),
                     "lime_sign": 'Positive' if lime_dict[feature] >= 0 else 'Negative',
                     "feature_in_smiles": bool(data.loc[data['smiles'] == key[1], feature].values[0] == 1),
                     "capacity_max": test_f.iloc[molecule_idx]['capacity_max'],
@@ -265,15 +265,25 @@ def process_folds_global(folds, data, lime_values, smarts_mapping_path, top_i=10
     for i, fold in enumerate(folds):
         test_f = data.loc[fold[1]]
         lime_fold_values, lime_fold_explanations = lime_values[i]
+        # print(f"Fold {i} - Number of molecules: {len(test_f)}")
         feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
+        # print(f"Lime Values for fold {i}: {lime_fold_values}")
+        # Process LIME values into dictionaries for each molecule
+        lime_dicts = []
+        for lime_array in lime_fold_values:
+            lime_dict = {item[0].split('=')[0]: item[1] for item in lime_array}
+            lime_dicts.append(lime_dict)
 
-        # Calculate mean absolute LIME values across all molecules in the fold
-        lime_arrays = [np.array([item[1] for item in array]) for array in lime_fold_values]
-        mean_abs_lime_values = np.mean(np.abs(lime_arrays), axis=0)
+        # print(f"LIME dictionaries for fold {i}: {lime_dicts}")
+        # Calculate mean absolute LIME values per feature
+        feature_values = {feature: [] for feature in feature_names}
+        for lime_dict in lime_dicts:
+            for feature in feature_names:
+                feature_values[feature].append(abs(lime_dict.get(feature, 0)))
         
-        # print("Fold:", i)
-        # print("Mean absolute LIME values:", mean_abs_lime_values)
-        # print("LIME arrays:", lime_arrays)
+        mean_abs_lime_values = np.array([np.mean(feature_values[feature]) for feature in feature_names])
+        # print(f"Mean absolute LIME values for fold {i}: {mean_abs_lime_values}")
+        
         # Generate global importance plot for the fold
         plt.figure(figsize=(12, 6))
         top_features_idx = np.argsort(mean_abs_lime_values)[-top_i:]
@@ -290,7 +300,7 @@ def process_folds_global(folds, data, lime_values, smarts_mapping_path, top_i=10
         correlations = []
         for feat_idx in top_features_idx:
             feature = feature_names[feat_idx]
-            lime_values_for_feature = [array[feat_idx] for array in lime_arrays]
+            lime_values_for_feature = [lime_dict.get(feature, 0) for lime_dict in lime_dicts]
             X_test = test_f.drop(columns=['capacity_max', 'smiles'])
             capacity_pred = cv_pipeline.predict_capacity(X_test)
             correlation = np.corrcoef(lime_values_for_feature, capacity_pred)[0, 1]
@@ -303,12 +313,10 @@ def process_folds_global(folds, data, lime_values, smarts_mapping_path, top_i=10
         plt.savefig(plot_path, bbox_inches='tight', dpi=300, format='svg')
         plt.close()
 
+        # Get top features
         top_i_indices = np.argsort(mean_abs_lime_values)[-top_i:][::-1]
         top_i_indices = [idx for idx in top_i_indices if mean_abs_lime_values[idx] != 0]
         top_i_feature_names = [feature_names[i] for i in top_i_indices]
-
-        # print("\n==================================\nTop features:", top_i_feature_names)
-        # print("Mean absolute LIME values for top features:", mean_abs_lime_values[top_i_indices])
 
         with open(smarts_mapping_path, 'r') as f:
             smarts_mapping = json.load(f)
@@ -331,10 +339,9 @@ def process_folds_global(folds, data, lime_values, smarts_mapping_path, top_i=10
 
         for key in molecules_statistics.keys():
             feature = key[2]
-            lime_values_for_feature = [array[feature_names.index(feature)] for array in lime_arrays]
+            lime_values_for_feature = [lime_dict.get(feature, 0) for lime_dict in lime_dicts]
             X_test = test_f.drop(columns=['capacity_max', 'smiles'])
             capacity_pred = cv_pipeline.predict_capacity(X_test)
-            # print("Capacity prediction:", capacity_pred)
             df = pd.DataFrame({
                 'lime_values': lime_values_for_feature,
                 'capacity_values': capacity_pred
