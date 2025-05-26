@@ -293,7 +293,7 @@ class CrossValidationMMACEPipeline:
             train_idx, test_idx = fold
 
             X_test = copy.deepcopy(self.X.loc[test_idx, :]).reset_index(drop=True)
-            y_test = copy.deepcopy(self.y.loc[test_idx, :]).reset_index(drop=True)
+            # y_test = copy.deepcopy(self.y.loc[test_idx, :]).reset_index(drop=True)
             smiles = copy.deepcopy(self.z.loc[test_idx, :]).reset_index(drop=True)
 
             # Load model for this fold
@@ -304,18 +304,18 @@ class CrossValidationMMACEPipeline:
 
             self.model=model
             # Evaluate model
-            y_pred = model.predict(X_test).flatten()
-            y_test_numpy = y_test.to_numpy().flatten()
-            model_scores = self.eval_model(y_pred, y_test_numpy)
-            self.update_scores(model_scores)
+            # y_pred = model.predict(X_test).flatten()
+            # y_test_numpy = y_test.to_numpy().flatten()
+            # model_scores = self.eval_model(y_pred, y_test_numpy)
+            # self.update_scores(model_scores)
 
             # Generate MMACE explanations
             self.generate_MMACE_explanations(model, X_test, smiles['smiles'], fold=foldid)
-            foldid += 1
+            foldid += 1 # why not i zamiast specjalne foldid?
 
-        results = self.aggregate_scores()
+        # results = self.aggregate_scores()
 
         # if len(self.save_dir) > 0:
         #     self.save_results(results, model_name, model.get_params())
 
-        return results, self.scores, self.cfs, self.samples, self.MMACE_results
+        return self.cfs, self.samples, self.MMACE_results

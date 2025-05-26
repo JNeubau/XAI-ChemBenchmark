@@ -8,20 +8,19 @@ import exmol
 import random
 import matplotlib.pyplot as plt
 from rdkit import Chem
+import argparse
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.dirname(os.getcwd()))
 
-from utils.data_split import custom_data_kfold
-from utils.exportlib import save_data_to_excel_with_highlights, save_scores_to_excel_new_sheet
+from utils.data_split import load_fold_indices
 from MMACE.mmace_cross_validation_pipeline import CrossValidationMMACEPipeline
-from MMACE.timeoutexception import timeout
-from MMACE.savemmacecfexcel import save_mmace_explanations_to_excel,create_mmace_pdf#,save_mmace_explanations_to_excel_new
+from MMACE.savemmacecfexcel import save_mmace_explanations_to_excel, create_mmace_pdf #,save_mmace_explanations_to_excel_new
 
 
-def mainMMACEFlow(experiment_name = 'battery'):
-    np.random.seed(42)
-    random.seed(42)
+def mainMMACEFlow(experiment_name = 'battery', seed=42):
+    np.random.seed(seed)
+    random.seed(seed)
     print("Running MMACE explanation pipeline...")
     parent_dir = os.path.dirname(os.getcwd())
     print("Parent directory:", parent_dir)
@@ -30,6 +29,7 @@ def mainMMACEFlow(experiment_name = 'battery'):
     maccs_fingerprints = os.path.join(parent_dir, 'data', 'new_maccs_merged.csv')
     # maccs_fingerprints = os.path.join(parent_dir, 'data', 'maccs_merged.csv')
     results_dir = os.path.join(parent_dir, 'results', experiment_name, 'MMACE', 'local', datetime.today().strftime("%d-%m-%Y"))
+    folds_dir = os.path.join(parent_dir, 'RFReg', experiment_name, 'folds')
 
     data = pd.read_csv(maccs_fingerprints)
     print(data.head())
@@ -38,8 +38,8 @@ def mainMMACEFlow(experiment_name = 'battery'):
     custom_alphabet = get_basic_alphabet()
     print(f"Custom alphabet: {custom_alphabet}")
 
-
-    folds = custom_data_kfold(data.drop(columns=['capacity_max']), data[['capacity_max']], 5)
+    folds = load_fold_indices(folds_dir)
+    # folds = custom_data_kfold(data.drop(columns=['capacity_max']), data[['capacity_max']], 5)
 
     print(f"Number of folds: {len(folds)}")
     print(f"Number of molecules: {len(data)}")
@@ -56,10 +56,10 @@ def mainMMACEFlow(experiment_name = 'battery'):
         custom_alphabet=custom_alphabet  
     )
 
-    results, scores,cfs,samples,MMACE_Explanations = cv_pipeline.load_pipeline(os.path.join(parent_dir, 'RFReg', experiment_name, 'ckpt'))
+    cfs, samples, MMACE_Explanations = cv_pipeline.load_pipeline(os.path.join(parent_dir, 'RFReg', experiment_name, 'ckpt'))
     # results, scores,cfs,samples,MMACE_Explanations = cv_pipeline.train_pipeline('RFReg')
-    print("Results:", results)
-    print("Scores:", scores)
+    # print("Results:", results)
+    # print("Scores:", scores)
 
     save_mmace_explanations_to_excel(MMACE_Explanations, results_dir=results_dir)
    
@@ -191,5 +191,15 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir):
     return feature_importance_per_fold
    
 if __name__ == '__main__':
-    experiment_name = 'rf_test'
-    mainMMACEFlow(experiment_name)
+    parser = argparse.ArgumentParser(description='Run XAI Flow with specified parameters')
+    parser.add_argument('--experiment_name', type=str, default='test', help='Name of the experiment (default: test)')
+    parser.add_argument('--model', type=str, default='MMACE', help='Model to use (default: MMACE)')
+    parser.add_argument('--seed', type=int, default=42, help='Set seed value (default: 42)')
+    
+    args = parser.parse_args()
+    
+    print(f"\n=== Running {args.model} ===\n")
+    print("Arguments:", vars(args))
+    # experiment_name = 'rf_test'
+    mainMMACEFlow(experiment_name=args.experiment_name,
+                  seed=args.seed)

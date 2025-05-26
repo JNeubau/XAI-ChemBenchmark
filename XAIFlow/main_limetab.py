@@ -5,10 +5,9 @@ import pandas as pd
 import numpy as np
 import json
 import matplotlib.pyplot as plt
+import argparse
     
 from AI_models.rfreg_cross_validation import CrossValidationRFRegPipeline
-from AI_models.models import Models
-from AI_models.eval_metrics import EvalMetrics
 from utils.data_split import custom_data_kfold, save_fold_indices, load_fold_indices
 from utils.exportlib import save_data_to_excel_with_highlights, save_scores_to_excel_new_sheet
 
@@ -406,7 +405,23 @@ def process_folds(folds, data, lime_values, smarts_mapping_path, local_explanati
 
 
 if __name__ == '__main__':
-    model = ['LIME'] 
-    local_explanation = False
-    experiment_name = 'LIME_global'
-    [mainXaiFlow(m, local_explanation) for m in model]
+    parser = argparse.ArgumentParser(description='Run XAI Flow with specified parameters')
+    parser.add_argument('--experiment_name', type=str, default='test', help='Name of the experiment (default: test)')
+    parser.add_argument('--fold', type=int, default=5, help='Number of folds to process (default: 5)')
+    parser.add_argument('--model', type=str, default='LIME', help='Model to use (default: LIME)')
+    parser.add_argument('--local', action='store_true', default=False, help='Use local explanations (default: False)')
+    parser.add_argument('--train_rfreg', action='store_true', default=False, help='Train new model (default: False)')
+    parser.add_argument('--seed', type=int, default=42, help='Set seed value (default: 42)')
+    
+    args = parser.parse_args()
+    experiment_name = args.experiment_name
+    model = args.model
+    
+    print(f"\n=== Running {args.model} ===\n")
+    print("Arguments:", vars(args))
+    mainXaiFlow(model, 
+                local_explanation=args.local,
+                experiment_name=args.experiment_name, 
+                folds=args.fold, 
+                seed=args.seed,
+                train_rfreg=args.train_rfreg)
