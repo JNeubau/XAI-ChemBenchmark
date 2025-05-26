@@ -4,6 +4,7 @@ def mainXaiFlow(dataset_name='battery', experiment_name='test', num_folds=5, dat
     model_trained = False
     methods = ['SHAP', 'SHAP_IQ', 'MEG']    # MEG must run after training model
     # methods = ['MEG']    # MEG must run after training model
+    python_310_path = os.path.join(os.getcwd(), '.venv', 'Scripts', 'python')
     
     for method in methods:  
         if method == 'MEG':
@@ -11,9 +12,9 @@ def mainXaiFlow(dataset_name='battery', experiment_name='test', num_folds=5, dat
             os.system(f"{os.path.join(home_dir, '.conda', 'envs', 'meg', 'python')} {os.path.join(os.getcwd(), 'MEG', 'meg_master', 'main_meg')}.py --dataset_name {dataset_name} --experiment_name {experiment_name} --fold {num_folds} --seed {seed} --data_file {data_file} --train_rfreg")
         elif method in ['SHAP', 'SHAP_IQ']:                        
             if not model_trained:   # global
-                os.system(f"{os.path.join(os.getcwd(), '.venv', 'Scripts', 'python')} {os.path.join(os.getcwd(), 'XAIFlow', 'main')}.py --dataset_name {dataset_name} --experiment_name {experiment_name} --fold {num_folds} --model {method} --max_order 1 --seed {seed} --train_rfreg")
+                os.system(f"{python_310_path} {os.path.join(os.getcwd(), 'XAIFlow', 'main')}.py --dataset_name {dataset_name} --experiment_name {experiment_name} --fold {num_folds} --model {method} --max_order 1 --seed {seed} --train_rfreg")
             else:
-                os.system(f"{os.path.join(os.getcwd(), '.venv', 'Scripts', 'python')} {os.path.join(os.getcwd(), 'XAIFlow', 'main')}.py --dataset_name {dataset_name} --experiment_name {experiment_name} --fold {num_folds} --model {method} --max_order 1 --seed {seed}")
+                os.system(f"{python_310_path} {os.path.join(os.getcwd(), 'XAIFlow', 'main')}.py --dataset_name {dataset_name} --experiment_name {experiment_name} --fold {num_folds} --model {method} --max_order 1 --seed {seed}")
             print(method, ' done')
             model_trained = True
             
