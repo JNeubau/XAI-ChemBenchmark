@@ -81,7 +81,6 @@ def mainXaiFlow(model, local_explanation=True, max_order_iq=1,experiment_name='b
     scores_data = create_dataframe_from_scores(scores, results)
     save_scores_to_excel(scores_data, results_dir)
     
-    
             
 def mainXaiFlow_all(model, local_explanation=True, max_order_iq=1, dataset_name='battery', experiment_name='test', folds=5, seed=42, train_rfreg=True):
     print("Model: ", model)
@@ -109,7 +108,7 @@ def mainXaiFlow_all(model, local_explanation=True, max_order_iq=1, dataset_name=
     if train_rfreg:
         folds = custom_data_kfold(data.drop(columns=['capacity_max']), data[['capacity_max']], num_splits=folds, random_state=seed)
         save_fold_indices(folds, folds_dir)
-        train_RFReg(experiment_name, folds, data, parent_dir)
+        train_RFReg(experiment_name, folds, data, parent_dir, max_order_iq)
     else:
         folds = load_fold_indices(folds_dir)
     
@@ -142,7 +141,7 @@ def mainXaiFlow_all(model, local_explanation=True, max_order_iq=1, dataset_name=
         save_molecules_to_excel(excel_data, results_dir)
     
     
-def train_RFReg(experiment_name, folds, data, parent_dir):
+def train_RFReg(experiment_name, folds, data, parent_dir, max_order_iq):
     RFReg_cv_pipeline = select_pipeline('RFReg', data, folds, max_order_iq, save_dir=os.path.join(parent_dir, 'RFReg', experiment_name, 'ckpt'))
     results, scores = RFReg_cv_pipeline.train_pipeline('RFReg')
 
@@ -448,7 +447,7 @@ def process_folds_global(folds, data, shap_values, smarts_mapping_path, top_i=10
             # Use predicted capacity instead of actual
             X_test = test_f.drop(columns=['capacity_max', 'smiles'])
             capacity_pred = cv_pipeline.predict_capacity(X_test)
-            print("Capacity prediction:", capacity_pred)
+            # print("Capacity prediction:", capacity_pred)
             df = pd.DataFrame({
                 'shap_values': shap_values_for_feature,
                 'capacity_values': capacity_pred
@@ -646,41 +645,40 @@ def process_folds(folds, data, shap_values, smarts_mapping_path, local_explanati
 
 
 if __name__ == '__main__':
-    # parser = argparse.ArgumentParser(description='Run XAI Flow with specified parameters')
-    # parser.add_argument('--dataset_name', type=str, default='battery', help='Name of the dataset (default: battery)')
-    # parser.add_argument('--experiment_name', type=str, default='test', help='Name of the experiment (default: test)')
-    # parser.add_argument('--fold', type=int, default=5, help='Number of folds to process (default: 5)')
-    # parser.add_argument('--model', type=str, choices=['SHAP', 'SHAP_IQ', 'both'], default='both', help='Model to use (default: both)')
-    # parser.add_argument('--local', action='store_true', default=False, help='Use local explanations (default: False)')
-    # parser.add_argument('--max_order', type=int, default=1, help='Maximum interaction order for SHAP_IQ (default: 1)')
+    parser = argparse.ArgumentParser(description='Run XAI Flow with specified parameters')
+    parser.add_argument('--dataset_name', type=str, default='battery', help='Name of the dataset (default: battery)')
+    parser.add_argument('--experiment_name', type=str, default='test', help='Name of the experiment (default: test)')
+    parser.add_argument('--fold', type=int, default=5, help='Number of folds to process (default: 5)')
+    parser.add_argument('--model', type=str, choices=['SHAP', 'SHAP_IQ'], default='both', help='Model to use (default: both)')
+    parser.add_argument('--local', action='store_true', default=False, help='Use local explanations (default: False)')
+    parser.add_argument('--train_rfreg', action='store_true', default=False, help='Train new model (default: False)')
+    parser.add_argument('--max_order', type=int, default=1, help='Maximum interaction order for SHAP_IQ (default: 1)')
+    parser.add_argument('--seed', type=int, default=42, help='Set seed value (default: 42)')
     
-    # args = parser.parse_args()
+    args = parser.parse_args()
+    experiment_name = args.experiment_name
+    model = args.model
+    max_order_iq = args.max_order
+
+    print(f"\n=== Running {args.model} ===\n")
+    print("Arguments:", vars(args))
+    mainXaiFlow_all(
+        model=args.model,
+        local_explanation=args.local,
+        max_order_iq=args.max_order,
+        dataset_name=args.dataset_name,
+        experiment_name=args.experiment_name,
+        folds=args.fold,
+        seed=args.seed,
+        train_rfreg=args.train_rfreg
+    )
     
-    # # Determine which models to run
-    # models_to_run = []
-    # if args.model == 'both':
-    #     models_to_run = ['SHAP', 'SHAP_IQ']
-    # else:
-    #     models_to_run = [args.model]
-    
-    # # Run the main flow with the specified arguments
-    # for model in models_to_run:
-    #     print(f"\n=== Running {model} ===\n")
-        # mainXaiFlow_all(
-        #     model=model,
-        #     local_explanation=args.local,
-        #     max_order_iq=args.max_order,
-        #     dataset_name=args.dataset_name,
-        #     experiment_name=args.experiment_name,
-        #     fold=args.fold
-        # )
-    
-    model = 'SHAP' # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
-    # model = ['SHAP'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
-    local_explanation = False
-    experiment_name= 'rf_test'
-    max_order_iq = 1
-    train_model_rf = False
-    mainXaiFlow_all(model, local_explanation, max_order_iq, 'battery', experiment_name, folds=5, seed=42, train_rfreg=train_model_rf)
+    # model = 'SHAP' # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
+    # # model = ['SHAP'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
+    # local_explanation = False
+    # experiment_name= 'rf_test'
+    # max_order_iq = 1
+    # train_model_rf = False
+    # mainXaiFlow_all(model, local_explanation, max_order_iq, 'battery', experiment_name, folds=5, seed=42, train_rfreg=train_model_rf)
     # [mainXaiFlow_all(m, local_explanation, max_order_iq, 'battery', experiment_name, folds=5, seed=42, train_rfreg=train_model_rf) for m in model]
     # [mainXaiFlow(m, local_explanation, max_order_iq, experiment_name) for m in model]
