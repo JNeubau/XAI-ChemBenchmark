@@ -96,7 +96,7 @@ def main(data_file: str,
             )
             
             # Save using joblib (more efficient for sklearn models)
-            joblib.dump(rf_model, base_path + f'/ckpt/model_{f}.joblib')
+            joblib.dump(rf_model, base_path + f'/ckpt/model_{f}_37.joblib')
         
             # with open(base_path + '/ckpt/rf_regressor_model.pkl', 'wb') as f:
             #     pickle.dump(rf_model, f)
@@ -107,7 +107,7 @@ def main(data_file: str,
                 "feature_details": "MACCS fingerprints only (no ID column)",
                 "last_trained": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "model_path": {
-                    "joblib": base_path + f'/ckpt/model_{f}.joblib'
+                    "joblib": base_path + f'/ckpt/model_{f}_37.joblib'
                     # "pickle": base_path + '/ckpt/rf_regressor_model.pkl'
                 }
             }

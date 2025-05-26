@@ -245,6 +245,129 @@ def _preprocess_battery(data_file, experiment_name, batch_size, folds, seed=0):
      
     return get_battery_loaders(experiment_name, batch_size, fold=0)
     
+def _preprocess_battery2(data_file, experiment_name, batch_size, folds, seed=0):   
+    folds_dir = osp.join(os.getcwd(), 'RFReg', experiment_name, 'folds')
+    os.makedirs(folds_dir, exist_ok=True)
+    
+    # Load the dataframe from CSV
+    df = pd.read_csv(data_file)
+    
+    # Extract features and target variable
+    fingerprint_cols = [col for col in df.columns if col.startswith('maccsfinger')]
+    smiles_col = df['smiles'].values   # SMILES strings
+    features = df[fingerprint_cols].values    # All fingerprint features
+    targets = df['capacity_max'].values   # Numerical target (capacity)
+    
+    num_features = features.shape[1]
+    
+    # Convert to PyG data format
+    data_dict = {}
+    for i in range(len(df)):
+        # Create a Data object for each row
+        x = torch.FloatTensor(features[i].reshape(1, -1))  # Reshape to [1, num_features]
+        y = torch.FloatTensor([targets[i]])  # Target value
+        
+        # Create a Data object
+        data = Data(x=x, y=y)
+        data.smiles = str(smiles_col[i])
+        data.original_idx = i  # Store the original index
+        data_dict[i] = data
+    
+    # Clear split_info.json if it exists
+    json_path = folds_dir + '/split_info.json'
+    if os.path.exists(json_path):
+        os.remove(json_path)
+    
+    split_data = []
+    
+    # For each fold, load indices from txt files and create datasets
+    for fold_idx in range(folds):
+        train_indices_path = os.path.join(folds_dir, f'train_{fold_idx}.txt')
+        test_indices_path = os.path.join(folds_dir, f'test_{fold_idx}.txt')
+        
+        # Check if files exist
+        if not os.path.exists(train_indices_path) or not os.path.exists(test_indices_path):
+            print(f"Warning: Missing train/test files for fold {fold_idx}")
+            continue
+        
+        # Load indices
+        try:
+            train_indices = pd.read_csv(train_indices_path, header=None).to_numpy().flatten()
+            test_indices = pd.read_csv(test_indices_path, header=None).to_numpy().flatten()
+            
+            # Convert to integers
+            train_indices = [int(idx) for idx in train_indices]
+            test_indices = [int(idx) for idx in test_indices]
+            
+            # Create SMILES mapping for this fold
+            smiles_mapping_fold = {}
+            for i, idx in enumerate(train_indices):
+                if idx in data_dict:
+                    key = f"{fold_idx}_{i}"
+                    smiles_mapping_fold[key] = data_dict[idx].smiles
+            
+            for i, idx in enumerate(test_indices):
+                if idx in data_dict:
+                    key = f"{fold_idx}_{i + len(train_indices)}"
+                    smiles_mapping_fold[key] = data_dict[idx].smiles
+                    
+            # Create data lists for this fold using the loaded indices
+            train_data = []
+            for idx in train_indices:
+                if idx in data_dict:
+                    train_data.append(data_dict[idx])
+                else:
+                    print(f"Warning: Index {idx} not found in data")
+            
+            test_data = []
+            for idx in test_indices:
+                if idx in data_dict:
+                    test_data.append(data_dict[idx])
+                else:
+                    print(f"Warning: Index {idx} not found in data")
+            
+            print(f"Fold {fold_idx}: Train: {len(train_data)}, Test: {len(test_data)}")
+            if len(train_data) + len(test_data) < len(train_indices) + len(test_indices):
+                print(f"Warning: Some indices were not found in the data")
+                
+            
+            # Save the number of entries in each split to a JSON file
+            split_info = {
+                "fold": fold_idx,
+                "data": {
+                    "train_size": len(train_data),
+                    "val_size": 0,  # No validation set
+                    "test_size": len(test_data)
+                }
+            }
+            split_data.append(split_info)
+            
+            # Use the collate functionality directly from InMemoryDataset
+            train_collated = InMemoryDataset.collate(train_data)
+            test_collated = InMemoryDataset.collate(test_data)
+            
+            # Create empty validation set
+            empty_data = Data(x=torch.zeros((1, num_features)), y=torch.zeros(1))
+            val_collated = InMemoryDataset.collate([empty_data])
+            
+            # Save the splits with fold index
+            torch.save(train_collated, f'{folds_dir}/train_{fold_idx}.pth')
+            torch.save(test_collated, f'{folds_dir}/test_{fold_idx}.pth')
+            torch.save(val_collated, f'{folds_dir}/val_{fold_idx}.pth')  # Empty validation set
+            
+        except Exception as e:
+            print(f"Error processing fold {fold_idx}: {e}")
+            continue
+    
+    # Write the split info to json
+    with open(json_path, 'w') as f:
+        json.dump(split_data, f, indent=4)
+        
+    # Create SMILES mapping to record which molecules are in which folds
+    create_smiles_mapping('battery', experiment_name, folds)
+    # Return loaders for the first fold by default
+    return get_battery_loaders(experiment_name, batch_size, fold=0)
+
 def get_battery_loaders(experiment_name, batch_size, fold=0):
     """
     Load the battery dataset for a specific fold and return DataLoaders.
@@ -534,5 +657,5 @@ def _preprocess_esol(data_file, experiment_name, batch_size, folds, seed=0):
 _PREPROCESS = {
     'tox21': _preprocess_tox21,
     'esol': _preprocess_esol,
-    'battery': _preprocess_battery,
+    'battery': _preprocess_battery2,
 }

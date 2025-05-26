@@ -223,7 +223,7 @@ def get_battery_rf(experiment, fold):
     import joblib
     import os
     
-    model_path = os.path.join(os.getcwd(), 'RFReg', experiment, 'ckpt', f'model_{fold}.joblib')
+    model_path = os.path.join(os.getcwd(), 'RFReg', experiment, 'ckpt', f'model_{fold}_37.joblib')
 
     # Load existing model
     print(f"Loading existing Random Forest model from {model_path}")

@@ -411,6 +411,7 @@ def process_folds_global(folds, data, shap_values, smarts_mapping_path, top_i=10
     smarts_top_all = {}
     match_molecules_all = {}
     molecules_statistics_all = {}  # Initialize molecules_statistics_all
+    all_predictions = []
 
     for i, fold in enumerate(folds):
         test_f = data.loc[fold[1]]
@@ -454,14 +455,25 @@ def process_folds_global(folds, data, shap_values, smarts_mapping_path, top_i=10
             })
             correlation = df.corr(method='spearman').loc['shap_values', 'capacity_values']
             molecules_statistics[key]["shap_sign"] = f'Positive|{correlation}' if correlation > 0 else f'Negative|{correlation}'
-
+        
+        all_predictions.append(capacity_pred)
         smarts_top_all.update(smarts_topi)
         match_molecules_all.update(match_molecules)
         molecules_statistics_all.update(molecules_statistics)  # Update molecules_statistics_all
 
+    save_prediction(all_predictions)
     molecules_statistics_all = number_where_important_global(molecules_statistics_all,match_molecules_all)
     return smarts_top_all, match_molecules_all, molecules_statistics_all
 
+def save_prediction(capacity_pred):
+    """
+    Save the predicted capacity values to a file.
+    :param capacity_pred: Predicted capacity values.
+    """
+    parent_dir = os.path.dirname(os.getcwd())
+    save_path = os.path.join(parent_dir, 'results', experiment_name, model, 'predicted_capacity.csv')
+    pd.DataFrame(capacity_pred).to_csv(save_path, index=False, header=None)
+    print(f"Predicted capacity saved to {save_path}")
 
 def process_folds_global_interactions(folds, data, shap_values, smarts_mapping_path, top_i=10, cv_pipeline=None):
     smarts_top_all = {}
@@ -663,10 +675,12 @@ if __name__ == '__main__':
         #     fold=args.fold
         # )
     
-    model = ['SHAP', 'SHAP_IQ'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
+    model = 'SHAP' # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
+    # model = ['SHAP'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
     local_explanation = False
     experiment_name= 'rf_test'
     max_order_iq = 1
     train_model_rf = False
-    [mainXaiFlow_all(m, local_explanation, max_order_iq, 'battery', experiment_name, folds=5, seed=42, train_rfreg=train_model_rf) for m in model]
+    mainXaiFlow_all(model, local_explanation, max_order_iq, 'battery', experiment_name, folds=5, seed=42, train_rfreg=train_model_rf)
+    # [mainXaiFlow_all(m, local_explanation, max_order_iq, 'battery', experiment_name, folds=5, seed=42, train_rfreg=train_model_rf) for m in model]
     # [mainXaiFlow(m, local_explanation, max_order_iq, experiment_name) for m in model]

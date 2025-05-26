@@ -36,7 +36,7 @@ def mainXaiFlow(train_RF_again: bool = True, dataset_name='battery', experiment_
             
     print(f"Loaded split information for {len(split_data)} folds")  
     
-    methods = ['SHAP', 'SHAP_IQ']
+    methods = ['MEG']
     for method in methods:  
         if method == 'MEG':
             for fold in range(num_folds):    
