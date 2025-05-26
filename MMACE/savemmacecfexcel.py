@@ -168,6 +168,114 @@ def find_molecular_changes(mol1, mol2):
         print(f"Error finding molecular changes: {e}")
         return set(range(mol2.GetNumAtoms())), set(range(mol2.GetNumBonds()))
 
+# def save_mmace_explanations_to_excel_new(MMACE_Explanations, results_dir):
+#     """Save MMACE counterfactual explanations to Excel with molecule visualizations."""
+#     from datetime import datetime
+#     from rdkit import Chem
+#     from rdkit.Chem import Draw
+#     from io import BytesIO
+#     import pandas as pd
+#     import os
+    
+#     excel_data = {
+#         "Fold_No": [],
+#         "Smiles_key": [],
+#         "Feature_key": [],
+#         "SMARTS": [],
+#         "Molecule": [],
+#         "number_of_molecules_where_fingerprint": [],
+#         "Number_where_important": [],
+#         "feature_in_smiles": [],
+#         "Explanation_value": [],
+#         "Explanation_sign": [],
+#         "Capacity_Max": [],
+#         "Capacity_Pred": [],
+#         "Model": []
+#     }
+    
+#     # Process each fold
+#     for fold_idx, fold_dict in enumerate(MMACE_Explanations):
+#         fold_explanations = fold_dict["explanations"]
+        
+#         if not fold_explanations:
+#             continue
+        
+#         # Process each molecule in the fold
+#         for mol_idx, cf_list in enumerate(fold_explanations):
+#             if not cf_list:
+#                 continue
+                
+#             # Get original molecule info
+#             original = next((cf for cf in cf_list if cf.is_origin), None)
+#             if not original:
+#                 continue
+                
+#             # Process each counterfactual
+#             for cf in cf_list:
+#                 if not cf.is_origin:  # Skip the original molecule
+#                     excel_data["Fold_No"].append(fold_idx)
+#                     excel_data["Smiles_key"].append(original.smiles)
+#                     excel_data["Feature_key"].append("maccsfingerprint")  # Placeholder for MACCS key
+#                     excel_data["SMARTS"].append("")  # Will be filled later
+#                     excel_data["Molecule"].append(original.smiles)
+#                     excel_data["number_of_molecules_where_fingerprint"].append(0)  # Will be updated later
+#                     excel_data["Number_where_important"].append(0)  # Will be updated later
+#                     excel_data["feature_in_smiles"].append(True)
+#                     excel_data["Explanation_value"].append(cf.similarity)
+#                     # Determine sign based on prediction difference
+#                     sign = "Positive" if cf.yhat > original.yhat else "Negative"
+#                     excel_data["Explanation_sign"].append(f"{sign}|{cf.similarity}")
+#                     excel_data["Capacity_Max"].append(float(original.yhat))
+#                     excel_data["Capacity_Pred"].append(float(cf.yhat))
+#                     excel_data["Model"].append("MMACE")
+
+#     # Create DataFrame and save to Excel
+#     df = pd.DataFrame(excel_data)
+#     df = df.sort_values(by=['Model', 'Molecule', 'Feature_key', 'Fold_No'], ignore_index=True)
+    
+#     excel_path = os.path.join(results_dir, f'mmace_explanations_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx')
+    
+#     with pd.ExcelWriter(excel_path, engine='xlsxwriter') as writer:
+#         df.to_excel(writer, sheet_name='Explanations', index=False, startrow=0, startcol=13)
+#         worksheet = writer.sheets['Explanations']
+        
+#         # Add molecule visualizations
+#         for idx, row in df.iterrows():
+#             try:
+#                 # Original molecule
+#                 orig_mol = Chem.MolFromSmiles(row['Original_SMILES'])
+#                 if orig_mol:
+#                     img = Draw.MolToImage(orig_mol)
+#                     img_buffer = BytesIO()
+#                     img.save(img_buffer, format='PNG')
+#                     img_buffer.seek(0)
+                    
+#                     row_num = idx + 1
+#                     worksheet.insert_image(row_num, 0, '', {'image_data': img_buffer})
+                    
+#                 # Counterfactual molecule with similarity-based coloring
+#                 cf_mol = Chem.MolFromSmiles(row['Counterfactual_SMILES'])
+#                 if cf_mol:
+#                     color = 'lightcoral' if row['Explanation_sign'].startswith('Negative') else 'aquamarine'
+#                     img = Draw.MolToImage(cf_mol, highlightColor=ColorConverter().to_rgb(color))
+#                     img_buffer = BytesIO()
+#                     img.save(img_buffer, format='PNG')
+#                     img_buffer.seek(0)
+                    
+#                     worksheet.insert_image(row_num, 6, '', {'image_data': img_buffer})
+                    
+#                 worksheet.set_row(row_num, 250)
+#             except Exception as e:
+#                 print(f"Error processing molecule visualization for row {idx}: {e}")
+#                 continue
+            
+#         # Adjust column widths
+#         worksheet.set_column('A:M', 15)  # Data columns
+    
+#     print(f"MMACE explanations saved to: {excel_path}")
+#     return excel_path
+
+
 def draw_molecule_with_highlights(mol, changed_atoms=None, changed_bonds=None, mol_size=(800, 800), diff_color=None):
     """
     Draw a molecule with highlighted changes.
