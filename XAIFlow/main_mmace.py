@@ -56,7 +56,8 @@ def mainMMACEFlow(experiment_name = 'battery'):
         custom_alphabet=custom_alphabet  
     )
 
-    results, scores,cfs,samples,MMACE_Explanations = cv_pipeline.train_pipeline('RFReg')
+    results, scores,cfs,samples,MMACE_Explanations = cv_pipeline.load_pipeline(os.path.join(parent_dir, 'RFReg', experiment_name, 'ckpt'))
+    # results, scores,cfs,samples,MMACE_Explanations = cv_pipeline.train_pipeline('RFReg')
     print("Results:", results)
     print("Scores:", scores)
 

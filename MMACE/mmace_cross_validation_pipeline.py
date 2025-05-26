@@ -15,6 +15,7 @@ from rdkit import Chem
 import signal
 import matplotlib.pyplot as plt
 from MMACE.timeoutexception import timeout
+import joblib
 
 class CrossValidationMMACEPipeline:
     """
@@ -186,7 +187,7 @@ class CrossValidationMMACEPipeline:
             print(f"Processing instance {i} with SMILES: {smiles}")
             try:
                 stoned_kwargs = {
-                    "num_samples": 2500,
+                    "num_samples": 250,
                     "alphabet": self.custom_alphabet if self.custom_alphabet else exmol.get_basic_alphabet(),
                     "max_mutations": 2,
                 }
@@ -257,5 +258,64 @@ class CrossValidationMMACEPipeline:
 
         if len(self.save_dir) > 0:
             self.save_results(results, proper_model_name, model.get_params())
+
+        return results, self.scores, self.cfs, self.samples, self.MMACE_results
+
+    def load_model(self, model_path: str) -> object:
+        """
+        Load a trained model from a file.
+        :param model_path: path to the saved model.
+        :return: loaded model.
+        """
+        if os.path.exists(model_path):
+            loaded_model = joblib.load(model_path)
+            if self.verbose:
+                print(f"Model loaded from {model_path}")
+            return loaded_model
+        else:
+            raise FileNotFoundError(f"Model file not found at {model_path}")
+        
+    def load_pipeline(self, model_path: str | None = None) -> tuple:
+        """
+        Run the pipeline by loading a model for each fold and generating MMACE explanations.
+        :param model_name: name of the model.
+        :param model_path: path to directory with saved models (should contain model_{i}.joblib for each fold).
+        :return: tuple with results, scores, and MMACE results.
+        """
+        # proper_model_name, model, param_grid = Models().get_model(model_name, model_path=model_path)
+        # model_name = "MMACE"
+        self.init_scores_MMACE()
+        if self.verbose:
+            print(f"Training model MMACE")
+
+        foldid = 0
+        for i, fold in enumerate(self.folds):
+            train_idx, test_idx = fold
+
+            X_test = copy.deepcopy(self.X.loc[test_idx, :]).reset_index(drop=True)
+            y_test = copy.deepcopy(self.y.loc[test_idx, :]).reset_index(drop=True)
+            smiles = copy.deepcopy(self.z.loc[test_idx, :]).reset_index(drop=True)
+
+            # Load model for this fold
+            if model_path is None:
+                raise ValueError("model_path must be provided for loading models per fold.")
+            model_file = os.path.join(model_path, f"model_{i}.joblib")
+            model = self.load_model(model_file)
+
+            self.model=model
+            # Evaluate model
+            y_pred = model.predict(X_test).flatten()
+            y_test_numpy = y_test.to_numpy().flatten()
+            model_scores = self.eval_model(y_pred, y_test_numpy)
+            self.update_scores(model_scores)
+
+            # Generate MMACE explanations
+            self.generate_MMACE_explanations(model, X_test, smiles['smiles'], fold=foldid)
+            foldid += 1
+
+        results = self.aggregate_scores()
+
+        # if len(self.save_dir) > 0:
+        #     self.save_results(results, model_name, model.get_params())
 
         return results, self.scores, self.cfs, self.samples, self.MMACE_results
