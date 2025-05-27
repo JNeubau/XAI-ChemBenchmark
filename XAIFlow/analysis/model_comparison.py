@@ -16,16 +16,10 @@ def normalize_explanation_values(df):
     for model in df['Model'].unique():
         model_mask = df['Model'] == model
         values = df.loc[model_mask, 'Explanation_value']
-        # print(f"Normalizing values for model: {model}, Number of rows: {len(values)}")
-        # print(f"Values before normalization: {values.describe()}")
-        # print(f"Values before normalization: {values}")
-        # Get absolute values for normalization
-        # abs_values = abs(values)
         
-        # Normalize to [0, 1] range while preserving signs
-        sum_value = values.sum()
-        # print(f"Sum of values for model {model}: {sum_value}")
-        # if sum_value > 0:  # Avoid division by zero
+        abs_values = abs(values)
+        sum_value = abs_values.sum()
+        
         df.loc[model_mask, 'Explanation_value'] = values / sum_value
         # print(f"Values after normalization: {df.loc[model_mask, 'Explanation_value'].describe()}")
         # print(f"Values after normalization: {df.loc[model_mask, 'Explanation_value']}")
@@ -72,9 +66,9 @@ def load_model_results(results_dir):
     combined_data['Feature_key'] = combined_data['Feature_key'].apply(process_feature_key)
     
     # Normalize the explanation values
-    combined_data = normalize_explanation_values(combined_data)
+    normalize_combined_data = normalize_explanation_values(combined_data)
     
-    return combined_data
+    return combined_data,normalize_combined_data
 
 def calculate_model_rankings(df):
     """Calculate various rankings and metrics for each model."""
@@ -290,6 +284,7 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
     plt.tight_layout()
     plt.savefig(os.path.join(plots_dir, f'bump_chart_worst_{timestamp}.png'), dpi=300, bbox_inches='tight', pad_inches=0.5)
     plt.close()
+    
     # 5. Heatmap of correlation between models
     # pivot_table, correlation_matrix = compare_feature_importance(rankings_df.reset_index().rename(columns={'Feature': 'Feature_key'}))
     # plt.figure(figsize=(8, 6))
@@ -345,16 +340,17 @@ def generate_comparison_report(results_dir, output_dir):
     try:
         # Load and process data
         print(f"Searching for files in: {results_dir}")
-        combined_data = load_model_results(results_dir)
+        combined_data,normalize_combined_data = load_model_results(results_dir)
         # print(f"Found {len(combined_data)} total rows of data")
         # print(f"Models found: {combined_data['Model'].unique()}")
         
         # Calculate rankings
-        model_rankings = calculate_model_rankings(combined_data)
+        model_rankings = calculate_model_rankings(normalize_combined_data)
         
         # Compare feature importance
         feature_importance, model_correlation = compare_feature_importance(combined_data)
-        
+        norm_feature_importance, norm_model_correlation = compare_feature_importance(normalize_combined_data)
+
         # Create output directory if it doesn't exist
         os.makedirs(output_dir, exist_ok=True)
         
@@ -369,15 +365,18 @@ def generate_comparison_report(results_dir, output_dir):
         with pd.ExcelWriter(output_file) as writer:
             model_rankings.to_excel(writer, sheet_name='Model_Rankings')
             feature_importance.to_excel(writer, sheet_name='Feature_Importance')
+            norm_feature_importance.to_excel(writer, sheet_name='Normalized_Feature_Importance')
             model_correlation.to_excel(writer, sheet_name='Model_Correlation')
             
             # Additional analysis: Top features per model
             for model in combined_data['Model'].unique():
                 model_data = combined_data[combined_data['Model'] == model]
+                norm_model_data = normalize_combined_data[normalize_combined_data['Model'] == model]
                 top_features = model_data.nlargest(10, 'Explanation_value')[
                     ['Feature_key', 'SMARTS', 'Explanation_value', 'Number_where_important']
                 ]
-                top_features.to_excel(writer, sheet_name=f'{model}_Top_Features')
+                top_features['Normalized_Explanation_value'] = norm_model_data.nlargest(10, 'Explanation_value')['Explanation_value']
+                top_features.to_excel(writer, sheet_name=f'{model}_TF')
         
         return output_file
     except Exception as e:
