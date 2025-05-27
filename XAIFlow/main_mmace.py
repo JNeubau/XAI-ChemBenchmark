@@ -18,7 +18,7 @@ from MMACE.mmace_cross_validation_pipeline import CrossValidationMMACEPipeline
 from MMACE.savemmacecfexcel import save_mmace_explanations_to_excel, create_mmace_pdf #,save_mmace_explanations_to_excel_new
 
 
-def mainMMACEFlow(experiment_name = 'battery', seed=42):
+def mainMMACEFlow(experiment_name = 'battery', seed=42, explanation_value_mode="per_feature"):
     np.random.seed(seed)
     random.seed(seed)
     print("Running MMACE explanation pipeline...")
@@ -63,7 +63,7 @@ def mainMMACEFlow(experiment_name = 'battery', seed=42):
 
     save_mmace_explanations_to_excel(MMACE_Explanations, results_dir=results_dir)
    
-    process_folds(folds, data, samples, cfs,MMACE_Explanations,results_dir)
+    process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, explanation_value_mode=explanation_value_mode)
 
 def get_custom_alphabet(data):
     """
@@ -88,7 +88,55 @@ def get_basic_alphabet():
 
     return exmol.get_basic_alphabet()
 
-def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir):
+def export_mmace_feature_changes_to_excel(cf_change_rows, results_dir):
+    """
+    Export MMACE counterfactual feature changes to an Excel file with a similar format to exportlib.
+    Each row contains: original/cf SMILES, changed feature, original/cf prediction, prediction difference, and all features.
+    """
+    import pandas as pd
+    from rdkit import Chem
+    from rdkit.Chem import Draw
+    from io import BytesIO
+
+    if not cf_change_rows:
+        print("No counterfactual feature changes to export.")
+        return
+
+    df = pd.DataFrame(cf_change_rows)
+    excel_file = os.path.join(results_dir, "mmace_cf_molecule_results_with_highlights_all_features.xlsx")
+
+    with pd.ExcelWriter(excel_file, engine="xlsxwriter") as writer:
+        df.to_excel(writer, index=False, sheet_name="Data", startrow=0, startcol=6)
+        worksheet = writer.sheets["Data"]
+
+        # for i, row in df.iterrows():
+        #     smiles_orig = row['SMILES_original']
+        #     smiles_cf = row['SMILES_cf']
+        #     # Original molecule image
+        #     mol_orig = Chem.MolFromSmiles(smiles_orig)
+        #     if mol_orig:
+        #         img_orig = Draw.MolToImage(mol_orig)
+        #         img_buffer_orig = BytesIO()
+        #         img_orig.save(img_buffer_orig, format='PNG')
+        #         img_buffer_orig.seek(0)
+        #         worksheet.insert_image(i + 1, 0, '', {'image_data': img_buffer_orig})
+        #     # Counterfactual molecule image
+        #     mol_cf = Chem.MolFromSmiles(smiles_cf)
+        #     if mol_cf:
+        #         img_cf = Draw.MolToImage(mol_cf)
+        #         img_buffer_cf = BytesIO()
+        #         img_cf.save(img_buffer_cf, format='PNG')
+        #         img_buffer_cf.seek(0)
+        #         worksheet.insert_image(i + 1, 3, '', {'image_data': img_buffer_cf})
+        #     worksheet.set_row(i + 1, 250)
+
+        # worksheet.set_column('A:A', 20)  # Original molecule column
+        # worksheet.set_column('D:D', 20)  # Counterfactual molecule column
+        # worksheet.set_column('G:ZZ', 15)  # Data columns
+
+    print(f"MMACE counterfactual feature changes exported to: {excel_file}")
+
+def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, explanation_value_mode="per_feature"):
     """Process folds for local MMACE explanations."""
     print("Processing folds for local MMACE...")
     plots_dir = os.path.join(results_dir, 'plots')
@@ -96,6 +144,9 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir):
 
     feature_importance_per_fold = []
     
+    # Collect per-counterfactual feature change info for CSV
+    cf_change_rows = []
+
     for i, fold in enumerate(folds):
         test_f = data.loc[fold[1]]
         mmace_cf = MMACE_Explanations[i]["explanations"]
@@ -107,10 +158,17 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir):
                 continue
                 
             original = test_f.iloc[idx]
-            original_features = original.drop(['capacity_max', 'smiles'])
-            
+            original_smmiles = Chem.MolFromSmiles(original['smiles'])
+
+            # Generate MACCS fingerprint DataFrame for the original molecule
+            original_fps = [list(Chem.MACCSkeys.GenMACCSKeys(original_smmiles).ToBitString())]
+            original_fps = np.array(original_fps)[:, 1:]
+            original_fps_df = pd.DataFrame(original_fps, columns=[f'maccsfingerprint{i}' for i in range(original_fps.shape[1])])
+            original_features = original_fps_df.iloc[0].astype(int)
+
             # Calculate feature importance for each counterfactual
             feature_impacts = []
+            # print(f"==================\nProcessing fold {i}, instance {idx} with {len(counterfactuals)} counterfactuals\n============")
             for cf in counterfactuals:
                 if not hasattr(cf, 'smiles'):  # Skip invalid counterfactuals
                     continue
@@ -124,36 +182,68 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir):
                 fps = np.array(fps)[:, 1:]
                 fps_df = pd.DataFrame(fps, columns=[f'maccsfingerprint{i}' for i in range(fps.shape[1])])
 
-                parent_dir = os.path.dirname(os.getcwd())
-                maccs_merge_path = os.path.join(parent_dir, 'data', 'new_maccs_merged.csv')
-                # print(f"Using MACCS merge file: {maccs_merge_path}")
-
-                if not os.path.exists(maccs_merge_path):
-                    raise FileNotFoundError(f"MACCS merge file not found: {maccs_merge_path}")
-
-                maccs_merge = pd.read_csv(maccs_merge_path)
-                maccs_merge = maccs_merge.loc[:, maccs_merge.columns.str.contains('maccs', case=False)]
-                selected_keys = maccs_merge.columns.tolist()
-                selected_keys = [key for key in selected_keys if key in fps_df.columns]
-                filtered_fps = fps_df[selected_keys]
 
                 # Align cf_features with original_features
-                cf_features = filtered_fps.iloc[0].astype(int)
-                # print(f"Counterfactual features: {cf_features}")
-                # print(f"Original features: {original_features}")
+                cf_features = fps_df.iloc[0].astype(int)
 
                 # Calculate feature differences and their impact
                 feature_diff = cf_features - original_features
-                prediction_diff = cf.yhat - original['capacity_max']
+                prediction_org = float(original['capacity_max'])
+                prediction_cf = float(cf.yhat)
+                prediction_diff = prediction_cf - prediction_org
 
-                # print(f"Prediction difference: {prediction_diff}")
-                # print(f"Feature differences: {feature_diff}")
-                
-                # Record impact for changed features
-                for feat, diff in feature_diff.items():
-                    if diff != 0:
-                        impact = prediction_diff #* diff
-                        feature_impacts.append((feat, impact))
+                # get number of features changed
+                num_features_changed = sum(feature_diff != 0)
+                # print(num_features_changed)
+
+                # Magnitude-based attribution
+                if explanation_value_mode == "magnitude":
+                    abs_deltas = {feat: abs(diff) for feat, diff in feature_diff.items() if diff != 0}
+                    total_change = sum(abs_deltas.values())
+                    for feat, diff in feature_diff.items():
+                        print(f"Feature: {feat}, Diff: {diff}, Total Change: {total_change}")
+                        if diff != 0:
+                            weight = abs(diff) / total_change if total_change != 0 else 0
+                            explanation_value = weight * prediction_diff
+                            feature_impacts.append((feat, explanation_value))
+                            cf_change_rows.append({
+                                "Fold_no": i,
+                                "SMILES_original": original['smiles'],
+                                "SMILES": original['smiles'],
+                                "SMILES_cf": cf.smiles,
+                                "Feature_key": feat,
+                                "Prediction_original": prediction_org,
+                                "Prediction_cf": prediction_cf,
+                                "Prediction_difference": explanation_value,
+                                'Explanation_value': prediction_diff,
+                                'Explanation_sign': 'positive' if prediction_diff > 0 else 'negative',
+                                'AddedRemoved': diff,
+                                'Model': 'MMACE',
+                                'features_original': original_features.to_dict(),
+                                'features_cf': cf_features.to_dict()
+                            })
+                else:
+                    # Per-feature method
+                    for feat, diff in feature_diff.items():
+                        if diff != 0:
+                            impact = prediction_diff #* diff
+                            feature_impacts.append((feat, impact))
+                            cf_change_rows.append({
+                                "Fold_no": i,
+                                "SMILES_original": original['smiles'],
+                                "SMILES": original['smiles'],
+                                "SMILES_cf": cf.smiles,
+                                "Feature_key": feat,
+                                "Prediction_original": prediction_org,
+                                "Prediction_cf": prediction_cf,
+                                "Prediction_difference": prediction_diff,
+                                'Explanation_value': prediction_cf/num_features_changed if num_features_changed > 0 else 0, 
+                                'Explanation_sign': 'positive' if prediction_diff > 0 else 'negative',
+                                'AddedRemoved': diff,
+                                'Model': 'MMACE',
+                                'features_original': original_features.to_dict(),
+                                'features_cf': cf_features.to_dict()
+                            })
             
             # Aggregate feature impacts
             if feature_impacts:
@@ -164,7 +254,7 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir):
         
         # Calculate mean impact for each feature
         mean_importance = {feat: np.mean(impacts) for feat, impacts in fold_importance.items()}
-        
+        # print(f"Mean importance for fold {i}: {mean_importance}")
         # Get top features
         top_features = sorted(mean_importance.items(), key=lambda x: abs(x[1]), reverse=True)[:10]
         feature_importance_per_fold.append(top_features)
@@ -188,6 +278,15 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir):
     importance_df = pd.DataFrame([{f: i for f, i in fold} 
                                 for fold in feature_importance_per_fold])
     importance_df.to_csv(os.path.join(results_dir, 'feature_importance.csv'))
+    
+    # Save the CSV with per-counterfactual feature changes
+    if cf_change_rows:
+        cf_change_df = pd.DataFrame(cf_change_rows)
+        csv_path = os.path.join(results_dir, "mmace_cf_feature_changes.csv")
+        cf_change_df.to_csv(csv_path, index=False)
+        print(f"Counterfactual feature change CSV saved to {csv_path}")
+        # Export to Excel with images
+        export_mmace_feature_changes_to_excel(cf_change_rows, results_dir)
     return feature_importance_per_fold
    
 if __name__ == '__main__':
@@ -195,6 +294,8 @@ if __name__ == '__main__':
     parser.add_argument('--experiment_name', type=str, default='test', help='Name of the experiment (default: test)')
     parser.add_argument('--model', type=str, default='MMACE', help='Model to use (default: MMACE)')
     parser.add_argument('--seed', type=int, default=42, help='Set seed value (default: 42)')
+    parser.add_argument('--explanation_value_mode', type=str, default='per_feature', choices=['per_feature', 'magnitude'],
+                        help='Explanation value calculation mode: per_feature or magnitude (default: per_feature)')
     
     args = parser.parse_args()
     
@@ -202,4 +303,4 @@ if __name__ == '__main__':
     print("Arguments:", vars(args))
     # experiment_name = 'rf_test'
     mainMMACEFlow(experiment_name=args.experiment_name,
-                  seed=args.seed)
+                  seed=args.seed,explanation_value_mode=args.explanation_value_mode)

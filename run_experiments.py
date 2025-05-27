@@ -1,10 +1,12 @@
 import os
 
-def mainXaiFlow(dataset_name='battery', experiment_name='test', num_folds=5, data_file='', seed=42):
+def mainXaiFlow(dataset_name='battery', experiment_name='test', num_folds=5, data_file='', seed=42, expl_val_mode='per_feature'):
     model_trained = False
     methods = ['SHAP', 'LIME', 'MMACE', 'SHAP_IQ', 'MEG']    # MEG must run after training model
+    # methods = ['MMACE']    # MEG must run after training model
     # methods = ['MEG']    # MEG must run after training model
     python_310_path = os.path.join(os.getcwd(), '.venv', 'Scripts', 'python')
+    # python_310_path = os.path.join(os.getcwd(), '.venv', 'bin', 'python3')
     
     for method in methods:  
         if method == 'MEG':
@@ -20,7 +22,7 @@ def mainXaiFlow(dataset_name='battery', experiment_name='test', num_folds=5, dat
             
         elif method == 'MMACE':
             # cannot run first
-            os.system(f"{python_310_path} {os.path.join(os.getcwd(), 'XAIFlow', 'main_mmace')}.py --experiment_name {experiment_name} --model {method} --seed {seed}")
+            os.system(f"{python_310_path} {os.path.join(os.getcwd(), 'XAIFlow', 'main_mmace')}.py --experiment_name {experiment_name} --model {method} --seed {seed} --explanation_value_mode {expl_val_mode}")
             
         elif method == 'LIME':
             if not model_trained:   # global
@@ -35,4 +37,5 @@ if __name__ == '__main__':
                 experiment_name='full_test', 
                 num_folds=5, 
                 data_file=os.path.join(os.getcwd(), 'data', 'new_maccs_merged.csv'), 
-                seed=42)
+                seed=42,
+                expl_val_mode='magnitude') #per_feature, magnitude
