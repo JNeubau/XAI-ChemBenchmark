@@ -3,6 +3,13 @@ import json
 import pandas as pd
 import glob
 
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+
+plt.style.use(['fast'])
+
+ 
 def read_shap_data(workdir, experiment_name):
     shap_path = os.path.join(workdir, 'results', experiment_name, 'SHAP', 'predicted_capacity.csv')
     if not os.path.exists(shap_path):
@@ -31,10 +38,6 @@ def read_meg_data(workdir, experiment_name):
     return meg_data
 
 def make_plot(data1: pd.DataFrame, data2: pd.DataFrame, save_dir: str):
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-    import numpy as np
-
     num_rows = data1.shape[0]
     fig, axes = plt.subplots(num_rows, 1, figsize=(10, 5* num_rows), constrained_layout=True)
     
@@ -115,9 +118,6 @@ def make_plot(data1: pd.DataFrame, data2: pd.DataFrame, save_dir: str):
     plt.close('all')
     
 def make_bar_plot(data1:pd.DataFrame, data2:pd.DataFrame, save_dir:str):
-    import matplotlib.pyplot as plt
-    import numpy as np
-
     num_rows = data1.shape[0]
     fig, axes = plt.subplots(num_rows, 1, figsize=(10, 5 * num_rows), constrained_layout=True)
     
@@ -137,11 +137,11 @@ def make_bar_plot(data1:pd.DataFrame, data2:pd.DataFrame, save_dir:str):
             indices = np.arange(len(d1))
             width = 0.35
             
-            ax.bar(indices - width/2, d1, width, label='SHAP', color='lightblue')
-            ax.bar(indices + width/2, d2, width, label='MEG', color='lightgreen')
+            ax.bar(indices - width/2, d1, width, label='rfRef_3.10')
+            ax.bar(indices + width/2, d2, width, label='rfReg_3.7') 
             
             ax.set_xticks(indices)
-            ax.set_xticklabels([f'Fold {i}' for i in range(len(d1))])
+            ax.set_xticklabels([f'Mol {i}' for i in range(len(d1))])
             ax.set_title(f'Fold {row} Comparison')
             ax.set_ylabel('Predicted Capacity')
             ax.legend()
@@ -177,7 +177,6 @@ def read_data_scores_MEG(workdir, experiment_name):
 if __name__ == "__main__":
     workdir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     experiment_name = "new_test"  
-    # print(workdir)
 
     shap_df = read_shap_data(workdir, experiment_name)
     # print("SHAP Data:")
