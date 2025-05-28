@@ -194,14 +194,14 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
 
                 # get number of features changed
                 num_features_changed = sum(feature_diff != 0)
-                # print(num_features_changed)
+                print(num_features_changed)
 
                 # Magnitude-based attribution
                 if explanation_value_mode == "magnitude":
                     abs_deltas = {feat: abs(diff) for feat, diff in feature_diff.items() if diff != 0}
                     total_change = sum(abs_deltas.values())
                     for feat, diff in feature_diff.items():
-                        print(f"Feature: {feat}, Diff: {diff}, Total Change: {total_change}")
+                        # print(f"Feature: {feat}, Diff: {diff}, Total Change: {total_change}")
                         if diff != 0:
                             weight = abs(diff) / total_change if total_change != 0 else 0
                             explanation_value = weight * prediction_diff
@@ -209,14 +209,14 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
                             cf_change_rows.append({
                                 "Fold_no": i,
                                 "SMILES_original": original['smiles'],
-                                "SMILES": original['smiles'],
-                                "SMILES_cf": cf.smiles,
+                                "SMILES": str(original['smiles']),
+                                "SMILES_cf": str(cf.smiles),
                                 "Feature_key": feat,
                                 "Prediction_original": prediction_org,
                                 "Prediction_cf": prediction_cf,
-                                "Prediction_difference": explanation_value,
-                                'Explanation_value': prediction_diff,
-                                'Explanation_sign': 'positive' if prediction_diff > 0 else 'negative',
+                                'Prediction_difference': prediction_diff,
+                                "Explanation_value": np.abs(explanation_value),
+                                'Explanation_sign': 'Positive' if explanation_value > 0 else 'Negative',
                                 'AddedRemoved': diff,
                                 'Model': 'MMACE',
                                 'features_original': original_features.to_dict(),
@@ -231,14 +231,14 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
                             cf_change_rows.append({
                                 "Fold_no": i,
                                 "SMILES_original": original['smiles'],
-                                "SMILES": original['smiles'],
-                                "SMILES_cf": cf.smiles,
+                                "SMILES": str(original['smiles']),
+                                "SMILES_cf": str(cf.smiles),
                                 "Feature_key": feat,
                                 "Prediction_original": prediction_org,
                                 "Prediction_cf": prediction_cf,
                                 "Prediction_difference": prediction_diff,
-                                'Explanation_value': prediction_cf/num_features_changed if num_features_changed > 0 else 0, 
-                                'Explanation_sign': 'positive' if prediction_diff > 0 else 'negative',
+                                'Explanation_value': np.abs(prediction_cf/num_features_changed) if num_features_changed > 0 else 0, 
+                                'Explanation_sign': 'positive' if explanation_value > 0 else 'negative',
                                 'AddedRemoved': diff,
                                 'Model': 'MMACE',
                                 'features_original': original_features.to_dict(),
@@ -271,8 +271,8 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
         plt.close()
         
         # # Create PDF report
-        pdf_path = create_mmace_pdf(MMACE_Explanations, i, results_dir)
-        print(f"Created PDF report for fold {i} at: {pdf_path}")
+        # pdf_path = create_mmace_pdf(MMACE_Explanations, i, results_dir)
+        # print(f"Created PDF report for fold {i} at: {pdf_path}")
     
     # Save overall feature importance to CSV
     importance_df = pd.DataFrame([{f: i for f, i in fold} 
@@ -286,7 +286,48 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
         cf_change_df.to_csv(csv_path, index=False)
         print(f"Counterfactual feature change CSV saved to {csv_path}")
         # Export to Excel with images
-        export_mmace_feature_changes_to_excel(cf_change_rows, results_dir)
+        # export_mmace_feature_changes_to_excel(cf_change_rows, results_dir)
+        
+        # --- Aggregate data in cf_change_rows for each fold ---
+        # Aggregate to match the structure of cf_change_rows for Excel export
+        agg_cols = [
+            'Fold_no', 'Feature_key', 'Model'
+        ]
+        agg_df = (
+            cf_change_df
+            .groupby(agg_cols)
+            .agg({
+                'Prediction_difference': 'mean',
+                'Explanation_value': 'mean',
+                # 'AddedRemoved': 'sum',
+                # 'Prediction_original': 'mean',
+                # 'Prediction_cf': 'mean',
+                'Explanation_sign': lambda x: x.mode()[0] if not x.mode().empty else '',
+                'SMILES_original': lambda x: '',
+                'SMILES': lambda x: '',
+                'SMILES_cf': lambda x: '',
+                'features_original': lambda x: {},
+                'features_cf': lambda x: {},
+            })
+            .reset_index()
+        )
+        # Add count column for number of changes per group
+        agg_df['count_changes'] = cf_change_df.groupby(agg_cols)['Prediction_difference'].count().values
+
+        # Take only top 10 features per fold by absolute value of Explanation_value
+        top10_agg_df = (
+            agg_df
+            .sort_values(['Fold_no', 'Explanation_value'], key=lambda x: x.abs(), ascending=[True, False])
+            .groupby('Fold_no')
+            .head(10)
+            .reset_index(drop=True)
+        )
+
+        agg_csv_path = os.path.join(results_dir, "mmace_cf_feature_changes_aggregated_by_fold.csv")
+        top10_agg_df.to_csv(agg_csv_path, index=False)
+        print(f"Aggregated counterfactual feature change CSV saved to {agg_csv_path}")
+        # Export aggregated data to Excel using the same function
+        export_mmace_feature_changes_to_excel(top10_agg_df.to_dict(orient='records'), results_dir)
     return feature_importance_per_fold
    
 if __name__ == '__main__':

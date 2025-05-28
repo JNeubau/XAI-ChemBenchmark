@@ -209,7 +209,7 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
     bump_data['Rank'] = bump_data.groupby('Model')['Average_Explanation_Value'].rank(ascending=False, method='min')
     
     # Fix for deprecation warning: handle top N features selection differently
-    N = 5
+    N = 10
     top_features = []
     for model in bump_data['Model'].unique():
         model_data = bump_data[bump_data['Model'] == model].copy()
@@ -372,11 +372,28 @@ def generate_comparison_report(results_dir, output_dir):
             for model in combined_data['Model'].unique():
                 model_data = combined_data[combined_data['Model'] == model]
                 norm_model_data = normalize_combined_data[normalize_combined_data['Model'] == model]
-                top_features = model_data.nlargest(10, 'Explanation_value')[
-                    ['Feature_key', 'SMARTS', 'Explanation_value', 'Number_where_important']
-                ]
-                top_features['Normalized_Explanation_value'] = norm_model_data.nlargest(10, 'Explanation_value')['Explanation_value']
-                top_features.to_excel(writer, sheet_name=f'{model}_TF')
+                
+                # Aggregate by Feature_key
+                agg_model_data = model_data.groupby('Feature_key').agg({
+                    'SMARTS': 'first',
+                    'Explanation_value': 'mean',
+                    'Number_where_important': 'first'
+                }).reset_index()
+                agg_norm_model_data = norm_model_data.groupby('Feature_key').agg({
+                    'Explanation_value': 'mean'
+                }).reset_index().rename(columns={'Explanation_value': 'Normalized_Explanation_value'})
+                
+                # Merge normalized values
+                agg_features = pd.merge(
+                    agg_model_data,
+                    agg_norm_model_data,
+                    on='Feature_key',
+                    how='left'
+                )
+                
+                # Get top 10 features by mean Explanation_value
+                top_features = agg_features.nlargest(10, 'Explanation_value')
+                top_features.to_excel(writer, sheet_name=f'{model}_TF', index=False)
         
         return output_file
     except Exception as e:
