@@ -1,6 +1,7 @@
 import os
 import json
 import pandas as pd
+import glob
 
 def read_shap_data(workdir, experiment_name):
     shap_path = os.path.join(workdir, 'results', experiment_name, 'SHAP', 'predicted_capacity.csv')
@@ -150,6 +151,28 @@ def make_bar_plot(data1:pd.DataFrame, data2:pd.DataFrame, save_dir:str):
     
     plt.suptitle('Bar Plot Comparison of SHAP and MEG Predictions by Fold', fontsize=16)
     fig.savefig(os.path.join(save_dir, 'shap_vs_meg_bar_comparison_by_fold.png'), dpi=300)
+    
+def read_data_scores_SHAP(workdir, experiment_name):
+    shap_path = os.path.join(workdir, 'RFReg', experiment_name, 'ckpt', 'molecule_scores.xlsx')
+    if not os.path.exists(shap_path):
+        raise FileNotFoundError(f"SHAP scores file not found: {shap_path}")
+    shap_scores = pd.read_excel(shap_path, index_col=0, engine='openpyxl')
+    return shap_scores
+
+def read_data_scores_MEG(workdir, experiment_name):
+    meg_scores_dir = os.path.join(workdir, 'RFReg', experiment_name)
+    json_files = sorted(glob.glob(os.path.join(meg_scores_dir, "rf_regressor_results_*.json")))
+    if not json_files:
+        raise FileNotFoundError(f"No MEG scores JSON files found in: {meg_scores_dir}")
+
+    rows = []
+    for json_file in json_files:
+        with open(json_file, "r") as f:
+            data = json.load(f)
+            rows.append(data)
+
+    meg_scores = pd.DataFrame(rows)
+    return meg_scores
 
 if __name__ == "__main__":
     workdir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -166,3 +189,11 @@ if __name__ == "__main__":
     
     make_plot(shap_df, meg_data, os.path.join(workdir, 'results', experiment_name))
     make_bar_plot(shap_df, meg_data, os.path.join(workdir, 'results', experiment_name))
+    
+    shap_scores = read_data_scores_SHAP(workdir, experiment_name)
+    print("\nSHAP Scores:")
+    print(shap_scores)
+    
+    meg_scores = read_data_scores_MEG(workdir, experiment_name)
+    print("\nMEG Scores:")
+    print(meg_scores)
