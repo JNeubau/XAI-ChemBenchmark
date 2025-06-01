@@ -408,14 +408,28 @@ def process_folds_global(folds, data, shap_values, smarts_mapping_path, top_i=10
     molecules_statistics_all = {}  # Initialize molecules_statistics_all
     all_predictions = []
 
+    # Prepare log file path
+    parent_dir = os.path.dirname(os.getcwd())
+    log_dir = os.path.join(parent_dir, 'results', 'logs', "SHAP", datetime.today().strftime("%d-%m-%Y"))
+    os.makedirs(log_dir, exist_ok=True)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    log_file_path = os.path.join(log_dir, f'shap_global_fold_logs_{timestamp}.csv')
+    all_logs = []
+
     for i, fold in enumerate(folds):
         test_f = data.loc[fold[1]]
         shap_f = shap_values[i]
         feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
         mean_abs_shap_values = np.mean(np.abs(shap_f), axis=0)
+        all_logs.append([f"Fold {i}"])
+        all_logs.append([f"SHAP values for fold {i}: {shap_f}"])
+        # all_logs.append([f"Feature names: {feature_names}"])
+        all_logs.append([f"Mean absolute SHAP values for fold {i}: {mean_abs_shap_values}"])
         top_i_indices = np.argsort(mean_abs_shap_values)[-top_i:][::-1]
         top_i_indices = [idx for idx in top_i_indices if mean_abs_shap_values[idx] != 0]
         top_i_feature_names = [feature_names[i] for i in top_i_indices]
+        all_logs.append([f"Top features indices for fold {i}: {top_i_indices}"])
+        all_logs.append([f"Top feature names for fold {i}: {top_i_feature_names}"])
 
         with open(smarts_mapping_path, 'r') as f:
             smarts_mapping = json.load(f)
@@ -443,18 +457,21 @@ def process_folds_global(folds, data, shap_values, smarts_mapping_path, top_i=10
             # Use predicted capacity instead of actual
             X_test = test_f.drop(columns=['capacity_max', 'smiles'])
             capacity_pred = cv_pipeline.predict_capacity(X_test)
-            # print("Capacity prediction:", capacity_pred)
             df = pd.DataFrame({
                 'shap_values': shap_values_for_feature,
                 'capacity_values': capacity_pred
             })
             correlation = df.corr(method='spearman').loc['shap_values', 'capacity_values']
             molecules_statistics[key]["shap_sign"] = f'Positive|{correlation}' if correlation > 0 else f'Negative|{correlation}'
-        
+            all_logs.append([f"Feature: {feature}, correlation: {correlation}"])
+
         all_predictions.append(capacity_pred)
         smarts_top_all.update(smarts_topi)
         match_molecules_all.update(match_molecules)
         molecules_statistics_all.update(molecules_statistics)  # Update molecules_statistics_all
+
+    # Save all logs to CSV
+    pd.DataFrame(all_logs, columns=["log"]).to_csv(log_file_path, index=False)
 
     save_prediction(all_predictions)
     molecules_statistics_all = number_where_important_global(molecules_statistics_all,match_molecules_all)
@@ -519,7 +536,7 @@ def process_folds_global_interactions(folds, data, shap_values, smarts_mapping_p
             print("Indices:", indices)
             features = [feature_names[idx] for idx in indices]
             print("features:", features)
-            smiles = match_molecule_global(features[0], test_f, data)  # Use first feature to match molecule
+            smiles = match_molecule_global(features[0], test_f, data) # Use first feature to match molecule
             
             key = (i, smiles, tuple(features))
             smarts = [

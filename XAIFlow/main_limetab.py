@@ -261,61 +261,43 @@ def process_folds_global(folds, data, lime_values, smarts_mapping_path, top_i=10
     os.makedirs(plots_dir, exist_ok=True)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 
+    # Prepare log file path
+    log_dir = os.path.join(parent_dir, 'results', 'logs', "LIME", datetime.today().strftime("%d-%m-%Y"))
+    os.makedirs(log_dir, exist_ok=True)
+    log_file_path = os.path.join(log_dir, f'lime_global_fold_logs_{timestamp}.csv')
+
+    all_logs = []
+
     for i, fold in enumerate(folds):
         test_f = data.loc[fold[1]]
         lime_fold_values, lime_fold_explanations = lime_values[i]
-        # print(f"Fold {i} - Number of molecules: {len(test_f)}")
+        # Collect logs for this fold
+        fold_logs = []
+        fold_logs.append([f"Fold {i}"])
+        fold_logs.append([f"LIME values for fold {i}: {lime_fold_values}"])
+        # fold_logs.append([f"LIME explanations for fold {i}: {lime_fold_explanations}"])
         feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
-        # print(f"Lime Values for fold {i}: {lime_fold_values}")
-        # Process LIME values into dictionaries for each molecule
         lime_dicts = []
         for lime_array in lime_fold_values:
             lime_dict = {item[0].split('=')[0]: item[1] for item in lime_array}
             lime_dicts.append(lime_dict)
 
-        # print(f"LIME dictionaries for fold {i}: {lime_dicts}")
-        # Calculate mean absolute LIME values per feature
         feature_values = {feature: [] for feature in feature_names}
         for lime_dict in lime_dicts:
             for feature in feature_names:
-                feature_values[feature].append(abs(lime_dict.get(feature, 0)))
+                feature_values[feature].append(np.abs(lime_dict.get(feature, 0)))
+                # Save the print output to logs
+            fold_logs.append([f"Feature: {feature}, Values: {feature_values[feature]}"])
         
         mean_abs_lime_values = np.array([np.mean(feature_values[feature]) for feature in feature_names])
-        # print(f"Mean absolute LIME values for fold {i}: {mean_abs_lime_values}")
-        
-        # Generate global importance plot for the fold
-        plt.figure(figsize=(12, 6))
-        top_features_idx = np.argsort(mean_abs_lime_values)[-top_i:]
-        plt.barh([feature_names[idx] for idx in top_features_idx],
-                [mean_abs_lime_values[idx] for idx in top_features_idx])
-        plt.title(f'Global LIME Feature Importance - Fold {i}')
-        plt.xlabel('Mean |LIME value|')
-        plot_path = os.path.join(plots_dir, f"lime_global_importance_fold_{i}_{timestamp}.svg")
-        plt.savefig(plot_path, bbox_inches='tight', dpi=300, format='svg')
-        plt.close()
-
-        # Generate correlation plot
-        plt.figure(figsize=(12, 6))
-        correlations = []
-        for feat_idx in top_features_idx:
-            feature = feature_names[feat_idx]
-            lime_values_for_feature = [lime_dict.get(feature, 0) for lime_dict in lime_dicts]
-            X_test = test_f.drop(columns=['capacity_max', 'smiles'])
-            capacity_pred = cv_pipeline.predict_capacity(X_test)
-            correlation = np.corrcoef(lime_values_for_feature, capacity_pred)[0, 1]
-            correlations.append(correlation)
-        
-        plt.barh([feature_names[idx] for idx in top_features_idx], correlations)
-        plt.title(f'LIME Values vs Predicted Capacity Correlation - Fold {i}')
-        plt.xlabel('Correlation coefficient')
-        plot_path = os.path.join(plots_dir, f"lime_correlation_fold_{i}_{timestamp}.svg")
-        plt.savefig(plot_path, bbox_inches='tight', dpi=300, format='svg')
-        plt.close()
+        fold_logs.append([f"Mean absolute LIME values for fold {i}: {mean_abs_lime_values}"])
 
         # Get top features
         top_i_indices = np.argsort(mean_abs_lime_values)[-top_i:][::-1]
+        fold_logs.append([f"Top {top_i} feature indices for fold {i}: {top_i_indices}"])
         top_i_indices = [idx for idx in top_i_indices if mean_abs_lime_values[idx] != 0]
         top_i_feature_names = [feature_names[i] for i in top_i_indices]
+        fold_logs.append([f"Top {top_i} feature names for fold {i}: {top_i_feature_names}"])
 
         with open(smarts_mapping_path, 'r') as f:
             smarts_mapping = json.load(f)
@@ -324,7 +306,7 @@ def process_folds_global(folds, data, lime_values, smarts_mapping_path, top_i=10
             (i, match_molecule_global(feature, test_f, data), feature): smarts_mapping[f'maccsfingerprint{int(feature.replace("maccsfingerprint", ""))}'][0]
             for feature in top_i_feature_names
         }
-
+        fold_logs.append([f"SMARTS for top features in fold {i}: {smarts_topi}"])
         match_molecules = {key: [] for key in smarts_topi.keys()}
         molecules_statistics = {s: {
             "number_of_molecules_where_fingerprint": 0,
@@ -347,10 +329,45 @@ def process_folds_global(folds, data, lime_values, smarts_mapping_path, top_i=10
             })
             correlation = df.corr(method='spearman').loc['lime_values', 'capacity_values']
             molecules_statistics[key]["lime_sign"] = f'Positive|{correlation}' if correlation > 0 else f'Negative|{correlation}'
-
+        fold_logs.append([f"Molecules correleation statistics for fold {i}: {molecules_statistics}"])
         smarts_top_all.update(smarts_topi)
         match_molecules_all.update(match_molecules)
         molecules_statistics_all.update(molecules_statistics)
+
+        fold_logs.append([f"Top features indices for fold {i}: {top_i_indices}"])
+        all_logs.extend(fold_logs)
+
+        # Generate global importance plot for the fold
+        plt.figure(figsize=(12, 6))
+        plt.barh([feature_names[idx] for idx in top_i_indices],
+                [mean_abs_lime_values[idx] for idx in top_i_indices])
+        plt.title(f'Global LIME Feature Importance - Fold {i}')
+        plt.xlabel('Mean |LIME value|')
+        plot_path = os.path.join(plots_dir, f"lime_global_importance_fold_{i}_{timestamp}.svg")
+        plt.savefig(plot_path, bbox_inches='tight', dpi=300, format='svg')
+        plt.close()
+
+        # Generate correlation plot
+        plt.figure(figsize=(12, 6))
+        correlations = []
+        for feat_idx in top_i_indices:
+            feature = feature_names[feat_idx]
+            lime_values_for_feature = [lime_dict.get(feature, 0) for lime_dict in lime_dicts]
+            X_test = test_f.drop(columns=['capacity_max', 'smiles'])
+            capacity_pred = cv_pipeline.predict_capacity(X_test)
+            correlation = np.corrcoef(lime_values_for_feature, capacity_pred)[0, 1]
+            correlations.append(correlation)
+        
+        plt.barh([feature_names[idx] for idx in top_i_indices], correlations)
+        plt.title(f'LIME Values vs Predicted Capacity Correlation - Fold {i}')
+        plt.xlabel('Correlation coefficient')
+        plot_path = os.path.join(plots_dir, f"lime_correlation_fold_{i}_{timestamp}.svg")
+        plt.savefig(plot_path, bbox_inches='tight', dpi=300, format='svg')
+        plt.close()
+
+
+    # Save all logs to CSV
+    pd.DataFrame(all_logs, columns=["log"]).to_csv(log_file_path, index=False)
 
     molecules_statistics_all = number_where_important_global(molecules_statistics_all, match_molecules_all)
     return smarts_top_all, match_molecules_all, molecules_statistics_all

@@ -147,6 +147,14 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
     # Collect per-counterfactual feature change info for CSV
     cf_change_rows = []
 
+    # Prepare log file path
+    parent_dir = os.path.dirname(os.getcwd())
+    log_dir = os.path.join(parent_dir, 'results', 'logs', "MMACE", datetime.today().strftime("%d-%m-%Y"))
+    os.makedirs(log_dir, exist_ok=True)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    log_file_path = os.path.join(log_dir, f'mmace_fold_logs_{timestamp}.csv')
+    all_logs = []
+
     for i, fold in enumerate(folds):
         test_f = data.loc[fold[1]]
         mmace_cf = MMACE_Explanations[i]["explanations"]
@@ -168,7 +176,6 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
 
             # Calculate feature importance for each counterfactual
             feature_impacts = []
-            # print(f"==================\nProcessing fold {i}, instance {idx} with {len(counterfactuals)} counterfactuals\n============")
             for cf in counterfactuals:
                 if not hasattr(cf, 'smiles'):  # Skip invalid counterfactuals
                     continue
@@ -177,16 +184,11 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
                 cf_mol = Chem.MolFromSmiles(cf.smiles)
                 if cf_mol is None:
                     continue
-                # Generate MACCS fingerprint DataFrame for the counterfactual molecule
                 fps = [list(Chem.MACCSkeys.GenMACCSKeys(cf_mol).ToBitString())]
                 fps = np.array(fps)[:, 1:]
                 fps_df = pd.DataFrame(fps, columns=[f'maccsfingerprint{i}' for i in range(fps.shape[1])])
-
-
-                # Align cf_features with original_features
                 cf_features = fps_df.iloc[0].astype(int)
 
-                # Calculate feature differences and their impact
                 feature_diff = cf_features - original_features
                 prediction_org = float(original['capacity_max'])
                 prediction_cf = float(cf.yhat)
@@ -194,14 +196,13 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
 
                 # get number of features changed
                 num_features_changed = sum(feature_diff != 0)
-                print(num_features_changed)
+                all_logs.append([f"Fold {i}, instance {idx}: num_features_changed = {num_features_changed}"])
 
                 # Magnitude-based attribution
                 if explanation_value_mode == "magnitude":
                     abs_deltas = {feat: abs(diff) for feat, diff in feature_diff.items() if diff != 0}
                     total_change = sum(abs_deltas.values())
                     for feat, diff in feature_diff.items():
-                        # print(f"Feature: {feat}, Diff: {diff}, Total Change: {total_change}")
                         if diff != 0:
                             weight = abs(diff) / total_change if total_change != 0 else 0
                             explanation_value = weight * prediction_diff
@@ -222,11 +223,13 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
                                 'features_original': original_features.to_dict(),
                                 'features_cf': cf_features.to_dict()
                             })
+                            all_logs.append([f"Fold {i}, instance {idx}, feature {feat}: diff={diff}, weight={weight}, explanation_value={explanation_value}"])
                 else:
                     # Per-feature method
                     for feat, diff in feature_diff.items():
                         if diff != 0:
-                            impact = prediction_diff #* diff
+                            impact = prediction_diff
+                            explanation_value = np.abs(prediction_cf/num_features_changed) if num_features_changed > 0 else 0
                             feature_impacts.append((feat, impact))
                             cf_change_rows.append({
                                 "Fold_no": i,
@@ -237,13 +240,14 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
                                 "Prediction_original": prediction_org,
                                 "Prediction_cf": prediction_cf,
                                 "Prediction_difference": prediction_diff,
-                                'Explanation_value': np.abs(prediction_cf/num_features_changed) if num_features_changed > 0 else 0, 
+                                'Explanation_value': explanation_value, 
                                 'Explanation_sign': 'positive' if explanation_value > 0 else 'negative',
                                 'AddedRemoved': diff,
                                 'Model': 'MMACE',
                                 'features_original': original_features.to_dict(),
                                 'features_cf': cf_features.to_dict()
                             })
+                            all_logs.append([f"Fold {i}, instance {idx}, feature {feat}: diff={diff}, explanation_value={explanation_value}"])
             
             # Aggregate feature impacts
             if feature_impacts:
@@ -274,6 +278,9 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
         # pdf_path = create_mmace_pdf(MMACE_Explanations, i, results_dir)
         # print(f"Created PDF report for fold {i} at: {pdf_path}")
     
+    # Save all logs to CSV
+    pd.DataFrame(all_logs, columns=["log"]).to_csv(log_file_path, index=False)
+
     # Save overall feature importance to CSV
     importance_df = pd.DataFrame([{f: i for f, i in fold} 
                                 for fold in feature_importance_per_fold])

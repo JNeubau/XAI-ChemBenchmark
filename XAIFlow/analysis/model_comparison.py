@@ -85,15 +85,15 @@ def calculate_model_rankings(df):
             
             # Create a row for each feature
             # Extract numeric value from 'Explanation_sign' (e.g., "Positive|0.4010989010989011")
-            def parse_corr_value(val):
-                if isinstance(val, str) and '|' in val:
-                    try:
-                        return float(val.split('|')[1])
-                    except Exception:
-                        return np.nan
-                return np.nan
+            # def parse_corr_value(val):
+            #     if isinstance(val, str) and '|' in val:
+            #         try:
+            #             return float(val.split('|')[1])
+            #         except Exception:
+            #             return np.nan
+            #     return np.nan
 
-            corr_values = feature_data['Explanation_sign'].apply(parse_corr_value)
+            # corr_values = feature_data['Explanation_sign'].apply(parse_corr_value)
             row = {
                 'Model': model,
                 'Feature': feature_key,
@@ -209,7 +209,7 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
     bump_data['Rank'] = bump_data.groupby('Model')['Average_Explanation_Value'].rank(ascending=False, method='min')
     
     # Fix for deprecation warning: handle top N features selection differently
-    N = 10
+    N = 5
     top_features = []
     for model in bump_data['Model'].unique():
         model_data = bump_data[bump_data['Model'] == model].copy()
@@ -227,6 +227,10 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
     avg_rank = bump_pivot.mean(axis=1).sort_values()
     bump_pivot = bump_pivot.loc[avg_rank.index]
 
+    # Assign a unique color to each feature
+    feature_colors = sns.color_palette('tab20', n_colors=len(bump_pivot.index))
+    color_map = dict(zip(bump_pivot.index, feature_colors))
+
     plt.figure(figsize=(15, 8))
     for feature in bump_pivot.index:
         plt.plot(
@@ -234,7 +238,8 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
             bump_pivot.loc[feature],
             marker='o',
             label=feature,
-            linewidth=2
+            linewidth=2,
+            color=color_map[feature]
         )
     plt.gca().invert_yaxis()  # Rank 1 at the top
     plt.title('Bump Chart: Feature Ranking Across Models', pad=20)
@@ -266,6 +271,11 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
     # Sort features by their average rank for plotting order (worst at top)
     avg_rank_worst = bump_pivot_worst.mean(axis=1).sort_values(ascending=False)
     bump_pivot_worst = bump_pivot_worst.loc[avg_rank_worst.index]
+
+    # Assign a unique color to each feature for the worst bump chart
+    feature_colors_worst = sns.color_palette('tab20', n_colors=len(bump_pivot_worst.index))
+    color_map_worst = dict(zip(bump_pivot_worst.index, feature_colors_worst))
+
     plt.figure(figsize=(15, 8))
     for feature in bump_pivot_worst.index:
         plt.plot(
@@ -273,7 +283,8 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
             bump_pivot_worst.loc[feature],
             marker='o',
             label=feature,
-            linewidth=2
+            linewidth=2,
+            color=color_map_worst[feature]
         )
     plt.gca().invert_yaxis()  # Rank 1 at the top
     plt.title('Bump Chart: Worst Feature Ranking Across Models', pad=20)
