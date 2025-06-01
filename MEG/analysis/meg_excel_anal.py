@@ -101,7 +101,6 @@ def process_dataframes(og_df, cf_df):
         
         cf_fp = cf_row.get('features')
         
-        
         changed = sum([abs(og_fp[j] - cf_fp[j]) for j in range(len(og_fp))])
         for i in range(len(og_fp)):
             if og_fp[i] == cf_fp[i]:
@@ -148,38 +147,80 @@ def aggregate_to_global(df: pd.DataFrame):
         'SMILES', 'SMILES_cf', 'features_original', 'features_cf', 
         'count_changes'])
     
-    distinct_folds = df['Fold'].unique().tolist()
-    
-    for fold in distinct_folds:
-        mean_explanation_values = []
+    # distinct_folds = df['Fold'].unique().tolist()
+    agg_results = []    
+    for fold in df['Fold'].unique():
+        print(fold)
         sub_df = df[df['Fold'] == fold]
         
-        distinct_features = sub_df['Feature_key'].unique().tolist()
-        for feature in distinct_features:
-            feature_df = sub_df[sub_df['Feature_key'] == feature]
-            if feature_df.empty:
-                continue
-            # Calculate mean explanation value (not absolute) to capture correlation direction
-            mean_explanation_values.append((feature, abs(feature_df['Explanation_value']).mean(), feature_df['Explanation_value'].mean(), feature_df['Prediction_difference'].mean(), feature_df['count_changes'].sum()))
+        feature_stats = (
+            sub_df.groupby('Feature_key')
+            .agg({
+                'Explanation_value': ['mean', 
+                                      lambda x: x.abs().mean()],
+                'Explanation_sign': lambda x: x.mode()[0] if not x.mode().empty else '',
+                'Prediction_difference': 'mean',
+                'count_changes': 'sum'
+            })
+        )
+        
+        feature_stats.columns = [f"{col[0]}_{col[1]}" if col[1] else col[0] for col in feature_stats.columns]
+          
+        feature_stats = feature_stats.rename(columns={
+            'Explanation_value_mean': 'Explanation_value',
+            'Explanation_value_<lambda_0>': 'Explanation_value_abs',
+            'Explanation_sign_<lambda_0>': 'Explanation_sign',
+            'Prediction_difference_mean': 'Prediction_difference',
+            'count_changes_sum': 'count_changes'
+        })
+        
+        top_features = (
+            feature_stats
+            .sort_values('Explanation_value', ascending=False)
+            .head(10)
+            .reset_index()
+        )
+        
+        top_features['SMILES_original'] = ''
+        top_features['SMILES'] = ''
+        top_features['SMILES_cf'] = ''
+        top_features['Fold_no'] = fold
+        top_features['Model'] = 'MEG'
+        top_features['features_original'] = ''
+        top_features['features_cf'] = ''
+        
+        agg_results.append(top_features)
+        print(agg_results)
+        
+        if agg_results:
+            global_df = pd.concat(agg_results, ignore_index=True)
+        
+        # distinct_features = sub_df['Feature_key'].unique().tolist()
+        # for feature in distinct_features:
+        #     feature_df = sub_df[sub_df['Feature_key'] == feature]
+        #     if feature_df.empty:
+        #         continue
+        #     # Calculate mean explanation value (not absolute) to capture correlation direction
+        #     mean_explanation_values.append((feature, abs(feature_df['Explanation_value']).mean(), feature_df['Explanation_value'].mean(), feature_df['Prediction_difference'].mean(), feature_df['count_changes'].sum()))
             
-        mean_explanation_values.sort(key=lambda x: x[1], reverse=True)  
-        for feature, mean_value, mean_explanation_value_no_abs, mean_prediction_diff, summed_changes in mean_explanation_values[:10]:
-            global_row = {
-                'Fold_no': fold,
-                'Feature_key': feature,
-                'Model': 'MEG',
-                'Prediction_difference': mean_prediction_diff,
-                'Explanation_value': mean_value,
-                'Explanation_value_not_abs': mean_explanation_value_no_abs,
-                'Explanation_sign': 'Positive' if mean_explanation_value_no_abs > 0 else 'Negative',
-                'SMILES_original': '',
-                'SMILES': '',
-                'SMILES_cf': '',
-                'features_original': '',
-                'features_cf': '',
-                'count_changes': summed_changes
-            }
-            global_df = pd.concat([global_df, pd.DataFrame([global_row])], ignore_index=True)
+        # mean_explanation_values.sort(key=lambda x: x[1], reverse=True)  
+        # for feature, mean_value, mean_explanation_value_no_abs, mean_prediction_diff, summed_changes in mean_explanation_values[:10]:
+        #     global_row = {
+        #         'Fold_no': fold,
+        #         'Feature_key': feature,
+        #         'Model': 'MEG',
+        #         'Prediction_difference': mean_prediction_diff,
+        #         'Explanation_value': mean_value,
+        #         'Explanation_value_not_abs': mean_explanation_value_no_abs,
+        #         'Explanation_sign': 'Positive' if mean_explanation_value_no_abs > 0 else 'Negative',
+        #         'SMILES_original': '',
+        #         'SMILES': '',
+        #         'SMILES_cf': '',
+        #         'features_original': '',
+        #         'features_cf': '',
+        #         'count_changes': summed_changes
+        #     }
+        #     global_df = pd.concat([global_df, pd.DataFrame([global_row])], ignore_index=True)
         
     return global_df
 
