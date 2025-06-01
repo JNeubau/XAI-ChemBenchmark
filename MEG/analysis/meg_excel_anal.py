@@ -15,11 +15,13 @@ smarts_mapping_path = os.path.join(parent_dir, 'data', 'new_maccs_smarts_mapping
 
 experiment_name = 'full_test' 
     
+    
 def find_json_files(base_dir):
     search_pattern = os.path.join(
         base_dir, 'meg_output', "*_*", "data.json"
     )
     return glob(search_pattern)
+
 
 def parse_json_file(json_file):
     folder_name = os.path.basename(os.path.dirname(json_file))
@@ -77,8 +79,10 @@ def convert_json_to_dataframel(data):
                     axis=1, inplace=True)
     return original_df, counterfactual_df
 
+
 def get_rf_model(model_path):
     return joblib.load(model_path)
+
 
 def process_dataframes(og_df, cf_df):
     result_df = pd.DataFrame(columns=['Fold', 'Instance', 'Feature_key', 'SMARTS', 'SMILES_original', 'SMILES', 'Original_Prediction', 
@@ -134,11 +138,51 @@ def process_dataframes(og_df, cf_df):
                 'count_changes': changed
             }
             result_df = pd.concat([result_df, pd.DataFrame([new_row])], ignore_index=True)
+    return result_df
 
-    return 
 
-def aggregate_to_global(df: pd.DataFrame):
-    return
+def aggregate_to_global(df: pd.DataFrame):    
+    global_df = pd.DataFrame(columns=[
+        'Fold_no', 'Feature_key', 'Model', 'Prediction_difference', 
+        'Explanation_value', 'Explanation_sign', 'SMILES_original', 
+        'SMILES', 'SMILES_cf', 'features_original', 'features_cf', 
+        'count_changes'])
+    
+    distinct_folds = df['Fold'].unique().tolist()
+    
+    for fold in distinct_folds:
+        mean_explanation_values = []
+        sub_df = df[df['Fold'] == fold]
+        
+        distinct_features = sub_df['Feature_key'].unique().tolist()
+        for feature in distinct_features:
+            feature_df = sub_df[sub_df['Feature_key'] == feature]
+            if feature_df.empty:
+                continue
+            # Calculate mean explanation value (not absolute) to capture correlation direction
+            mean_explanation_values.append((feature, abs(feature_df['Explanation_value']).mean(), feature_df['Explanation_value'].mean(), feature_df['Prediction_difference'].mean(), feature_df['count_changes'].sum()))
+            
+        mean_explanation_values.sort(key=lambda x: x[1], reverse=True)  
+        for feature, mean_value, mean_explanation_value_no_abs, mean_prediction_diff, summed_changes in mean_explanation_values[:10]:
+            global_row = {
+                'Fold_no': fold,
+                'Feature_key': feature,
+                'Model': 'MEG',
+                'Prediction_difference': mean_prediction_diff,
+                'Explanation_value': mean_value,
+                'Explanation_value_not_abs': mean_explanation_value_no_abs,
+                'Explanation_sign': 'Positive' if mean_explanation_value_no_abs > 0 else 'Negative',
+                'SMILES_original': '',
+                'SMILES': '',
+                'SMILES_cf': '',
+                'features_original': '',
+                'features_cf': '',
+                'count_changes': summed_changes
+            }
+            global_df = pd.concat([global_df, pd.DataFrame([global_row])], ignore_index=True)
+        
+    return global_df
+
 
 def save_to_excel(df: pd.DataFrame, output_dir, output_excel):
     os.makedirs(output_dir, exist_ok=True)
@@ -146,22 +190,23 @@ def save_to_excel(df: pd.DataFrame, output_dir, output_excel):
     print(f"Data successfully saved to {os.path.join(output_dir, output_excel)}")
     return df
 
-def anal_global():
+
+def analize():
     workdir = os.path.join(os.getcwd(), 'results', experiment_name, 'MEG')
     output_excel = f'molecule_results_with_highlights_{datetime.now().strftime("%H-%M-%S")}.xlsx'
 
-    json_files = find_json_files(workdir)
-    all_data = collect_all_data(json_files)
-    og_df, cf_df = convert_json_to_dataframel(all_data)
-    save_to_excel(og_df, os.path.join(workdir, 'local'), 'raw_og_' + output_excel)
-    save_to_excel(cf_df, os.path.join(workdir, 'local'), 'raw_cf_' + output_excel)
+    og_df, cf_df = convert_json_to_dataframel(collect_all_data(find_json_files(workdir)))
+    # save_to_excel(og_df, os.path.join(workdir, 'local'), 'raw_og_' + output_excel)
+    # save_to_excel(cf_df, os.path.join(workdir, 'local'), 'raw_cf_' + output_excel)
     
     local_result_df = process_dataframes(og_df, cf_df)
+    print(local_result_df.head(10))
+    print(local_result_df.T)
     save_to_excel(local_result_df, os.path.join(workdir, 'local'), output_excel)
     
-    # global_result_df = aggregate_to_global(local_result_df)
-    # save_to_excel(global_result_df, os.path.join(workdir, 'global'), output_excel)
+    global_result_df = aggregate_to_global(local_result_df)
+    save_to_excel(global_result_df, os.path.join(workdir, 'global'), output_excel)
     
 
 if __name__ == "__main__":
-    anal_global()
+    analize()
