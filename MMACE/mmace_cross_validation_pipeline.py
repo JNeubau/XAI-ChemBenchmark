@@ -148,7 +148,7 @@ class CrossValidationMMACEPipeline:
         with open(save_scores_path, "a", encoding="utf-8") as f:
             f.writelines(lines)
 
-    def generate_MMACE_explanations(self, model, X_test: pd.DataFrame, list_smiles: pd.Series, fold: int = 0) -> tuple:
+    def generate_MMACE_explanations(self, model, X_test: pd.DataFrame, list_smiles: pd.Series, fold: int = 0, maccs_merge_path=None) -> tuple:
         """
         Generate MMACE explanations using the exmol library.
         :param model: trained model.
@@ -161,33 +161,34 @@ class CrossValidationMMACEPipeline:
         samples_fold = []
         cfs_fold = []
 
+        # parent_dir = os.path.dirname(os.getcwd())
+        # # Ensure maccs_merge_path is always set
+        # if maccs_merge_path is None:
+        #     maccs_merge_path = os.path.join(parent_dir, 'data', 'new_maccs_merged.csv')
+
         def local_predict_fn(x):
             fps = [list(Chem.MACCSkeys.GenMACCSKeys(Chem.MolFromSmiles(x)).ToBitString())]
             fps = np.array(fps)[:, 1:]
             fps_df = pd.DataFrame(fps, columns=[f'maccsfingerprint{i}' for i in range(len(fps[0]))])
 
-            parent_dir = os.path.dirname(os.getcwd())
-            maccs_merge_path = os.path.join(parent_dir, 'data', 'new_maccs_merged.csv')
-            # maccs_merge_path = os.path.join(parent_dir, 'data', 'maccs_merged.csv')
+            # # maccs_merge_path is now always defined
+            # if not os.path.exists(maccs_merge_path):
+            #     raise FileNotFoundError(f"MACCS merge file not found: {maccs_merge_path}")
 
-            if not os.path.exists(maccs_merge_path):
-                raise FileNotFoundError(f"MACCS merge file not found: {maccs_merge_path}")
+            # maccs_merge = pd.read_csv(maccs_merge_path)
+            # maccs_merge = maccs_merge.loc[:, maccs_merge.columns.str.contains('maccs', case=False)]
+            # selected_keys = maccs_merge.columns.tolist()
 
-            maccs_merge = pd.read_csv(maccs_merge_path)
-            maccs_merge = maccs_merge.loc[:, maccs_merge.columns.str.contains('maccs', case=False)]
-            selected_keys = maccs_merge.columns.tolist()
-
-            selected_keys = [key for key in selected_keys if key in fps_df.columns]
-            filtered_fps = fps_df[selected_keys]
-            # labeled_fps = pd.DataFrame(filtered_fps, columns=selected_keys)
-            return model.predict(filtered_fps).flatten()
+            # selected_keys = [key for key in selected_keys if key in fps_df.columns]
+            # filtered_fps = fps_df[selected_keys]
+            return model.predict(fps_df).flatten()
 
         for i, instance in X_test.iterrows():
             smiles = list_smiles.iloc[i]
             print(f"Processing instance {i} with SMILES: {smiles}")
             try:
                 stoned_kwargs = {
-                    "num_samples": 250,
+                    "num_samples": 20,
                     "alphabet": self.custom_alphabet if self.custom_alphabet else exmol.get_basic_alphabet(),
                     "max_mutations": 2,
                 }

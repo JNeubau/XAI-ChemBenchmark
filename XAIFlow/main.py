@@ -19,14 +19,18 @@ from SHAP_IQ.shapiq_cross_validation import CrossValidationShapIqPipeline
 import SHAP_IQ.shapiqplot as plot_iq
 
 
-def mainXaiFlow(model, local_explanation=True, max_order_iq=1,experiment_name='battery'):
+def mainXaiFlow(model, local_explanation=True, max_order_iq=1,experiment_name='battery', data_file=None):
     if model != 'SHAP_IQ':
         max_order_iq = 1
     print("Model: ", model)
     parent_dir = os.path.dirname(os.getcwd())
     print("Parent directory:", parent_dir)
     
-    maccs_fingerprints = os.path.join(parent_dir, 'data', 'new_maccs_merged.csv')
+    if data_file is None:
+        maccs_fingerprints = os.path.join(parent_dir, 'data', 'new_maccs_merged.csv')
+    else:
+        maccs_fingerprints =  os.path.join(parent_dir, 'data', data_file)
+        
     smarts_mapping_path = os.path.join(parent_dir, 'data', 'maccs_smarts_mapping.json')
     if max_order_iq > 1 and local_explanation:
         explenation_type = 'local_interactions'
@@ -78,13 +82,16 @@ def mainXaiFlow(model, local_explanation=True, max_order_iq=1,experiment_name='b
     save_scores_to_excel(scores_data, results_dir)
     
             
-def mainXaiFlow_all(model, local_explanation=True, max_order_iq=1, dataset_name='battery', experiment_name='test', folds=5, seed=42, train_rfreg=True):
+def mainXaiFlow_all(model, local_explanation=True, max_order_iq=1, dataset_name='battery', experiment_name='test', folds=5, seed=42, train_rfreg=True, data_file=None):
     print("Model: ", model)
     if model != 'SHAP_IQ':
         max_order_iq = 1
     
     parent_dir = os.path.dirname(os.getcwd())
-    maccs_fingerprints = os.path.join(parent_dir, 'data', 'new_maccs_merged.csv')
+    if data_file is None:
+        maccs_fingerprints = os.path.join(parent_dir, 'data', 'new_maccs_merged.csv')
+    else:
+        maccs_fingerprints = data_file
     smarts_mapping_path = os.path.join(parent_dir, 'data', 'maccs_smarts_mapping.json')
     if max_order_iq > 1 and local_explanation:
         explenation_type = 'local_interactions'
@@ -667,6 +674,7 @@ if __name__ == '__main__':
     parser.add_argument('--train_rfreg', action='store_true', default=False, help='Train new model (default: False)')
     parser.add_argument('--max_order', type=int, default=1, help='Maximum interaction order for SHAP_IQ (default: 1)')
     parser.add_argument('--seed', type=int, default=42, help='Set seed value (default: 42)')
+    parser.add_argument('--data_file', type=str, default=None, help='Path to the data file (default: None)')
     
     args = parser.parse_args()
     experiment_name = args.experiment_name
@@ -683,7 +691,8 @@ if __name__ == '__main__':
         experiment_name=args.experiment_name,
         folds=args.fold,
         seed=args.seed,
-        train_rfreg=args.train_rfreg
+        train_rfreg=args.train_rfreg,
+        data_file=args.data_file
     )
     
     # model = 'SHAP' # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 

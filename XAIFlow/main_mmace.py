@@ -18,15 +18,17 @@ from MMACE.mmace_cross_validation_pipeline import CrossValidationMMACEPipeline
 from MMACE.savemmacecfexcel import save_mmace_explanations_to_excel, create_mmace_pdf #,save_mmace_explanations_to_excel_new
 
 
-def mainMMACEFlow(experiment_name = 'battery', seed=42, explanation_value_mode="per_feature"):
+def mainMMACEFlow(experiment_name = 'battery', seed=42, explanation_value_mode="per_feature", data_file=None):
     np.random.seed(seed)
     random.seed(seed)
     print("Running MMACE explanation pipeline...")
     parent_dir = os.path.dirname(os.getcwd())
     print("Parent directory:", parent_dir)
     
-
-    maccs_fingerprints = os.path.join(parent_dir, 'data', 'new_maccs_merged.csv')
+    if data_file is None:
+        maccs_fingerprints = os.path.join(parent_dir, 'data', 'new_maccs_merged.csv')
+    else:
+        maccs_fingerprints =  os.path.join(parent_dir, 'data', data_file)
     # maccs_fingerprints = os.path.join(parent_dir, 'data', 'maccs_merged.csv')
     results_dir = os.path.join(parent_dir, 'results', experiment_name, 'MMACE', 'local', datetime.today().strftime("%d-%m-%Y"))
     folds_dir = os.path.join(parent_dir, 'RFReg', experiment_name, 'folds')
@@ -41,8 +43,8 @@ def mainMMACEFlow(experiment_name = 'battery', seed=42, explanation_value_mode="
     folds = load_fold_indices(folds_dir)
     # folds = custom_data_kfold(data.drop(columns=['capacity_max']), data[['capacity_max']], 5)
 
-    print(f"Number of folds: {len(folds)}")
-    print(f"Number of molecules: {len(data)}")
+    # print(f"Number of folds: {len(folds)}")
+    # print(f"Number of molecules: {len(data)}")
 
     cv_pipeline = CrossValidationMMACEPipeline(
         X=data.drop(columns=['capacity_max', 'smiles']),
@@ -63,7 +65,7 @@ def mainMMACEFlow(experiment_name = 'battery', seed=42, explanation_value_mode="
 
     save_mmace_explanations_to_excel(MMACE_Explanations, results_dir=results_dir)
    
-    process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, explanation_value_mode=explanation_value_mode)
+    process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, explanation_value_mode=explanation_value_mode,experiment_name=experiment_name)
 
 def get_custom_alphabet(data):
     """
@@ -136,7 +138,7 @@ def export_mmace_feature_changes_to_excel(cf_change_rows, results_dir):
 
     print(f"MMACE counterfactual feature changes exported to: {excel_file}")
 
-def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, explanation_value_mode="per_feature"):
+def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, explanation_value_mode="per_feature",experiment_name='battery'):
     """Process folds for local MMACE explanations."""
     print("Processing folds for local MMACE...")
     plots_dir = os.path.join(results_dir, 'plots')
@@ -154,6 +156,10 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     log_file_path = os.path.join(log_dir, f'mmace_fold_logs_{timestamp}.csv')
     all_logs = []
+    shaplike_logs = []  # <-- Add this line to collect SHAP-like logs
+
+    from copy import deepcopy
+    import joblib
 
     for i, fold in enumerate(folds):
         test_f = data.loc[fold[1]]
@@ -173,6 +179,14 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
             original_fps = np.array(original_fps)[:, 1:]
             original_fps_df = pd.DataFrame(original_fps, columns=[f'maccsfingerprint{i}' for i in range(original_fps.shape[1])])
             original_features = original_fps_df.iloc[0].astype(int)
+
+            # Load model for this fold (like in mmace_cross_validation_pipeline.py)
+            model_path = os.path.join(parent_dir, 'RFReg', experiment_name, 'ckpt', f"model_{i}.joblib")
+            print(f"Loading model for fold {i} from {model_path}")
+            if os.path.exists(model_path):
+                rf_model = joblib.load(model_path)
+            else:
+                rf_model = None
 
             # Calculate feature importance for each counterfactual
             feature_impacts = []
@@ -224,6 +238,53 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
                                 'features_cf': cf_features.to_dict()
                             })
                             all_logs.append([f"Fold {i}, instance {idx}, feature {feat}: diff={diff}, weight={weight}, explanation_value={explanation_value}"])
+                elif explanation_value_mode == "shap_like":
+                    # print("Using SHAP-like explanation mode")
+                    # SHAP-like: For each changed feature, revert it in the CF fingerprint, predict, and compute difference
+                    for feat, diff in feature_diff.items():
+                        # print(f"printing feature {feat} with diff {diff}, model {rf_model}")
+                        if diff != 0 and rf_model is not None:
+                            print(f"Processing feature {feat} with diff {diff} for fold {i}, instance {idx}")
+                            # Create a copy of the CF fingerprint
+                            cf_fingerprint = cf_features.copy()
+                            # Revert the feature to original value
+                            cf_fingerprint[feat] = original_features[feat]
+                            # Predict for the "partially reverted" fingerprint
+                            # Convert to DataFrame with correct shape
+                            input_df = pd.DataFrame([cf_fingerprint])
+                            # Predict (assumes model expects MACCS features in order)
+                            pred_reverted = rf_model.predict(input_df)[0]
+                            explanation_value = prediction_cf - pred_reverted
+                            feature_impacts.append((feat, explanation_value))
+                            cf_change_rows.append({
+                                "Fold_no": i,
+                                "SMILES_original": original['smiles'],
+                                "SMILES": str(original['smiles']),
+                                "SMILES_cf": str(cf.smiles),
+                                "Feature_key": feat,
+                                "Prediction_original": prediction_org,
+                                "Prediction_cf": prediction_cf,
+                                "Prediction_difference": prediction_diff,
+                                "Explanation_value": explanation_value,
+                                "Explanation_sign": 'Positive' if explanation_value > 0 else 'Negative',
+                                "AddedRemoved": diff,
+                                "Model": "MMACE",
+                                "features_original": original_features.to_dict(),
+                                "features_cf": cf_features.to_dict()
+                            })
+                            all_logs.append([f"Fold {i}, instance {idx}, feature {feat}: shap_like explanation_value={explanation_value}"])
+                            # --- SHAP-like CSV log ---
+                            shaplike_logs.append({
+                                "fold": i,
+                                "instance": idx,
+                                "feature": feat,
+                                "diff": diff,
+                                "prediction_cf": prediction_cf,
+                                "prediction_reverted": pred_reverted,
+                                "explanation_value": explanation_value,
+                                "smiles_original": original['smiles'],
+                                "smiles_cf": cf.smiles
+                            })
                 else:
                     # Per-feature method
                     for feat, diff in feature_diff.items():
@@ -264,15 +325,15 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
         feature_importance_per_fold.append(top_features)
         
         # Plot feature importance
-        plt.figure(figsize=(12, 6))
-        features, importances = zip(*top_features)
-        plt.barh([f"{f} ({i:.3f})" for f, i in zip(features, importances)], 
-                [abs(i) for i in importances])
-        plt.title(f'Top Feature Importance - Fold {i}')
-        plt.xlabel('|Impact on Prediction|')
-        plt.tight_layout()
-        plt.savefig(os.path.join(plots_dir, f'feature_importance_fold_{i}.png'))
-        plt.close()
+        # plt.figure(figsize=(12, 6))
+        # features, importances = zip(*top_features)
+        # plt.barh([f"{f} ({i:.3f})" for f, i in zip(features, importances)], 
+        #         [abs(i) for i in importances])
+        # plt.title(f'Top Feature Importance - Fold {i}')
+        # plt.xlabel('|Impact on Prediction|')
+        # plt.tight_layout()
+        # plt.savefig(os.path.join(plots_dir, f'feature_importance_fold_{i}.png'))
+        # plt.close()
         
         # # Create PDF report
         # pdf_path = create_mmace_pdf(MMACE_Explanations, i, results_dir)
@@ -280,6 +341,12 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
     
     # Save all logs to CSV
     pd.DataFrame(all_logs, columns=["log"]).to_csv(log_file_path, index=False)
+
+    # Save SHAP-like explanation values log if any
+    if shaplike_logs:
+        shaplike_log_path = os.path.join(results_dir, "shaplike_explanation_values.csv")
+        pd.DataFrame(shaplike_logs).to_csv(shaplike_log_path, index=False)
+        print(f"SHAP-like explanation values log saved to {shaplike_log_path}")
 
     # Save overall feature importance to CSV
     importance_df = pd.DataFrame([{f: i for f, i in fold} 
@@ -342,13 +409,16 @@ if __name__ == '__main__':
     parser.add_argument('--experiment_name', type=str, default='test', help='Name of the experiment (default: test)')
     parser.add_argument('--model', type=str, default='MMACE', help='Model to use (default: MMACE)')
     parser.add_argument('--seed', type=int, default=42, help='Set seed value (default: 42)')
-    parser.add_argument('--explanation_value_mode', type=str, default='per_feature', choices=['per_feature', 'magnitude'],
-                        help='Explanation value calculation mode: per_feature or magnitude (default: per_feature)')
-    
+    parser.add_argument('--explanation_value_mode', type=str, default='per_feature', choices=['per_feature', 'magnitude', 'shap_like'],
+                        help='Explanation value calculation mode: per_feature, magnitude, or shap_like (default: per_feature)')
+    parser.add_argument('--data_file', type=str, default=None, help='Path to the data file (default: None)')
     args = parser.parse_args()
     
     print(f"\n=== Running {args.model} ===\n")
     print("Arguments:", vars(args))
-    # experiment_name = 'rf_test'
-    mainMMACEFlow(experiment_name=args.experiment_name,
-                  seed=args.seed,explanation_value_mode=args.explanation_value_mode)
+    mainMMACEFlow(
+        experiment_name=args.experiment_name,
+        seed=args.seed,
+        explanation_value_mode=args.explanation_value_mode,
+        data_file=args.data_file
+    )

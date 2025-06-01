@@ -16,12 +16,16 @@ sys.path.append(os.path.dirname(os.getcwd()))
 
 from LIME.lime_tabular_explainer import CrossValidationLimePipeline
 
-def mainXaiFlow(model, local_explanation=True, experiment_name='rf_test', folds=5, seed=42, train_rfreg=False):
+def mainXaiFlow(model, local_explanation=True, experiment_name='rf_test', folds=5, seed=42, train_rfreg=False, data_file=None):
     print("Model: ", model)
     parent_dir = os.path.dirname(os.getcwd())
     print("Parent directory:", parent_dir)
     
-    maccs_fingerprints = os.path.join(parent_dir, 'data', 'new_maccs_merged.csv')
+    if data_file is None:
+        maccs_fingerprints = os.path.join(parent_dir, 'data', 'new_maccs_merged.csv')
+    else:
+        maccs_fingerprints =  os.path.join(parent_dir, 'data', data_file)
+    
     smarts_mapping_path = os.path.join(parent_dir, 'data', 'maccs_smarts_mapping.json')
     if local_explanation:
         explenation_type = 'local'    
@@ -429,16 +433,19 @@ if __name__ == '__main__':
     parser.add_argument('--local', action='store_true', default=False, help='Use local explanations (default: False)')
     parser.add_argument('--train_rfreg', action='store_true', default=False, help='Train new model (default: False)')
     parser.add_argument('--seed', type=int, default=42, help='Set seed value (default: 42)')
-    
+    parser.add_argument('--data_file', type=str, default=None, help='Path to the data file (default: None)')
     args = parser.parse_args()
     experiment_name = args.experiment_name
     model = args.model
     
     print(f"\n=== Running {args.model} ===\n")
     print("Arguments:", vars(args))
-    mainXaiFlow(model, 
-                local_explanation=args.local,
-                experiment_name=args.experiment_name, 
-                folds=args.fold, 
-                seed=args.seed,
-                train_rfreg=args.train_rfreg)
+    mainXaiFlow(
+        model,
+        local_explanation=args.local,
+        experiment_name=args.experiment_name,
+        folds=args.fold,
+        seed=args.seed,
+        train_rfreg=args.train_rfreg,
+        data_file=args.data_file
+    )

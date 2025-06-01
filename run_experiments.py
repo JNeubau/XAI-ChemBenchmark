@@ -2,12 +2,11 @@ import os
 
 def mainXaiFlow(dataset_name='battery', experiment_name='test', num_folds=5, data_file='', seed=42, expl_val_mode='per_feature'):
     model_trained = False
-    methods = ['SHAP', 'LIME', 'MMACE', 'SHAP_IQ', 'MEG']    # MEG must run after training model
-    # methods = ['MMACE']    # MEG must run after training model
-    # methods = ['MEG']    # MEG must run after training model
+    methods = ['SHAP','LIME', 'SHAP_IQ','MMACE']    # MEG must run after training model
+
     python_310_path = os.path.join(os.getcwd(), '.venv', 'Scripts', 'python')
     # python_310_path = os.path.join(os.getcwd(), '.venv', 'bin', 'python3')
-    
+    # model_trained=True
     for method in methods:  
         if method == 'MEG':
             # cannot run first
@@ -16,19 +15,19 @@ def mainXaiFlow(dataset_name='battery', experiment_name='test', num_folds=5, dat
         
         elif method in ['SHAP', 'SHAP_IQ']:                        
             if not model_trained:   # global
-                os.system(f"{python_310_path} {os.path.join(os.getcwd(), 'XAIFlow', 'main')}.py --dataset_name {dataset_name} --experiment_name {experiment_name} --fold {num_folds} --model {method} --max_order 1 --seed {seed} --train_rfreg")
+                os.system(f"{python_310_path} {os.path.join(os.getcwd(), 'XAIFlow', 'main')}.py --dataset_name {dataset_name} --experiment_name {experiment_name} --fold {num_folds} --model {method} --max_order 1 --seed {seed} --train_rfreg --data_file {data_file}")
             else:
-                os.system(f"{python_310_path} {os.path.join(os.getcwd(), 'XAIFlow', 'main')}.py --dataset_name {dataset_name} --experiment_name {experiment_name} --fold {num_folds} --model {method} --max_order 1 --seed {seed}")
+                os.system(f"{python_310_path} {os.path.join(os.getcwd(), 'XAIFlow', 'main')}.py --dataset_name {dataset_name} --experiment_name {experiment_name} --fold {num_folds} --model {method} --max_order 1 --seed {seed} --data_file {data_file}")
             
         elif method == 'MMACE':
             # cannot run first
-            os.system(f"{python_310_path} {os.path.join(os.getcwd(), 'XAIFlow', 'main_mmace')}.py --experiment_name {experiment_name} --model {method} --seed {seed} --explanation_value_mode {expl_val_mode}")
+            os.system(f"{python_310_path} {os.path.join(os.getcwd(), 'XAIFlow', 'main_mmace')}.py --experiment_name {experiment_name} --model {method} --seed {seed} --explanation_value_mode {expl_val_mode} --data_file {data_file}")
             
         elif method == 'LIME':
             if not model_trained:   # global
-                os.system(f"{python_310_path} {os.path.join(os.getcwd(), 'XAIFlow', 'main_limetab')}.py --experiment_name {experiment_name} --fold {num_folds} --model {method} --seed {seed} --train_rfreg")
+                os.system(f"{python_310_path} {os.path.join(os.getcwd(), 'XAIFlow', 'main_limetab')}.py --experiment_name {experiment_name} --fold {num_folds} --model {method} --seed {seed} --train_rfreg --data_file {data_file}")
             else:
-                os.system(f"{python_310_path} {os.path.join(os.getcwd(), 'XAIFlow', 'main_limetab')}.py --experiment_name {experiment_name} --fold {num_folds} --model {method} --seed {seed}")
+                os.system(f"{python_310_path} {os.path.join(os.getcwd(), 'XAIFlow', 'main_limetab')}.py --experiment_name {experiment_name} --fold {num_folds} --model {method} --seed {seed} --data_file {data_file}")
         print(method, ' done')
         model_trained = True
 
@@ -36,6 +35,6 @@ if __name__ == '__main__':
     mainXaiFlow(dataset_name='battery', 
                 experiment_name='full_test', 
                 num_folds=5, 
-                data_file=os.path.join(os.getcwd(), 'data', 'new_maccs_merged.csv'), 
+                data_file=os.path.join(os.getcwd(), 'data', 'new_maccs_merged_all.csv'), 
                 seed=42,
-                expl_val_mode='magnitude') #per_feature, magnitude
+                expl_val_mode='shap_like') #per_feature, magnitude
