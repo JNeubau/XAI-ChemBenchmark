@@ -6,6 +6,13 @@ from pathlib import Path
 import sys
 import matplotlib.pyplot as plt
 import seaborn as sns
+import json
+import xlsxwriter
+from io import BytesIO
+
+# --- Add RDKit imports for SMARTS visualization ---
+from rdkit import Chem
+from rdkit.Chem import Draw
 
 def normalize_explanation_values(df):
     """Normalize explanation values for each model to make them comparable."""
@@ -335,6 +342,156 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
     plt.savefig(os.path.join(plots_dir, f'bump_chart_worst_{timestamp}.png'), dpi=300, bbox_inches='tight', pad_inches=0.5)
     plt.close()
 
+def smarts_to_png(smarts, output_file):
+    """
+    Converts a SMARTS string to a PNG image and saves it to a file.
+    :param smarts: SMARTS string representing the substructure
+    :param output_file: Path to the output PNG file
+    """
+    mol = Chem.MolFromSmarts(smarts)
+    if mol is None:
+        raise ValueError(f"Invalid SMARTS string: {smarts}")
+    img = Draw.MolToImage(mol, size=(400, 400))
+    img.save(output_file)
+
+def get_smarts_mapping():
+    """
+    Loads the MACCS SMARTS mapping from the parent data folder.
+    Returns a dict: feature_key -> SMARTS string (or None if not found).
+    """
+    # Find the mapping file relative to this script
+    script_dir = Path(__file__).parent
+    mapping_path = script_dir.parent.parent / "data" / "maccs_smarts_mapping.json"
+    with open(mapping_path, "r") as f:
+        mapping = json.load(f)
+    # Reverse mapping: key is the SMARTS name (e.g., "maccsfingerprint0"), value is SMARTS string
+    return {k: v[0] for k, v in mapping.items()}
+
+def get_smarts_for_feature(feature_key, smarts_mapping):
+    """
+    Try to find the SMARTS string for a given feature_key.
+    Returns SMARTS string or None.
+    """
+    # Try direct match
+    if feature_key in smarts_mapping:
+        return smarts_mapping[feature_key]
+    # Try with prefix (e.g., "maccsfingerprint12")
+    if isinstance(feature_key, str) and feature_key.startswith("maccsfingerprint"):
+        return smarts_mapping.get(feature_key)
+    # Try integer index (e.g., 12 -> "maccsfingerprint12")
+    try:
+        idx = int(feature_key)
+        return smarts_mapping.get(f"maccsfingerprint{idx}")
+    except Exception:
+        pass
+    return None
+
+def add_smarts_images_to_ranking(df, output_dir, prefix, smarts_mapping, TopNFeatures=15):
+    """
+    For the top-N features in df, generate SMARTS images if possible.
+    Returns a DataFrame with an added 'SMARTS_Image' column (path to PNG or empty).
+    """
+    images_dir = os.path.join(output_dir, "smarts_images")
+    os.makedirs(images_dir, exist_ok=True)
+    df = df.copy()
+    smarts_imgs = []
+    for i, row in df.iterrows():
+        feature = row['Feature'] if 'Feature' in row else row.get('Feature_key', None)
+        smarts = get_smarts_for_feature(feature, smarts_mapping)
+        if smarts and smarts != "?":
+            img_path = os.path.join(images_dir, f"{prefix}_{feature}.png")
+            try:
+                smarts_to_png(smarts, img_path)
+                smarts_imgs.append(img_path)
+            except Exception:
+                smarts_imgs.append("")
+        else:
+            smarts_imgs.append("")
+    df['SMARTS_Image'] = smarts_imgs
+    return df
+
+def generate_anonymous_ranking_excel(model_rankings, overall_ranking_df, output_dir, timestamp):
+    """
+    Generate an Excel file with:
+    - Rankings for each method (model), anonymized as Method 1, Method 2, ...
+    - Overall ranking for all models
+    - 'dinner' sheet with the mapping/order of models
+    - SMARTS images for top features (if available), embedded in Excel
+    """
+    anon_file = os.path.join(output_dir, f'anonymous_model_rankings_{timestamp}.xlsx')
+    models = list(model_rankings.index.get_level_values('Model').unique())
+    anon_names = [f"Method {i+1}" for i in range(len(models))]
+    model_map = dict(zip(models, anon_names))
+
+    # Prepare anonymized rankings
+    anon_rankings = model_rankings.reset_index().copy()
+    anon_rankings['Method'] = anon_rankings['Model'].map(model_map)
+    anon_rankings = anon_rankings.drop(columns=['Model'])
+    cols = ['Method', 'Feature', 'Average_Explanation_Value', 'Std_Dev', 'Min_Value', 'Max_Value', 'Fold_Count']
+    anon_rankings = anon_rankings[cols]
+
+    # Prepare overall ranking (already anonymized)
+    overall_anon = overall_ranking_df.copy()
+
+    # Prepare dinner sheet (model order)
+    dinner_df = pd.DataFrame({'Model': models, 'Method': [model_map[m] for m in models]})
+
+    # --- SMARTS mapping and images ---
+    smarts_mapping = get_smarts_mapping()
+    N = 15
+
+    def get_smarts_img_bytes(feature, prefix):
+        smarts = get_smarts_for_feature(feature, smarts_mapping)
+        if smarts and smarts != "?":
+            try:
+                mol = Chem.MolFromSmarts(smarts)
+                if mol:
+                    img = Draw.MolToImage(mol, size=(250, 250))
+                    img_buffer = BytesIO()
+                    img.save(img_buffer, format='PNG')
+                    img_buffer.seek(0)
+                    return img_buffer
+            except Exception:
+                return None
+        return None
+
+    # Write to Excel with images using xlsxwriter
+    with pd.ExcelWriter(anon_file, engine="xlsxwriter") as writer:
+        # Each method in a separate sheet (top N with SMARTS images)
+        for i, model in enumerate(models):
+            method_name = model_map[model]
+            method_df = anon_rankings[anon_rankings['Method'] == method_name].copy()
+            method_df_top = method_df.nlargest(N, 'Average_Explanation_Value').reset_index(drop=True)
+            method_df_top.to_excel(writer, sheet_name=method_name, index=False, startrow=0, startcol=0)
+            worksheet = writer.sheets[method_name]
+            # Insert SMARTS images
+            for row_idx, row in method_df_top.iterrows():
+                img_buffer = get_smarts_img_bytes(row['Feature'], method_name)
+                if img_buffer:
+                    worksheet.insert_image(row_idx + 1, len(method_df_top.columns), '', {'image_data': img_buffer})
+            worksheet.set_column(len(method_df_top.columns), len(method_df_top.columns), 20)
+            worksheet.set_column(0, len(method_df_top.columns)-1, 18)
+            for row_idx in range(len(method_df_top)):
+                worksheet.set_row(row_idx + 1, 150)
+
+        # Overall ranking (top N with SMARTS images)
+        overall_anon_top = overall_anon.head(N).reset_index(drop=True)
+        overall_anon_top.to_excel(writer, sheet_name='Overall_Ranking', index=False, startrow=0, startcol=0)
+        worksheet = writer.sheets['Overall_Ranking']
+        for row_idx, row in overall_anon_top.iterrows():
+            img_buffer = get_smarts_img_bytes(row['Feature'], "overall")
+            if img_buffer:
+                worksheet.insert_image(row_idx + 1, len(overall_anon_top.columns), '', {'image_data': img_buffer})
+        worksheet.set_column(len(overall_anon_top.columns), len(overall_anon_top.columns), 20)
+        worksheet.set_column(0, len(overall_anon_top.columns)-1, 18)
+        for row_idx in range(len(overall_anon_top)):
+            worksheet.set_row(row_idx + 1, 150)
+
+        # Dinner sheet
+        dinner_df.to_excel(writer, sheet_name='methods', index=False)
+
+    return anon_file
+
 def generate_comparison_report(results_dir, output_dir):
     """Generate comprehensive comparison report."""
     try:
@@ -400,6 +557,9 @@ def generate_comparison_report(results_dir, output_dir):
                 top_features = agg_features.nlargest(10, 'Explanation_value')
                 top_features.to_excel(writer, sheet_name=f'{model}_TF', index=False)
         
+        anon_file = generate_anonymous_ranking_excel(model_rankings, overall_ranking_df, output_dir, timestamp)
+        print(f"Anonymous ranking Excel generated: {anon_file}")
+
         return output_file
     except Exception as e:
         print(f"Error: {str(e)}")
