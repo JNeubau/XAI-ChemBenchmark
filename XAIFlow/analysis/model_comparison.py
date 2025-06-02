@@ -425,9 +425,16 @@ def generate_anonymous_ranking_excel(model_rankings, overall_ranking_df, output_
 
     # Prepare anonymized rankings
     anon_rankings = model_rankings.reset_index().copy()
+    
+    anon_rankings['Explanation_sign'] = anon_rankings.apply(
+        lambda row: "Positive" if row['Min_Value'] >= 0 else 
+                   "Negative" if row['Max_Value'] <= 0 else 
+                   "Mixed", axis=1
+    )
+    
     anon_rankings['Method'] = anon_rankings['Model'].map(model_map)
     anon_rankings = anon_rankings.drop(columns=['Model'])
-    cols = ['Method', 'Feature', 'Average_Explanation_Value', 'Std_Dev', 'Min_Value', 'Max_Value', 'Fold_Count']
+    cols = ['Method', 'Feature', 'Average_Explanation_Value', 'Std_Dev', 'Min_Value', 'Max_Value', 'Fold_Count', 'Explanation_sign']
     anon_rankings = anon_rankings[cols]
 
     # Prepare overall ranking (already anonymized)
