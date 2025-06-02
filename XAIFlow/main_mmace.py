@@ -161,6 +161,12 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
     from copy import deepcopy
     import joblib
 
+    # Load SMARTS mapping once
+    smarts_mapping_path = os.path.join(parent_dir, 'data', 'maccs_smarts_mapping.json')
+    import json
+    with open(smarts_mapping_path, 'r') as f:
+        smarts_mapping = json.load(f)
+
     for i, fold in enumerate(folds):
         test_f = data.loc[fold[1]]
         mmace_cf = MMACE_Explanations[i]["explanations"]
@@ -227,6 +233,7 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
                                 "SMILES": str(original['smiles']),
                                 "SMILES_cf": str(cf.smiles),
                                 "Feature_key": feat,
+                                "SMARTS": smarts_mapping.get(feat, [""])[0],
                                 "Prediction_original": prediction_org,
                                 "Prediction_cf": prediction_cf,
                                 'Prediction_difference': prediction_diff,
@@ -244,7 +251,6 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
                     for feat, diff in feature_diff.items():
                         # print(f"printing feature {feat} with diff {diff}, model {rf_model}")
                         if diff != 0 and rf_model is not None:
-                            print(f"Processing feature {feat} with diff {diff} for fold {i}, instance {idx}")
                             # Create a copy of the CF fingerprint
                             cf_fingerprint = cf_features.copy()
                             # Revert the feature to original value
@@ -262,6 +268,7 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
                                 "SMILES": str(original['smiles']),
                                 "SMILES_cf": str(cf.smiles),
                                 "Feature_key": feat,
+                                "SMARTS": smarts_mapping.get(feat, [""])[0],
                                 "Prediction_original": prediction_org,
                                 "Prediction_cf": prediction_cf,
                                 "Prediction_difference": prediction_diff,
@@ -298,6 +305,7 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
                                 "SMILES": str(original['smiles']),
                                 "SMILES_cf": str(cf.smiles),
                                 "Feature_key": feat,
+                                "SMARTS": smarts_mapping.get(feat, [""])[0],
                                 "Prediction_original": prediction_org,
                                 "Prediction_cf": prediction_cf,
                                 "Prediction_difference": prediction_diff,
@@ -365,7 +373,7 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
         # --- Aggregate data in cf_change_rows for each fold ---
         # Aggregate to match the structure of cf_change_rows for Excel export
         agg_cols = [
-            'Fold_no', 'Feature_key', 'Model'
+            'Fold_no', 'Feature_key','SMARTS' ,'Model'
         ]
         agg_df = (
             cf_change_df

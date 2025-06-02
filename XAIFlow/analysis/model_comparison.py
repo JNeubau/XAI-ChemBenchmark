@@ -128,6 +128,47 @@ def compare_feature_importance(df):
     
     return pivot_table, correlation_matrix
 
+def compute_overall_feature_ranking(rankings_df):
+    """
+    Compute overall feature ranking across all models by averaging normalized explanation values.
+    Returns a DataFrame with Feature, Mean_Avg_Explanation_Value, Std, and Model_Count.
+    """
+    # rankings_df: MultiIndex (Model, Feature)
+    df = rankings_df.reset_index()
+    grouped = df.groupby('Feature')['Average_Explanation_Value'].agg(['mean', 'std', 'count']).reset_index()
+    grouped = grouped.rename(columns={
+        'mean': 'Mean_Avg_Explanation_Value',
+        'std': 'Std_Avg_Explanation_Value',
+        'count': 'Model_Count'
+    })
+    grouped = grouped.sort_values('Mean_Avg_Explanation_Value', ascending=False)
+    return grouped
+
+def plot_overall_feature_ranking(overall_ranking_df, output_dir, timestamp, N=15):
+    """
+    Plot a bar chart for the overall feature ranking.
+    """
+    plots_dir = os.path.join(output_dir, 'plots')
+    os.makedirs(plots_dir, exist_ok=True)
+    top_n = overall_ranking_df.head(N)
+    plt.figure(figsize=(15, 7))
+    # Assign Feature to hue and set legend=False to avoid FutureWarning
+    sns.barplot(
+        data=top_n,
+        x='Feature',
+        y='Mean_Avg_Explanation_Value',
+        hue='Feature',
+        palette='viridis',
+        legend=False
+    )
+    plt.xticks(rotation=90, ha='right')
+    plt.title(f'Top {N} Features: Overall Ranking Across All Models', pad=20)
+    plt.xlabel('Feature', labelpad=10)
+    plt.ylabel('Mean Normalized Explanation Value', labelpad=10)
+    plt.tight_layout()
+    plt.savefig(os.path.join(plots_dir, f'overall_feature_ranking_{timestamp}.png'), dpi=300, bbox_inches='tight', pad_inches=0.5)
+    plt.close()
+
 def create_ranking_plots(rankings_df, output_dir, timestamp):
     """Create visualizations for model rankings."""
     # Set style
@@ -181,27 +222,6 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
                 pad_inches=0.5)  # Added padding for legend
     plt.close()
 
-    # # 1b. Bar plot: Average Explanation Value with Sign for Every Feature
-    # plt.figure(figsize=(15, 8))
-    # signed_data = rankings_df.reset_index()
-    # # Use Corr_value as the sign (positive/negative correlation)
-    # signed_data['Signed_Avg_Explanation_Value'] = signed_data['Average_Explanation_Value'] * np.sign(signed_data['Corr_value'].fillna(1))
-    # sns.barplot(
-    #     data=signed_data,
-    #     x='Feature',
-    #     y='Signed_Avg_Explanation_Value',
-    #     hue='Model',
-    #     palette='deep'
-    # )
-    # plt.xticks(rotation=90, ha='right')
-    # plt.title('Average Explanation Value (with Sign) for Every Feature', pad=20)
-    # plt.xlabel('Feature', labelpad=10)
-    # plt.ylabel('Signed Average Explanation Value', labelpad=10)
-    # plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-    # plt.tight_layout()
-    # plt.savefig(os.path.join(plots_dir, f'signed_avg_expl_value_{timestamp}.png'), dpi=300, bbox_inches='tight', pad_inches=0.5)
-    # plt.close()
-
     # 1c. Bump chart: Feature ranking changes across models
     # Prepare data for bump chart
     bump_data = rankings_df.reset_index()
@@ -223,6 +243,11 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
     # Pivot for bump chart: rows=Feature, columns=Model, values=Rank
     bump_pivot = bump_data.pivot(index='Feature', columns='Model', values='Rank')
 
+    # --- Force model order: LIME, SHAP, MMACE, MEG (if present) ---
+    desired_order = [m for m in ['LIME', 'SHAP', 'MMACE', 'MEG'] if m in bump_pivot.columns]
+    bump_pivot = bump_pivot[desired_order]
+    # # -------------------------------------------------------------
+
     # Sort features by their average rank for plotting order
     avg_rank = bump_pivot.mean(axis=1).sort_values()
     bump_pivot = bump_pivot.loc[avg_rank.index]
@@ -233,14 +258,25 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
 
     plt.figure(figsize=(15, 8))
     for feature in bump_pivot.index:
+        y = bump_pivot.loc[feature]
+        mask = y.notna()
         plt.plot(
-            bump_pivot.columns,
-            bump_pivot.loc[feature],
+            y.index[mask], y[mask],
             marker='o',
             label=feature,
             linewidth=2,
             color=color_map[feature]
         )
+        # If there are missing values, plot them as faded/dashed
+        # if not mask.all():
+        #     plt.plot(
+        #         y.index, y,
+        #         marker='o',
+        #         linewidth=2,
+        #         color=color_map[feature],
+        #         alpha=0.3,
+        #         linestyle='--'
+        #     )
     plt.gca().invert_yaxis()  # Rank 1 at the top
     plt.title('Bump Chart: Feature Ranking Across Models', pad=20)
     plt.xlabel('Model', labelpad=10)
@@ -256,18 +292,21 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
     bump_data_worst = rankings_df.reset_index()
     # Rank features within each model (1 = highest, so worst = largest rank)
     bump_data_worst['Rank'] = bump_data_worst.groupby('Model')['Average_Explanation_Value'].rank(ascending=False, method='min')
-    N_worst = 5
+    N_worst = 3
     worst_features = []
     for model in bump_data_worst['Model'].unique():
         model_data = bump_data_worst[bump_data_worst['Model'] == model].copy()
         worst_n = model_data.nlargest(N_worst, 'Rank')[['Feature']]
-        print(f"Model: {model}, Worst Features: {worst_n['Feature'].tolist()}")
+        # print(f"Model: {model}, Worst Features: {worst_n['Feature'].tolist()}")
         worst_features.extend(worst_n['Feature'].tolist())
     # Get unique worst features across all models
     worst_features_set = set(worst_features)
     bump_data_worst = bump_data_worst[bump_data_worst['Feature'].isin(worst_features_set)]
     # Pivot for bump chart: rows=Feature, columns=Model, values=Rank
     bump_pivot_worst = bump_data_worst.pivot(index='Feature', columns='Model', values='Rank')
+    # --- Force model order: LIME, SHAP, MMACE, MEG (if present) ---
+    bump_pivot_worst = bump_pivot_worst[desired_order]
+    # -------------------------------------------------------------
     # Sort features by their average rank for plotting order (worst at top)
     avg_rank_worst = bump_pivot_worst.mean(axis=1).sort_values(ascending=False)
     bump_pivot_worst = bump_pivot_worst.loc[avg_rank_worst.index]
@@ -295,56 +334,6 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
     plt.tight_layout()
     plt.savefig(os.path.join(plots_dir, f'bump_chart_worst_{timestamp}.png'), dpi=300, bbox_inches='tight', pad_inches=0.5)
     plt.close()
-    
-    # 5. Heatmap of correlation between models
-    # pivot_table, correlation_matrix = compare_feature_importance(rankings_df.reset_index().rename(columns={'Feature': 'Feature_key'}))
-    # plt.figure(figsize=(8, 6))
-    # sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', vmin=-1, vmax=1, fmt=".2f", cbar_kws={'label': 'Correlation'})
-    # plt.title('Correlation Between Models (Feature Importance)', pad=20)
-    # plt.tight_layout()
-    # plt.savefig(os.path.join(plots_dir, f'model_correlation_heatmap_{timestamp}.png'), dpi=300, bbox_inches='tight')
-    # plt.close()
-
-
-    # 2. Box plot showing value distribution
-    # plt.figure(figsize=(15, 8))
-    # plot_data = rankings_df.reset_index()
-    # plot_data['Range'] = plot_data['Max_Value'] - plot_data['Min_Value']
-    # sns.boxplot(data=plot_data, x='Model', y='Range', hue='Model', legend=False)
-    # plt.title('Distribution of Explanation Value Ranges by Model', pad=20)
-    # plt.xlabel('Model', labelpad=10)
-    # plt.ylabel('Value Range', labelpad=10)
-    # plt.tight_layout()
-    # plt.savefig(os.path.join(plots_dir, f'value_distribution_{timestamp}.png'), dpi=300, bbox_inches='tight')
-    # plt.close()
-
-    # 3. Heatmap of metrics
-    # plt.figure(figsize=(12, 8))
-    # metrics = ['Average_Explanation_Value', 'Std_Dev', 'Fold_Count']
-    # heatmap_data = rankings_df[metrics].groupby('Model').mean()
-    # sns.heatmap(heatmap_data, annot=True, cmap='YlOrRd', fmt='.2f', cbar_kws={'label': 'Value'})
-    # plt.title('Model Metrics Heatmap', pad=20)
-    # plt.tight_layout()
-    # plt.savefig(os.path.join(plots_dir, f'metrics_heatmap_{timestamp}.png'), dpi=300, bbox_inches='tight')
-    # plt.close()
-
-    # 4. Scatter plot of Average vs Std Dev
-    # plt.figure(figsize=(10, 8))
-    # colors = sns.color_palette('deep', n_colors=len(rankings_df.index.get_level_values('Model').unique()))
-    # for idx, model in enumerate(rankings_df.index.get_level_values('Model').unique()):
-    #     model_data = rankings_df.xs(model)
-    #     plt.scatter(model_data['Average_Explanation_Value'], 
-    #                model_data['Std_Dev'], 
-    #                label=model, 
-    #                alpha=0.6,
-    #                c=[colors[idx]])
-    # plt.xlabel('Average Explanation Value', labelpad=10)
-    # plt.ylabel('Standard Deviation', labelpad=10)
-    # plt.title('Average Explanation Value vs Standard Deviation', pad=20)
-    # plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-    # plt.tight_layout()
-    # plt.savefig(os.path.join(plots_dir, f'avg_vs_std_{timestamp}.png'), dpi=300, bbox_inches='tight')
-    # plt.close()
 
 def generate_comparison_report(results_dir, output_dir):
     """Generate comprehensive comparison report."""
@@ -358,6 +347,9 @@ def generate_comparison_report(results_dir, output_dir):
         # Calculate rankings
         model_rankings = calculate_model_rankings(normalize_combined_data)
         
+        # Compute overall feature ranking
+        overall_ranking_df = compute_overall_feature_ranking(model_rankings)
+        
         # Compare feature importance
         feature_importance, model_correlation = compare_feature_importance(combined_data)
         norm_feature_importance, norm_model_correlation = compare_feature_importance(normalize_combined_data)
@@ -370,11 +362,13 @@ def generate_comparison_report(results_dir, output_dir):
         
         # Create plots
         create_ranking_plots(model_rankings, output_dir, timestamp)
+        plot_overall_feature_ranking(overall_ranking_df, output_dir, timestamp)
         
         # Save results
         output_file = os.path.join(output_dir, f'model_comparison_{timestamp}.xlsx')
         with pd.ExcelWriter(output_file) as writer:
             model_rankings.to_excel(writer, sheet_name='Model_Rankings')
+            overall_ranking_df.to_excel(writer, sheet_name='Overall_Feature_Ranking', index=False)
             feature_importance.to_excel(writer, sheet_name='Feature_Importance')
             norm_feature_importance.to_excel(writer, sheet_name='Normalized_Feature_Importance')
             model_correlation.to_excel(writer, sheet_name='Model_Correlation')
