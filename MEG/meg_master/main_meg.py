@@ -46,7 +46,7 @@ def mainMegFlow(train_RF_again = True, dataset_name='battery', experiment_name='
                 train_meg(dataset=dataset_name,
                     experiment_name=experiment_name,
                     sample=sam,
-                    epochs=10, # 5000
+                    epochs=200, # 5000
                     max_steps_per_episode=1, #6
                     num_counterfactuals=12,
                     fp_length=1024,  
@@ -133,7 +133,7 @@ def mainXaiFlow(train_RF_again: bool = True, dataset_name='battery', experiment_
                         train_meg(dataset=dataset_name,
                             experiment_name=experiment_name,
                             sample=sam,
-                            epochs=10, # 5000
+                            epochs=200, # 5000
                             max_steps_per_episode=1, #6
                             num_counterfactuals=12,
                             fp_length=1024,  

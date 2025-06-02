@@ -17,19 +17,19 @@ def get_fingerprints(smiles, maccs_merge_path):
     fps = [list(MACCSkeys.GenMACCSKeys(Chem.MolFromSmiles(smiles)).ToBitString())]
     fps = np.array(fps)[:, 1:]
     fps_df = pd.DataFrame(fps, columns=[f'maccsfingerprint{i}' for i in range(len(fps[0]))])
+    return fps_df
+    # if not os.path.exists(maccs_merge_path):
+    #     raise FileNotFoundError(f"MACCS merge file not found: {maccs_merge_path}")
 
-    if not os.path.exists(maccs_merge_path):
-        raise FileNotFoundError(f"MACCS merge file not found: {maccs_merge_path}")
+    # maccs_merge = pd.read_csv(maccs_merge_path)
+    # maccs_merge = maccs_merge.loc[:, maccs_merge.columns.str.contains('maccs', case=False)]
+    # selected_keys = maccs_merge.columns.tolist()
 
-    maccs_merge = pd.read_csv(maccs_merge_path)
-    maccs_merge = maccs_merge.loc[:, maccs_merge.columns.str.contains('maccs', case=False)]
-    selected_keys = maccs_merge.columns.tolist()
+    # selected_keys = [key for key in selected_keys if key in fps_df.columns]
 
-    selected_keys = [key for key in selected_keys if key in fps_df.columns]
-
-    # Filter the fingerprints DataFrame to include only the selected keys
-    filtered_fps = fps_df[selected_keys]
-    return filtered_fps
+    # # Filter the fingerprints DataFrame to include only the selected keys
+    # filtered_fps = fps_df[selected_keys]
+    # return filtered_fps
 
 def get_smarts(fp_name, smarts_mapping_path):
     if not os.path.exists(smarts_mapping_path):

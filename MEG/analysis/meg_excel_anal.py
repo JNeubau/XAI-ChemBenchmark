@@ -5,7 +5,7 @@ import pandas as pd
 from glob import glob
 from datetime import datetime
 
-from utils import get_fingerprints, get_smarts, tanimoto_similarity
+from .utils import get_fingerprints, get_smarts, tanimoto_similarity
 import joblib
 
 parent_dir = os.getcwd()
@@ -145,7 +145,7 @@ def aggregate_to_global(df: pd.DataFrame):
         'Fold_no', 'Feature_key', 'Model', 'Prediction_difference', 
         'Explanation_value', 'Explanation_sign', 'SMILES_original', 
         'SMILES', 'SMILES_cf', 'features_original', 'features_cf', 
-        'count_changes'])
+        'count_changes', 'SMARTS'])
     
     # distinct_folds = df['Fold'].unique().tolist()
     agg_results = []    
@@ -188,6 +188,9 @@ def aggregate_to_global(df: pd.DataFrame):
         top_features['Model'] = 'MEG'
         top_features['features_original'] = ''
         top_features['features_cf'] = ''
+        top_features['SMARTS'] = top_features['Feature_key'].apply(
+            lambda fk: sub_df[sub_df['Feature_key'] == fk]['SMARTS'].iloc[0] if not sub_df[sub_df['Feature_key'] == fk].empty else ''
+        )
         
         agg_results.append(top_features)
         print(agg_results)
@@ -232,7 +235,16 @@ def save_to_excel(df: pd.DataFrame, output_dir, output_excel):
     return df
 
 
-def analize():
+def analize(l_maccs_merge_path='', l_smarts_mapping_path='', l_experiment_name=''):
+    global experiment_name, maccs_merge_path, smarts_mapping_path
+    
+    if l_maccs_merge_path != '':
+        maccs_merge_path = l_maccs_merge_path
+    if l_smarts_mapping_path != '':
+        smarts_mapping_path = l_smarts_mapping_path
+    if l_experiment_name != '':
+        experiment_name = l_experiment_name
+    
     workdir = os.path.join(os.getcwd(), 'results', experiment_name, 'MEG')
     output_excel = f'molecule_results_with_highlights_{datetime.now().strftime("%H-%M-%S")}.xlsx'
 
