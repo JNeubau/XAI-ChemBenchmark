@@ -417,6 +417,7 @@ def generate_anonymous_ranking_excel(model_rankings, overall_ranking_df, output_
     - Overall ranking for all models
     - 'dinner' sheet with the mapping/order of models
     - SMARTS images for top features (if available), embedded in Excel
+    - Average rank for each feature across methods and averaged ranking (in a separate sheet)
     """
     anon_file = os.path.join(output_dir, f'anonymous_model_rankings_{timestamp}.xlsx')
     models = list(model_rankings.index.get_level_values('Model').unique())
@@ -425,16 +426,16 @@ def generate_anonymous_ranking_excel(model_rankings, overall_ranking_df, output_
 
     # Prepare anonymized rankings
     anon_rankings = model_rankings.reset_index().copy()
-    
     anon_rankings['Explanation_sign'] = anon_rankings.apply(
         lambda row: "Positive" if row['Min_Value'] >= 0 else 
                    "Negative" if row['Max_Value'] <= 0 else 
                    "Mixed", axis=1
     )
-    
     anon_rankings['Method'] = anon_rankings['Model'].map(model_map)
+    # Add RANK per method (1 = best)
+    anon_rankings['RANK'] = anon_rankings.groupby('Method')['Average_Explanation_Value'].rank(ascending=False, method='min')
     anon_rankings = anon_rankings.drop(columns=['Model'])
-    cols = ['Method', 'Feature', 'Average_Explanation_Value', 'Std_Dev', 'Min_Value', 'Max_Value', 'Fold_Count', 'Explanation_sign']
+    cols = ['Method', 'Feature', 'Average_Explanation_Value', 'Std_Dev', 'Min_Value', 'Max_Value', 'Fold_Count', 'Explanation_sign', 'RANK']
     anon_rankings = anon_rankings[cols]
 
     # Prepare overall ranking (already anonymized)
@@ -462,6 +463,15 @@ def generate_anonymous_ranking_excel(model_rankings, overall_ranking_df, output_
                 return None
         return None
 
+    # --- Calculate average rank for each feature across methods ---
+    avg_rankings_df = model_rankings.reset_index()[['Model', 'Feature', 'Average_Explanation_Value']].copy()
+    avg_rankings_df['Rank'] = avg_rankings_df.groupby('Model')['Average_Explanation_Value'].rank(ascending=False, method='min')
+    avg_rank_df = avg_rankings_df.groupby('Feature')['Rank'].mean().reset_index()
+    avg_rank_df = avg_rank_df.rename(columns={'Rank': 'Average_Rank'})
+    avg_rank_df = avg_rank_df.sort_values('Average_Rank')
+    avg_rank_df['SMARTS'] = avg_rank_df['Feature'].apply(lambda f: get_smarts_for_feature(f, smarts_mapping))
+    avg_rank_df_top = avg_rank_df.head(N).reset_index(drop=True)
+
     # Write to Excel with images using xlsxwriter
     with pd.ExcelWriter(anon_file, engine="xlsxwriter") as writer:
         # Each method in a separate sheet (top N with SMARTS images)
@@ -480,13 +490,14 @@ def generate_anonymous_ranking_excel(model_rankings, overall_ranking_df, output_
             worksheet.set_column(0, len(method_df_top.columns)-1, 18)
             for row_idx in range(len(method_df_top)):
                 worksheet.set_row(row_idx + 1, 200)
-            # Hide columns C to G (index 2 to 6)
             worksheet.set_column(2, 6, None, None, {'hidden': True})
+            # Hide RANK column (last column, index = len(method_df_top.columns)-1)
+            worksheet.set_column(len(method_df_top.columns)-1, len(method_df_top.columns)-1, None, None, {'hidden': True})
 
         # Overall ranking (top N with SMARTS images)
         overall_anon_top = overall_anon.head(N).reset_index(drop=True)
-        overall_anon_top.to_excel(writer, sheet_name='Overall_Ranking', index=False, startrow=0, startcol=0)
-        worksheet = writer.sheets['Overall_Ranking']
+        overall_anon_top.to_excel(writer, sheet_name=f'Methods {len(models)+1}', index=False, startrow=0, startcol=0)
+        worksheet = writer.sheets[f'Methods {len(models)+1}']
         for row_idx, row in overall_anon_top.iterrows():
             img_buffer = get_smarts_img_bytes(row['Feature'], "overall")
             if img_buffer:
@@ -495,8 +506,19 @@ def generate_anonymous_ranking_excel(model_rankings, overall_ranking_df, output_
         worksheet.set_column(0, len(overall_anon_top.columns)-1, 18)
         for row_idx in range(len(overall_anon_top)):
             worksheet.set_row(row_idx + 1, 200)
-        # Hide columns C to G (index 2 to 6)
         worksheet.set_column(2, 6, None, None, {'hidden': True})
+
+        # Average ranking sheet (top N with SMARTS images)
+        avg_rank_df_top.to_excel(writer, sheet_name=f'Methods {len(models)+2}', index=False, startrow=0, startcol=0)
+        worksheet = writer.sheets[f'Methods {len(models)+2}']
+        for row_idx, row in avg_rank_df_top.iterrows():
+            img_buffer = get_smarts_img_bytes(row['Feature'], "average")
+            if img_buffer:
+                worksheet.insert_image(row_idx + 1, len(avg_rank_df_top.columns), '', {'image_data': img_buffer})
+        worksheet.set_column(len(avg_rank_df_top.columns), len(avg_rank_df_top.columns), 20)
+        worksheet.set_column(0, len(avg_rank_df_top.columns)-1, 18)
+        for row_idx in range(len(avg_rank_df_top)):
+            worksheet.set_row(row_idx + 1, 200)
 
         # Dinner sheet
         dinner_df.to_excel(writer, sheet_name='methods', index=False)
@@ -517,7 +539,7 @@ def generate_comparison_report(results_dir, output_dir):
         
         # Compute overall feature ranking
         overall_ranking_df = compute_overall_feature_ranking(model_rankings)
-        
+
         # Compare feature importance
         feature_importance, model_correlation = compare_feature_importance(combined_data)
         norm_feature_importance, norm_model_correlation = compare_feature_importance(normalize_combined_data)
