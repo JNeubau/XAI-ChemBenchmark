@@ -446,7 +446,7 @@ def generate_anonymous_ranking_excel(model_rankings, overall_ranking_df, output_
             try:
                 mol = Chem.MolFromSmarts(smarts)
                 if mol:
-                    img = Draw.MolToImage(mol, size=(250, 250))
+                    img = Draw.MolToImage(mol, size=(200, 200))
                     img_buffer = BytesIO()
                     img.save(img_buffer, format='PNG')
                     img_buffer.seek(0)
@@ -472,7 +472,9 @@ def generate_anonymous_ranking_excel(model_rankings, overall_ranking_df, output_
             worksheet.set_column(len(method_df_top.columns), len(method_df_top.columns), 20)
             worksheet.set_column(0, len(method_df_top.columns)-1, 18)
             for row_idx in range(len(method_df_top)):
-                worksheet.set_row(row_idx + 1, 150)
+                worksheet.set_row(row_idx + 1, 200)
+            # Hide columns C to G (index 2 to 6)
+            worksheet.set_column(2, 6, None, None, {'hidden': True})
 
         # Overall ranking (top N with SMARTS images)
         overall_anon_top = overall_anon.head(N).reset_index(drop=True)
@@ -485,7 +487,9 @@ def generate_anonymous_ranking_excel(model_rankings, overall_ranking_df, output_
         worksheet.set_column(len(overall_anon_top.columns), len(overall_anon_top.columns), 20)
         worksheet.set_column(0, len(overall_anon_top.columns)-1, 18)
         for row_idx in range(len(overall_anon_top)):
-            worksheet.set_row(row_idx + 1, 150)
+            worksheet.set_row(row_idx + 1, 200)
+        # Hide columns C to G (index 2 to 6)
+        worksheet.set_column(2, 6, None, None, {'hidden': True})
 
         # Dinner sheet
         dinner_df.to_excel(writer, sheet_name='methods', index=False)
