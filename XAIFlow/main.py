@@ -255,7 +255,9 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
         "Explanation_sign": [],
         "Capacity_Max": [],
         "Capacity_Pred": [],
-        "Model": []
+        "Model": [],
+        "positive_changes": [],
+        "negative_changes": []
     }
             
     for key, smarts in smarts_top.items():
@@ -271,6 +273,8 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
         excel_data["Explanation_sign"].append(molecules_statistics_all[key]["shap_sign"])
         excel_data["Capacity_Max"].append(molecules_statistics_all[key]["capacity_max"])
         excel_data["Capacity_Pred"].append(molecules_statistics_all[key]["capacity_pred"])
+        excel_data["positive_changes"].append(molecules_statistics_all[key]["positive_changes"])
+        excel_data["negative_changes"].append(molecules_statistics_all[key]["negative_changes"])
         if model == 'SHAP_IQ':
             if max_order_iq > 1:
                 excel_data["Model"].append("SHAP_IQ_I")
@@ -278,6 +282,8 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
                 excel_data["Model"].append("SHAP_IQ")
         else:
             excel_data["Model"].append("SHAP")
+            
+    # print(excel_data)
     
     return excel_data
 
@@ -427,7 +433,12 @@ def process_folds_global(folds, data, shap_values, smarts_mapping_path, top_i=10
         test_f = data.loc[fold[1]]
         shap_f = shap_values[i]
         feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
+        num_positive = np.sum(shap_f > 0, axis=0)
+        num_negative = np.sum(shap_f < 0, axis=0)
+        all_logs.append([f"Number of positive SHAP values for fold {i}: {num_positive}"])
+        all_logs.append([f"Number of negative SHAP values for fold {i}: {num_negative}"])
         mean_abs_shap_values = np.mean(np.abs(shap_f), axis=0)
+        print('mean abs: ', mean_abs_shap_values)
         all_logs.append([f"Fold {i}"])
         all_logs.append([f"SHAP values for fold {i}: {shap_f}"])
         # all_logs.append([f"Feature names: {feature_names}"])
@@ -455,7 +466,9 @@ def process_folds_global(folds, data, shap_values, smarts_mapping_path, top_i=10
             "shap_sign": '',
             "feature_in_smiles": True,
             "capacity_max": 0,
-            "capacity_pred": 0
+            "capacity_pred": 0,
+            'positive_changes': num_positive[feature_names.index(s[2])],
+            'negative_changes': num_negative[feature_names.index(s[2])]
         } for s in smarts_topi.keys()}
 
         for key in molecules_statistics.keys():
@@ -507,6 +520,8 @@ def process_folds_global_interactions(folds, data, shap_values, smarts_mapping_p
         # print("SHAP values:", shap_f)
         # print("\n================================================\n")
         # Calculate mean interaction values across all molecules in the fold
+        positive_changes = np.sum(shap_f > 0)
+        negative_changes = np.sum(shap_f < 0)
         mean_interactions = {}
         for molecule_idx, shap_array in enumerate(shap_f):
             _, interactions = shap_array.get_top_k(top_i + 1, as_interaction_values=False)
@@ -562,7 +577,9 @@ def process_folds_global_interactions(folds, data, shap_values, smarts_mapping_p
                 "shap_sign": '',
                 "feature_in_smiles": False,
                 "capacity_max": 0,
-                "capacity_pred": 0
+                "capacity_pred": 0,
+                'positive_changes': positive_changes,
+                'negative_changes': negative_changes
             }
 
             # Calculate correlation for interaction
