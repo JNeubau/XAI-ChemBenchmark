@@ -5,7 +5,7 @@ import pandas as pd
 from glob import glob
 from datetime import datetime
 
-from .utils import get_fingerprints, get_smarts, tanimoto_similarity
+from utils import get_fingerprints, get_smarts, tanimoto_similarity
 import joblib
 
 parent_dir = os.getcwd()
@@ -101,7 +101,8 @@ def process_dataframes(og_df, cf_df):
         
         cf_fp = cf_row.get('features')
         
-        changed = sum([abs(og_fp[j] - cf_fp[j]) for j in range(len(og_fp))])
+        changed = 0
+        # changed = sum([abs(og_fp[j] - cf_fp[j]) for j in range(len(og_fp))])
         for i in range(len(og_fp)):
             if og_fp[i] == cf_fp[i]:
                 continue
@@ -145,12 +146,12 @@ def aggregate_to_global(df: pd.DataFrame):
         'Fold_no', 'Feature_key', 'Model', 'Prediction_difference', 
         'Explanation_value', 'Explanation_sign', 'SMILES_original', 
         'SMILES', 'SMILES_cf', 'features_original', 'features_cf', 
-        'count_changes', 'SMARTS'])
+        'count_changes', 'SMARTS', 'Positive_explanation_count',
+        'Negative_explanation_count', 'Explanation_sign'])
     
     # distinct_folds = df['Fold'].unique().tolist()
     agg_results = []    
     for fold in df['Fold'].unique():
-        print(fold)
         sub_df = df[df['Fold'] == fold]
         
         feature_stats = (
@@ -164,8 +165,22 @@ def aggregate_to_global(df: pd.DataFrame):
             })
         )
         
+        positive_counts = sub_df.groupby('Feature_key')['Explanation_sign'].apply(
+            lambda x: (x == 'Positive').sum()
+        ).rename('Positive_explanation_count')
+        
+        negative_counts = sub_df.groupby('Feature_key')['Explanation_sign'].apply(
+            lambda x: (x == 'Negative').sum()
+        ).rename('Negative_explanation_count')
+        
         feature_stats.columns = [f"{col[0]}_{col[1]}" if col[1] else col[0] for col in feature_stats.columns]
-          
+        
+        feature_stats = pd.concat([
+            feature_stats, 
+            positive_counts, 
+            negative_counts
+        ], axis=1)
+        
         feature_stats = feature_stats.rename(columns={
             'Explanation_value_mean': 'Explanation_value',
             'Explanation_value_<lambda_0>': 'Explanation_value_abs',
@@ -191,9 +206,11 @@ def aggregate_to_global(df: pd.DataFrame):
         top_features['SMARTS'] = top_features['Feature_key'].apply(
             lambda fk: sub_df[sub_df['Feature_key'] == fk]['SMARTS'].iloc[0] if not sub_df[sub_df['Feature_key'] == fk].empty else ''
         )
+        top_features['Positive_explanation_count'] = top_features['Positive_explanation_count'].fillna(0).astype(int)
+        top_features['Negative_explanation_count'] = top_features['Negative_explanation_count'].fillna(0).astype(int)
         
         agg_results.append(top_features)
-        print(agg_results)
+        # print(agg_results)
         
         if agg_results:
             global_df = pd.concat(agg_results, ignore_index=True)
@@ -244,7 +261,11 @@ def analize(l_maccs_merge_path='', l_smarts_mapping_path='', l_experiment_name='
         smarts_mapping_path = l_smarts_mapping_path
     if l_experiment_name != '':
         experiment_name = l_experiment_name
-    
+
+    print(maccs_merge_path)
+    print(smarts_mapping_path)
+    print(experiment_name)
+
     workdir = os.path.join(os.getcwd(), 'results', experiment_name, 'MEG')
     output_excel = f'molecule_results_with_highlights_{datetime.now().strftime("%H-%M-%S")}.xlsx'
 
