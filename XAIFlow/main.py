@@ -117,7 +117,7 @@ def mainXaiFlow_all(model, local_explanation=True, max_order_iq=1, dataset_name=
     
     # Get explanations
     cv_pipeline = select_pipeline(model, data, folds, max_order_iq)
-    shap_values = cv_pipeline.load_pipeline(os.path.join(parent_dir, 'RFReg', experiment_name, 'ckpt'))
+    shap_values, features_vect = cv_pipeline.load_pipeline(os.path.join(parent_dir, 'RFReg', experiment_name, 'ckpt'))
     
     plots_dir = os.path.join(parent_dir, 'results', 'plots', model, explenation_type)
     create_plots(plots_dir, data, folds,model, shap_values, max_order_iq)   
@@ -132,7 +132,7 @@ def mainXaiFlow_all(model, local_explanation=True, max_order_iq=1, dataset_name=
     else:
         if model == 'SHAP_IQ':
             shap_values = [np.array(shap_values[i]) for i in range(len(shap_values))]
-        smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation, cv_pipeline)
+        smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation, cv_pipeline, features_vect)
     # molecules_statistics_all = predict_capacity(cv_pipeline, smarts_top_all, molecules_statistics_all)
     molecules_statistics_all = count_molecules_with_fingerprint(data, molecules_statistics_all)
     molecules_statistics_all = count_important_features(data, molecules_statistics_all)
@@ -256,8 +256,12 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
         "Capacity_Max": [],
         "Capacity_Pred": [],
         "Model": [],
-        "positive_changes": [],
-        "negative_changes": []
+        'Positive_explanation_add_count': [],
+        'Negative_explanation_add_count': [],
+        'Positive_explanation_del_count': [],
+        'Negative_explanation_del_count': []
+        # "positive_changes": [],
+        # "negative_changes": []
     }
             
     for key, smarts in smarts_top.items():
@@ -273,8 +277,12 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
         excel_data["Explanation_sign"].append(molecules_statistics_all[key]["shap_sign"])
         excel_data["Capacity_Max"].append(molecules_statistics_all[key]["capacity_max"])
         excel_data["Capacity_Pred"].append(molecules_statistics_all[key]["capacity_pred"])
-        excel_data["positive_changes"].append(molecules_statistics_all[key]["positive_changes"])
-        excel_data["negative_changes"].append(molecules_statistics_all[key]["negative_changes"])
+        excel_data['Positive_explanation_add_count'].append(molecules_statistics_all[key]['Positive_explanation_add_count'])
+        excel_data['Negative_explanation_add_count'].append(molecules_statistics_all[key]['Negative_explanation_add_count'])
+        excel_data['Positive_explanation_del_count'].append(molecules_statistics_all[key]['Positive_explanation_del_count'])
+        excel_data['Negative_explanation_del_count'].append(molecules_statistics_all[key]['Negative_explanation_del_count'])
+        # excel_data["positive_changes"].append(molecules_statistics_all[key]["positive_changes"])
+        # excel_data["negative_changes"].append(molecules_statistics_all[key]["negative_changes"])
         if model == 'SHAP_IQ':
             if max_order_iq > 1:
                 excel_data["Model"].append("SHAP_IQ_I")
@@ -415,7 +423,7 @@ def process_folds_local_interactions(folds, data, shap_values, smarts_mapping_pa
     return smarts_top_all, molecules_statistics_all
 
 
-def process_folds_global(folds, data, shap_values, smarts_mapping_path, top_i=10, cv_pipeline=None):
+def process_folds_global(folds, data, shap_values, smarts_mapping_path, top_i=10, cv_pipeline=None, features_vect=None):
     smarts_top_all = {}
     match_molecules_all = {}
     molecules_statistics_all = {}  # Initialize molecules_statistics_all
@@ -432,13 +440,19 @@ def process_folds_global(folds, data, shap_values, smarts_mapping_path, top_i=10
     for i, fold in enumerate(folds):
         test_f = data.loc[fold[1]]
         shap_f = shap_values[i]
-        feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
-        num_positive = np.sum(shap_f > 0, axis=0)
-        num_negative = np.sum(shap_f < 0, axis=0)
-        all_logs.append([f"Number of positive SHAP values for fold {i}: {num_positive}"])
-        all_logs.append([f"Number of negative SHAP values for fold {i}: {num_negative}"])
+        features_f = np.array(features_vect[i])
+        feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist() 
+        num_positive_added = np.sum((shap_f >= 0) & ((features_f == 0)), axis=0)
+        num_positive_removed = np.sum((shap_f >= 0) & ((features_f == 1)), axis=0)
+        num_negative_added = np.sum((shap_f < 0) & ((features_f == 0)), axis=0)
+        num_negative_removed = np.sum((shap_f < 0) & ((features_f == 1)), axis=0)
+        
+        # num_positive = np.sum(shap_f > 0, axis=0)
+        # num_negative = np.sum(shap_f < 0, axis=0)
+        # all_logs.append([f"Number of positive SHAP values for fold {i}: {num_positive}"])
+        # all_logs.append([f"Number of negative SHAP values for fold {i}: {num_negative}"])
         mean_abs_shap_values = np.mean(np.abs(shap_f), axis=0)
-        print('mean abs: ', mean_abs_shap_values)
+        # print('mean abs: ', mean_abs_shap_values)
         all_logs.append([f"Fold {i}"])
         all_logs.append([f"SHAP values for fold {i}: {shap_f}"])
         # all_logs.append([f"Feature names: {feature_names}"])
@@ -467,8 +481,12 @@ def process_folds_global(folds, data, shap_values, smarts_mapping_path, top_i=10
             "feature_in_smiles": True,
             "capacity_max": 0,
             "capacity_pred": 0,
-            'positive_changes': num_positive[feature_names.index(s[2])],
-            'negative_changes': num_negative[feature_names.index(s[2])]
+            'Positive_explanation_add_count': num_positive_added[feature_names.index(s[2])],
+            'Negative_explanation_add_count': num_negative_added[feature_names.index(s[2])],
+            'Positive_explanation_del_count': num_positive_removed[feature_names.index(s[2])],
+            'Negative_explanation_del_count': num_negative_removed[feature_names.index(s[2])]
+            # 'positive_changes': num_positive[feature_names.index(s[2])],
+            # 'negative_changes': num_negative[feature_names.index(s[2])]
         } for s in smarts_topi.keys()}
 
         for key in molecules_statistics.keys():
@@ -674,11 +692,11 @@ def number_where_important_global(molecules_statistics_all, match_molecules_all)
 
     return molecules_statistics_all
 
-def process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation=True, cv_pipeline=None):
+def process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation=True, cv_pipeline=None, features_vect=None):
     if local_explanation:
         return process_folds_local(folds, data, shap_values, smarts_mapping_path)
     else:
-        return process_folds_global(folds, data, shap_values, smarts_mapping_path, 10, cv_pipeline)
+        return process_folds_global(folds, data, shap_values, smarts_mapping_path, 10, cv_pipeline, features_vect)
 
 
 if __name__ == '__main__':

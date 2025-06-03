@@ -111,8 +111,11 @@ def save_data_to_excel_with_highlights(data, excel_file):
                              'SMARTS', 'Molecule', 'number_of_molecules_where_fingerprint', 
                              'Number_where_important', 'feature_in_smiles',
                              'Explanation_value', 'Explanation_sign',
-                             'Capacity_Max', 'Capacity_Pred', 'Model', 
-                             'positive_changes', 'negative_changes'])
+                             'Capacity_Max', 'Capacity_Pred', 'Model',
+                             'Positive_explanation_add_count', 'Negative_explanation_add_count', 
+                             'Positive_explanation_del_count', 'Negative_explanation_del_count' 
+                            #  'positive_changes', 'negative_changes'
+                            ])
     df = df.sort_values(by=['Model', 'Molecule', 'Feature_key', 'Fold_No'], ignore_index=True)
 
     with pd.ExcelWriter(excel_file, engine="xlsxwriter", mode='w') as writer:

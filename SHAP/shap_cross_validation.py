@@ -52,6 +52,7 @@ class CrossValidationShapPipeline:
         self.scores = None
         self.shap_values = None
         self.model = None
+        self.featuers = None
 
     def tune_model(self, X_train: pd.DataFrame, y_train: pd.DataFrame, model: object,
                    param_grid: dict | None) -> object:
@@ -95,6 +96,7 @@ class CrossValidationShapPipeline:
         """
         shap_values = self.explain_model(model, X_test)
         self.shap_values.append(shap_values)
+        self.featuers.append(X_test)
 
     def eval_model(self, y_pred: np.array, y_test: np.array) -> dict:
         """
@@ -117,6 +119,7 @@ class CrossValidationShapPipeline:
             scores[metric] = []
         self.scores = scores
         self.shap_values = []
+        self.featuers = []
 
     def update_scores(self, model_scores: dict):
         """
@@ -269,4 +272,4 @@ class CrossValidationShapPipeline:
         # if len(self.save_dir) > 0:
         #     self.save_results(results, proper_model_name, model.get_params())
 
-        return self.shap_values
+        return self.shap_values, self.featuers
