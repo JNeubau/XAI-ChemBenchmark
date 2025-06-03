@@ -149,7 +149,9 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
         "Explanation_sign": [],
         "Capacity_Max": [],
         "Capacity_Pred": [],
-        "Model": []
+        "Model": [],
+        "positive_changes": [],
+        "negative_changes": []
     }
             
     for key, smarts in smarts_top.items():
@@ -166,6 +168,8 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
         excel_data["Capacity_Max"].append(molecules_statistics_all[key]["capacity_max"])
         excel_data["Capacity_Pred"].append(molecules_statistics_all[key]["capacity_pred"])
         excel_data["Model"].append("LIME")
+        excel_data["positive_changes"].append(molecules_statistics_all[key]["positive_changes"])
+        excel_data["negative_changes"].append(molecules_statistics_all[key]["negative_changes"])
     
     return excel_data
 
@@ -287,11 +291,21 @@ def process_folds_global(folds, data, lime_values, smarts_mapping_path, top_i=10
             lime_dicts.append(lime_dict)
 
         feature_values = {feature: [] for feature in feature_names}
+        sign_counts = {feature: {'Positive': 0, 'Negative': 0} for feature in feature_names}
         for lime_dict in lime_dicts:
             for feature in feature_names:
-                feature_values[feature].append(np.abs(lime_dict.get(feature, 0)))
-                # Save the print output to logs
+                val = lime_dict.get(feature, 0)
+                feature_values[feature].append(np.abs(val))
+                # Count sign
+                if val >= 0:
+                    sign_counts[feature]['Positive'] += 1
+                else:
+                    sign_counts[feature]['Negative'] += 1
+            # Save the print output to logs
             fold_logs.append([f"Feature: {feature}, Values: {feature_values[feature]}"])
+        # Add sign counts summary to logs
+        for feature in feature_names:
+            fold_logs.append([f"Feature: {feature}, Positive count: {sign_counts[feature]['Positive']}, Negative count: {sign_counts[feature]['Negative']}, Total: {sign_counts[feature]['Positive'] + sign_counts[feature]['Negative']}"])
         
         mean_abs_lime_values = np.array([np.mean(feature_values[feature]) for feature in feature_names])
         fold_logs.append([f"Mean absolute LIME values for fold {i}: {mean_abs_lime_values}"])
@@ -319,7 +333,9 @@ def process_folds_global(folds, data, lime_values, smarts_mapping_path, top_i=10
             "lime_sign": '',
             "feature_in_smiles": True,
             "capacity_max": 0,
-            "capacity_pred": 0
+            "capacity_pred": 0,
+            "positive_changes": 0,
+            "negative_changes": 0
         } for s in smarts_topi.keys()}
 
         for key in molecules_statistics.keys():
@@ -333,7 +349,11 @@ def process_folds_global(folds, data, lime_values, smarts_mapping_path, top_i=10
             })
             correlation = df.corr(method='spearman').loc['lime_values', 'capacity_values']
             molecules_statistics[key]["lime_sign"] = f'Positive|{correlation}' if correlation > 0 else f'Negative|{correlation}'
-        fold_logs.append([f"Molecules correleation statistics for fold {i}: {molecules_statistics}"])
+            # Use sign_counts to fill positive_count and negative_count
+            print(f"Feature: {feature}, Positive count: {sign_counts[feature]['Positive']}, Negative count: {sign_counts[feature]['Negative']}")
+            molecules_statistics[key]["positive_changes"] = sign_counts[feature]['Positive']
+            molecules_statistics[key]["negative_changes"] = sign_counts[feature]['Negative']
+        fold_logs.append([f"Molecules correlation statistics for fold {i}: {molecules_statistics}"])
         smarts_top_all.update(smarts_topi)
         match_molecules_all.update(match_molecules)
         molecules_statistics_all.update(molecules_statistics)
