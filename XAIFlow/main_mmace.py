@@ -272,7 +272,7 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
                                 "Prediction_original": prediction_org,
                                 "Prediction_cf": prediction_cf,
                                 "Prediction_difference": prediction_diff,
-                                "Explanation_value": explanation_value,
+                                "Explanation_value": np.abs(explanation_value),
                                 "Explanation_sign": 'Positive' if explanation_value > 0 else 'Negative',
                                 "AddedRemoved": diff,
                                 "Model": "MMACE",
@@ -381,9 +381,6 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
             .agg({
                 'Prediction_difference': 'mean',
                 'Explanation_value': 'mean',
-                # 'AddedRemoved': 'sum',
-                # 'Prediction_original': 'mean',
-                # 'Prediction_cf': 'mean',
                 'Explanation_sign': lambda x: x.mode()[0] if not x.mode().empty else '',
                 'SMILES_original': lambda x: '',
                 'SMILES': lambda x: '',
@@ -396,7 +393,49 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
         # Add count column for number of changes per group
         agg_df['count_changes'] = cf_change_df.groupby(agg_cols)['Prediction_difference'].count().values
 
-        # Take only top 10 features per fold by absolute value of Explanation_value
+        # Add counts for positive/negative explanations with Added/Removed
+        # Positive explanation & AddedRemoved == 1
+        agg_df["Positive_explanation_add_count"] = (
+            cf_change_df[
+            (cf_change_df["Explanation_sign"].str.lower() == "positive") & (cf_change_df["AddedRemoved"] == 1)
+            ]
+            .groupby(agg_cols)
+            .size()
+            .reindex(agg_df.set_index(agg_cols).index, fill_value=0)
+            .values
+        )
+        # Negative explanation & AddedRemoved == 1
+        agg_df["Negative_explanation_add_count"] = (
+            cf_change_df[
+            (cf_change_df["Explanation_sign"].str.lower() == "negative") & (cf_change_df["AddedRemoved"] == 1)
+            ]
+            .groupby(agg_cols)
+            .size()
+            .reindex(agg_df.set_index(agg_cols).index, fill_value=0)
+            .values
+        )
+        # Positive explanation & AddedRemoved == -1
+        agg_df["Positive_explanation_del_count"] = (
+            cf_change_df[
+            (cf_change_df["Explanation_sign"].str.lower() == "positive") & (cf_change_df["AddedRemoved"] == -1)
+            ]
+            .groupby(agg_cols)
+            .size()
+            .reindex(agg_df.set_index(agg_cols).index, fill_value=0)
+            .values
+        )
+        # Negative explanation & AddedRemoved == -1
+        agg_df["Negative_explanation_del_count"] = (
+            cf_change_df[
+            (cf_change_df["Explanation_sign"].str.lower() == "negative") & (cf_change_df["AddedRemoved"] == -1)
+            ]
+            .groupby(agg_cols)
+            .size()
+            .reindex(agg_df.set_index(agg_cols).index, fill_value=0)
+            .values
+        )
+
+                # Take only top 10 features per fold by absolute value of Explanation_value
         top10_agg_df = (
             agg_df
             .sort_values(['Fold_no', 'Explanation_value'], key=lambda x: x.abs(), ascending=[True, False])
