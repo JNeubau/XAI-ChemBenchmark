@@ -9,11 +9,11 @@ from utils import get_fingerprints, get_smarts, tanimoto_similarity
 import joblib
 
 parent_dir = os.getcwd()
-maccs_merge_path = os.path.join(parent_dir, 'data', 'new_maccs_merged.csv')
-# maccs_merge_path = os.path.join(parent_dir, 'data', 'new_maccs_merged_all.csv')
+# maccs_merge_path = os.path.join(parent_dir, 'data', 'new_maccs_merged.csv')
+maccs_merge_path = os.path.join(parent_dir, 'data', 'new_maccs_merged_all.csv')
 smarts_mapping_path = os.path.join(parent_dir, 'data', 'new_maccs_smarts_mapping.json')
 
-experiment_name = 'full_test' 
+experiment_name = 'all_full_test' 
     
     
 def find_json_files(base_dir):
@@ -88,7 +88,7 @@ def process_dataframes(og_df, cf_df):
     result_df = pd.DataFrame(columns=['Fold', 'Instance', 'Feature_key', 'SMARTS', 'SMILES_original', 'SMILES', 'Original_Prediction', 
                                       'SMILES_cf', 'Counterfactual_Prediction', 'Similarity', 'Model',
                                       'Prediction_difference', 'Explanation_sign', 'Explanation_value',
-                                      'Pred_Original_with_feature_change', 'count_changes'])
+                                      'Pred_Original_with_feature_change', 'count_changes', 'AddedRemoved'])
     
     for index, cf_row in cf_df.iterrows():
         fold_no = cf_row['fold_no']
@@ -135,7 +135,8 @@ def process_dataframes(og_df, cf_df):
                 'Explanation_value': abs(explanation_value),
                 "Explanation_sign": 'Positive' if explanation_value > 0 else 'Negative',  
                 'Pred_Original_with_feature_change': pred_reverted,
-                'count_changes': changed
+                'count_changes': changed,
+                'AddedRemoved': 'Added' if og_fp[i] < cf_fp[i] else 'Removed'
             }
             result_df = pd.concat([result_df, pd.DataFrame([new_row])], ignore_index=True)
     return result_df
@@ -145,9 +146,10 @@ def aggregate_to_global(df: pd.DataFrame):
     global_df = pd.DataFrame(columns=[
         'Fold_no', 'Feature_key', 'Model', 'Prediction_difference', 
         'Explanation_value', 'Explanation_sign', 'SMILES_original', 
-        'SMILES', 'SMILES_cf', 'features_original', 'features_cf', 
-        'count_changes', 'SMARTS', 'Positive_explanation_count',
-        'Negative_explanation_count', 'Explanation_sign'])
+        'SMILES', 'SMILES_cf',
+        'count_changes', 'SMARTS', 'Positive_explanation_add_count',
+        'Negative_explanation_add_count', 'Positive_explanation_del_count',
+        'Negative_explanation_del_count', 'Explanation_sign'])
     
     # distinct_folds = df['Fold'].unique().tolist()
     agg_results = []    
@@ -165,20 +167,30 @@ def aggregate_to_global(df: pd.DataFrame):
             })
         )
         
-        positive_counts = sub_df.groupby('Feature_key')['Explanation_sign'].apply(
-            lambda x: (x == 'Positive').sum()
-        ).rename('Positive_explanation_count')
+        positive_counts_add = sub_df[(sub_df['Explanation_sign'] == 'Positive') & (sub_df['AddedRemoved'] == 'Added'
+                )].groupby('Feature_key').size().rename('Positive_explanation_add_count')
         
-        negative_counts = sub_df.groupby('Feature_key')['Explanation_sign'].apply(
-            lambda x: (x == 'Negative').sum()
-        ).rename('Negative_explanation_count')
+        negative_counts_add = sub_df[(sub_df['Explanation_sign'] == 'Negative') & (sub_df['AddedRemoved'] == 'Added'
+                )].groupby('Feature_key').size().rename('Negative_explanation_add_count')
+        
+        positive_counts_del = sub_df[(sub_df['Explanation_sign'] == 'Positive') & (sub_df['AddedRemoved'] == 'Removed'
+                )].groupby('Feature_key').size().rename('Positive_explanation_del_count')
+        
+        negative_counts_del = sub_df[(sub_df['Explanation_sign'] == 'Negative') & (sub_df['AddedRemoved'] == 'Removed'
+                )].groupby('Feature_key').size().rename('Negative_explanation_del_count')
+        
+        # negative_counts_add = sub_df.groupby('Feature_key')['Explanation_sign'].apply(
+        #     lambda x: (x == 'Negative').sum()
+        # ).rename('Negative_explanation_add_count')
         
         feature_stats.columns = [f"{col[0]}_{col[1]}" if col[1] else col[0] for col in feature_stats.columns]
         
         feature_stats = pd.concat([
             feature_stats, 
-            positive_counts, 
-            negative_counts
+            positive_counts_add, 
+            negative_counts_add,
+            positive_counts_del,
+            negative_counts_del
         ], axis=1)
         
         feature_stats = feature_stats.rename(columns={
@@ -201,14 +213,14 @@ def aggregate_to_global(df: pd.DataFrame):
         top_features['SMILES_cf'] = ''
         top_features['Fold_no'] = fold
         top_features['Model'] = 'MEG'
-        top_features['features_original'] = ''
-        top_features['features_cf'] = ''
         top_features['SMARTS'] = top_features['Feature_key'].apply(
             lambda fk: sub_df[sub_df['Feature_key'] == fk]['SMARTS'].iloc[0] if not sub_df[sub_df['Feature_key'] == fk].empty else ''
         )
-        top_features['Positive_explanation_count'] = top_features['Positive_explanation_count'].fillna(0).astype(int)
-        top_features['Negative_explanation_count'] = top_features['Negative_explanation_count'].fillna(0).astype(int)
-        
+        top_features['Positive_explanation_add_count'] = top_features['Positive_explanation_add_count'].fillna(0).astype(int)
+        top_features['Negative_explanation_add_count'] = top_features['Negative_explanation_add_count'].fillna(0).astype(int)
+        top_features['Positive_explanation_del_count'] = top_features['Positive_explanation_del_count'].fillna(0).astype(int)
+        top_features['Negative_explanation_del_count'] = top_features['Negative_explanation_del_count'].fillna(0).astype(int)
+
         agg_results.append(top_features)
         # print(agg_results)
         
@@ -267,7 +279,7 @@ def analize(l_maccs_merge_path='', l_smarts_mapping_path='', l_experiment_name='
     print(experiment_name)
 
     workdir = os.path.join(os.getcwd(), 'results', experiment_name, 'MEG')
-    output_excel = f'molecule_results_with_highlights_{datetime.now().strftime("%H-%M-%S")}.xlsx'
+    output_excel = f'meg_molecule_results_with_highlights_{datetime.now().strftime("%H-%M-%S")}.xlsx'
 
     og_df, cf_df = convert_json_to_dataframel(collect_all_data(find_json_files(workdir)))
     # save_to_excel(og_df, os.path.join(workdir, 'local'), 'raw_og_' + output_excel)
@@ -276,7 +288,7 @@ def analize(l_maccs_merge_path='', l_smarts_mapping_path='', l_experiment_name='
     local_result_df = process_dataframes(og_df, cf_df)
     print(local_result_df.head(10))
     print(local_result_df.T)
-    save_to_excel(local_result_df, os.path.join(workdir, 'local'), output_excel)
+    save_to_excel(local_result_df, os.path.join(workdir, 'local'), 'l_' + output_excel)
     
     global_result_df = aggregate_to_global(local_result_df)
     save_to_excel(global_result_df, os.path.join(workdir, 'global'), output_excel)
