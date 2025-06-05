@@ -188,7 +188,7 @@ class CrossValidationMMACEPipeline:
             print(f"Processing instance {i} with SMILES: {smiles}")
             try:
                 stoned_kwargs = {
-                    "num_samples": 20,
+                    "num_samples": 2500,
                     "alphabet": self.custom_alphabet if self.custom_alphabet else exmol.get_basic_alphabet(),
                     "max_mutations": 2,
                 }
