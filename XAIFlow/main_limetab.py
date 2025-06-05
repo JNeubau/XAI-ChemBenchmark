@@ -151,7 +151,11 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
         "Capacity_Pred": [],
         "Model": [],
         "positive_changes": [],
-        "negative_changes": []
+        "negative_changes": [],
+        "Positive_explanation_add_count": [],
+        "Negative_explanation_add_count": [],
+        "Positive_explanation_del_count": [],
+        "Negative_explanation_del_count": []
     }
             
     for key, smarts in smarts_top.items():
@@ -170,6 +174,10 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
         excel_data["Model"].append("LIME")
         excel_data["positive_changes"].append(molecules_statistics_all[key]["positive_changes"])
         excel_data["negative_changes"].append(molecules_statistics_all[key]["negative_changes"])
+        excel_data["Positive_explanation_add_count"].append(molecules_statistics_all[key]["Positive_explanation_add_count"])
+        excel_data["Negative_explanation_add_count"].append(molecules_statistics_all[key]["Negative_explanation_add_count"])
+        excel_data["Positive_explanation_del_count"].append(molecules_statistics_all[key]["Positive_explanation_del_count"])
+        excel_data["Negative_explanation_del_count"].append(molecules_statistics_all[key]["Negative_explanation_del_count"])
     
     return excel_data
 
@@ -248,7 +256,13 @@ def process_folds_local(folds, data, lime_values, smarts_mapping_path, top_i=5):
                     "lime_sign": 'Positive' if lime_dict[feature] >= 0 else 'Negative',
                     "feature_in_smiles": bool(data.loc[data['smiles'] == key[1], feature].values[0] == 1),
                     "capacity_max": test_f.iloc[molecule_idx]['capacity_max'],
-                    "capacity_pred": 0
+                    "capacity_pred": 0,
+                    'Positive_explanation_add_count':  +1 if lime_dict[feature] >= 0 and data.loc[data['smiles'] == key[1], feature].values[0] == 1 else +0, 
+                    'Negative_explanation_add_count':  +1 if lime_dict[feature] < 0 and data.loc[data['smiles'] == key[1], feature].values[0] == 1 else +0,
+                    'Positive_explanation_del_count': +1 if lime_dict[feature] >= 0 and data.loc[data['smiles'] == key[1], feature].values[0] == 0 else +0,
+                    'Negative_explanation_del_count': +1 if lime_dict[feature] < 0 and data.loc[data['smiles'] == key[1], feature].values[0] == 0 else +0,
+                    "positive_changes": +1 if lime_dict[feature] >= 0 else +0,
+                    "negative_changes": +1 if lime_dict[feature] < 0 else +0,
                 }
                 
                 # Collect matching molecules
@@ -288,25 +302,55 @@ def process_folds_global(folds, data, lime_values, smarts_mapping_path, top_i=10
         lime_dicts = []
         for lime_array in lime_fold_values:
             lime_dict = {item[0].split('=')[0]: item[1] for item in lime_array}
+            # print(f"LIME DICT:{lime_dict}")
             lime_dicts.append(lime_dict)
+            feature_values = {feature: [] for feature in feature_names}
+            sign_counts = {feature: {'Positive': 0, 'Negative': 0} for feature in feature_names}
+            # New keys for explanation add/del counts
+            positive_explanation_add_count = {feature: 0 for feature in feature_names}
+            negative_explanation_add_count = {feature: 0 for feature in feature_names}
+            positive_explanation_del_count = {feature: 0 for feature in feature_names}
+            negative_explanation_del_count = {feature: 0 for feature in feature_names}
 
-        feature_values = {feature: [] for feature in feature_names}
-        sign_counts = {feature: {'Positive': 0, 'Negative': 0} for feature in feature_names}
-        for lime_dict in lime_dicts:
+            for idx, lime_dict in enumerate(lime_dicts):
+                for feature in feature_names:
+                    val = lime_dict.get(feature, 0)
+                    feature_values[feature].append(np.abs(val))
+                    # Count sign
+                    if val >= 0:
+                        sign_counts[feature]['Positive'] += 1
+                    else:
+                        sign_counts[feature]['Negative'] += 1
+
+                    # Check if feature exists in molecule (1 or 0)
+                    # Use test_f.iloc[idx] to get the current molecule in the fold
+                    if idx < len(test_f):
+                        smiles = test_f.iloc[idx]['smiles']
+                        print(f"Processing feature: {feature} for SMILES: {smiles}")
+                        feature_exists = int(data.loc[data['smiles'] == smiles, feature].values[0]) if feature in data.columns else 0
+                        print(f"Feature {feature} exists in SMILES {smiles}: {feature_exists}")
+                        if val >= 0 and feature_exists == 1:
+                            positive_explanation_add_count[feature] += 1
+                        if val < 0 and feature_exists == 1:
+                            negative_explanation_add_count[feature] += 1
+                        if val >= 0 and feature_exists == 0:
+                            positive_explanation_del_count[feature] += 1
+                        if val < 0 and feature_exists == 0:
+                            negative_explanation_del_count[feature] += 1
+
+                # Save the print output to logs
+                fold_logs.append([f"Feature: {feature}, Values: {feature_values[feature]}"])
+            # Add sign counts summary to logs
             for feature in feature_names:
-                val = lime_dict.get(feature, 0)
-                feature_values[feature].append(np.abs(val))
-                # Count sign
-                if val >= 0:
-                    sign_counts[feature]['Positive'] += 1
-                else:
-                    sign_counts[feature]['Negative'] += 1
-            # Save the print output to logs
-            fold_logs.append([f"Feature: {feature}, Values: {feature_values[feature]}"])
-        # Add sign counts summary to logs
-        for feature in feature_names:
-            fold_logs.append([f"Feature: {feature}, Positive count: {sign_counts[feature]['Positive']}, Negative count: {sign_counts[feature]['Negative']}, Total: {sign_counts[feature]['Positive'] + sign_counts[feature]['Negative']}"])
-        
+                fold_logs.append([
+                f"Feature: {feature}, Positive count: {sign_counts[feature]['Positive']}, "
+                f"Negative count: {sign_counts[feature]['Negative']}, "
+                f"Total: {sign_counts[feature]['Positive'] + sign_counts[feature]['Negative']}, "
+                f"Positive_explanation_add_count: {positive_explanation_add_count[feature]}, "
+                f"Negative_explanation_add_count: {negative_explanation_add_count[feature]}, "
+                f"Positive_explanation_del_count: {positive_explanation_del_count[feature]}, "
+                f"Negative_explanation_del_count: {negative_explanation_del_count[feature]}"
+                ])
         mean_abs_lime_values = np.array([np.mean(feature_values[feature]) for feature in feature_names])
         fold_logs.append([f"Mean absolute LIME values for fold {i}: {mean_abs_lime_values}"])
 
@@ -334,6 +378,10 @@ def process_folds_global(folds, data, lime_values, smarts_mapping_path, top_i=10
             "feature_in_smiles": True,
             "capacity_max": 0,
             "capacity_pred": 0,
+            "Positive_explanation_add_count": 0,
+            "Negative_explanation_add_count": 0,
+            "Positive_explanation_del_count": 0,
+            "Negative_explanation_del_count": 0,
             "positive_changes": 0,
             "negative_changes": 0
         } for s in smarts_topi.keys()}
@@ -353,6 +401,11 @@ def process_folds_global(folds, data, lime_values, smarts_mapping_path, top_i=10
             print(f"Feature: {feature}, Positive count: {sign_counts[feature]['Positive']}, Negative count: {sign_counts[feature]['Negative']}")
             molecules_statistics[key]["positive_changes"] = sign_counts[feature]['Positive']
             molecules_statistics[key]["negative_changes"] = sign_counts[feature]['Negative']
+            molecules_statistics[key]["Positive_explanation_add_count"] = positive_explanation_add_count[feature]
+            molecules_statistics[key]["Negative_explanation_add_count"] = negative_explanation_add_count[feature]
+            molecules_statistics[key]["Positive_explanation_del_count"] = positive_explanation_del_count[feature]
+            molecules_statistics[key]["Negative_explanation_del_count"] = negative_explanation_del_count[feature]
+
         fold_logs.append([f"Molecules correlation statistics for fold {i}: {molecules_statistics}"])
         smarts_top_all.update(smarts_topi)
         match_molecules_all.update(match_molecules)
