@@ -92,15 +92,15 @@ def calculate_model_rankings(df):
             
             # Create a row for each feature
             # Extract numeric value from 'Explanation_sign' (e.g., "Positive|0.4010989010989011")
-            # def parse_corr_value(val):
-            #     if isinstance(val, str) and '|' in val:
-            #         try:
-            #             return float(val.split('|')[1])
-            #         except Exception:
-            #             return np.nan
-            #     return np.nan
+            def parse_corr_value(val):
+                if isinstance(val, str) and '|' in val:
+                    try:
+                        return float(val.split('|')[1])
+                    except Exception:
+                        return np.nan
+                return np.nan
 
-            # corr_values = feature_data['Explanation_sign'].apply(parse_corr_value)
+            corr_values = feature_data['Explanation_sign'].apply(parse_corr_value)
             row = {
                 'Model': model,
                 'Feature': feature_key,
@@ -109,7 +109,11 @@ def calculate_model_rankings(df):
                 'Min_Value': feature_data['Explanation_value'].min(),
                 'Max_Value': feature_data['Explanation_value'].max(),
                 'Fold_Count': feature_data['Fold_No'].nunique(),
-                # 'Corr_value': corr_values.mean(),
+                'Corr_value': corr_values.mean(),
+                'Positive_explanation_add_count': feature_data['Positive_explanation_add_count'].sum(),
+                'Negative_explanation_add_count': feature_data['Negative_explanation_add_count'].sum(),
+                'Positive_explanation_del_count': feature_data['Positive_explanation_del_count'].sum(),
+                'Negative_explanation_del_count': feature_data['Negative_explanation_del_count'].sum(),
             }
             data.append(row)
     
@@ -236,7 +240,7 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
     bump_data['Rank'] = bump_data.groupby('Model')['Average_Explanation_Value'].rank(ascending=False, method='min')
     
     # Fix for deprecation warning: handle top N features selection differently
-    N = 5
+    N = 10
     top_features = []
     for model in bump_data['Model'].unique():
         model_data = bump_data[bump_data['Model'] == model].copy()
@@ -251,7 +255,8 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
     bump_pivot = bump_data.pivot(index='Feature', columns='Model', values='Rank')
 
     # --- Force model order: LIME, SHAP, MMACE, MEG (if present) ---
-    desired_order = [m for m in ['LIME', 'SHAP', 'MMACE', 'MEG'] if m in bump_pivot.columns]
+    # # Use the order in which models appear in the rankings_df
+    desired_order = [m for m in rankings_df.index.get_level_values('Model').unique() if m in bump_pivot.columns]
     bump_pivot = bump_pivot[desired_order]
     # # -------------------------------------------------------------
 
@@ -268,7 +273,9 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
         y = bump_pivot.loc[feature]
         mask = y.notna()
         plt.plot(
-            y.index[mask], y[mask],
+            # y.index[mask], y[mask],
+            bump_pivot.columns,
+            bump_pivot.loc[feature],
             marker='o',
             label=feature,
             linewidth=2,
@@ -312,7 +319,7 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
     # Pivot for bump chart: rows=Feature, columns=Model, values=Rank
     bump_pivot_worst = bump_data_worst.pivot(index='Feature', columns='Model', values='Rank')
     # --- Force model order: LIME, SHAP, MMACE, MEG (if present) ---
-    bump_pivot_worst = bump_pivot_worst[desired_order]
+    # bump_pivot_worst = bump_pivot_worst[desired_order]
     # -------------------------------------------------------------
     # Sort features by their average rank for plotting order (worst at top)
     avg_rank_worst = bump_pivot_worst.mean(axis=1).sort_values(ascending=False)
@@ -410,7 +417,7 @@ def add_smarts_images_to_ranking(df, output_dir, prefix, smarts_mapping, TopNFea
     df['SMARTS_Image'] = smarts_imgs
     return df
 
-def generate_anonymous_ranking_excel(model_rankings, overall_ranking_df, output_dir, timestamp):
+def generate_anonymous_ranking_excel(model_rankings, overall_ranking_df, output_dir, timestamp, sign_method='adddel'):
     """
     Generate an Excel file with:
     - Rankings for each method (model), anonymized as Method 1, Method 2, ...
@@ -418,6 +425,11 @@ def generate_anonymous_ranking_excel(model_rankings, overall_ranking_df, output_
     - 'dinner' sheet with the mapping/order of models
     - SMARTS images for top features (if available), embedded in Excel
     - Average rank for each feature across methods and averaged ranking (in a separate sheet)
+    - Influence_Sign column: Positive/Negative/Mixed influence of having a feature present, based on selected method.
+    
+    sign_method: 'minmax' (default), 'adddel', or custom callable.
+        - 'minmax': Positive if Min_Value >= 0, Negative if Max_Value <= 0, else Mixed. # don't use 
+        - 'adddel': Uses Positive_explanation_add_count and Negative_explanation_add_count.
     """
     anon_file = os.path.join(output_dir, f'anonymous_model_rankings_{timestamp}.xlsx')
     models = list(model_rankings.index.get_level_values('Model').unique())
@@ -426,17 +438,54 @@ def generate_anonymous_ranking_excel(model_rankings, overall_ranking_df, output_
 
     # Prepare anonymized rankings
     anon_rankings = model_rankings.reset_index().copy()
-    anon_rankings['Explanation_sign'] = anon_rankings.apply(
-        lambda row: "Positive" if row['Min_Value'] >= 0 else 
-                   "Negative" if row['Max_Value'] <= 0 else 
-                   "Mixed", axis=1
-    )
+
+    # --- Influence sign logic ---
+    def influence_sign_minmax(row):
+        if row['Min_Value'] >= 0:
+            return "Positive"
+        elif row['Max_Value'] <= 0:
+            return "Negative"
+        else:
+            return "Mixed"
+
+    def influence_sign_adddel(row):
+        # If Positive_explanation_add_count > Negative_explanation_add_count, it's Positive, etc.
+        pos = row.get('Positive_explanation_add_count', 0)
+        neg = row.get('Negative_explanation_add_count', 0)
+        print(f"Row: {row['Feature']}, Positive: {pos}, Negative: {neg}")
+        if pos > neg:
+            print(f"Row: {row['Feature']} is Positive")
+            return "Positive"
+        elif neg > pos:
+            print(f"Row: {row['Feature']} is Negative")
+            return "Negative"
+        else:
+            return "Mixed"
+
+    # Choose method
+    if callable(sign_method):
+        influence_sign_func = sign_method
+    elif sign_method == 'adddel':
+        influence_sign_func = influence_sign_adddel
+    else:
+        influence_sign_func = influence_sign_minmax
+
+    # Add Influence_Sign column
+    anon_rankings['Explanation_sign'] = anon_rankings.apply(influence_sign_func, axis=1)
+
+    # Optionally, keep the old Explanation_sign for reference
+    # anon_rankings['Explanation_sign'] = anon_rankings.apply(
+    #     lambda row: "Positive" if row['Min_Value'] >= 0 else 
+    #                "Negative" if row['Max_Value'] <= 0 else 
+    #                "Mixed", axis=1
+    # )
     anon_rankings['Method'] = anon_rankings['Model'].map(model_map)
     # Add RANK per method (1 = best)
     anon_rankings['RANK'] = anon_rankings.groupby('Method')['Average_Explanation_Value'].rank(ascending=False, method='min')
     anon_rankings = anon_rankings.drop(columns=['Model'])
+    # Add Influence_Sign to columns
     cols = ['Method', 'Feature', 'Average_Explanation_Value', 'Std_Dev', 'Min_Value', 'Max_Value', 'Fold_Count', 'Explanation_sign', 'RANK']
-    anon_rankings = anon_rankings[cols]
+    anon_rankings = anon_rankings[[c for c in cols if c in anon_rankings.columns]]
 
     # Prepare overall ranking (already anonymized)
     overall_anon = overall_ranking_df.copy()
