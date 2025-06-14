@@ -495,7 +495,7 @@ def generate_anonymous_ranking_excel(model_rankings, overall_ranking_df, output_
 
     # --- SMARTS mapping and images ---
     smarts_mapping = get_smarts_mapping()
-    N = 15
+    N = 5
 
     def get_smarts_img_bytes(feature, prefix):
         smarts = get_smarts_for_feature(feature, smarts_mapping)
