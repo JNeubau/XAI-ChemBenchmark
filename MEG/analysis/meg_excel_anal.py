@@ -13,7 +13,7 @@ parent_dir = os.getcwd()
 maccs_merge_path = os.path.join(parent_dir, 'data', 'new_maccs_merged_all.csv')
 smarts_mapping_path = os.path.join(parent_dir, 'data', 'new_maccs_smarts_mapping.json')
 
-experiment_name = 'all_full_test' 
+experiment_name = 'final' 
     
     
 def find_json_files(base_dir):
@@ -278,7 +278,7 @@ def analize(l_maccs_merge_path='', l_smarts_mapping_path='', l_experiment_name='
     print(smarts_mapping_path)
     print(experiment_name)
 
-    workdir = os.path.join(os.getcwd(), 'results', experiment_name, 'MEG')
+    workdir = os.path.join(os.getcwd(), 'results', experiment_name, 'MEG_steps2')
     output_excel = f'meg_molecule_results_with_highlights_{datetime.now().strftime("%H-%M-%S")}.xlsx'
 
     og_df, cf_df = convert_json_to_dataframel(collect_all_data(find_json_files(workdir)))

@@ -55,7 +55,7 @@ def mainXaiFlow(model, local_explanation=True, max_order_iq=1,experiment_name='b
     results, scores, shap_values = cv_pipeline.train_pipeline('RFReg')
     
     plots_dir = os.path.join(parent_dir, 'results', 'plots', model, explenation_type, datetime.today().strftime("%d-%m-%Y"))
-    # create_plots(plots_dir, data, folds,model, shap_values, max_order_iq)   
+    create_plots(plots_dir, data, folds,model, shap_values, max_order_iq)   
     
     if max_order_iq > 1 and local_explanation: 
         smarts_top_all, molecules_statistics_all = process_folds_local_interactions(folds, data, shap_values, smarts_mapping_path, 10)
@@ -117,10 +117,10 @@ def mainXaiFlow_all(model, local_explanation=True, max_order_iq=1, dataset_name=
     
     # Get explanations
     cv_pipeline = select_pipeline(model, data, folds, max_order_iq)
-    shap_values, features_vect = cv_pipeline.load_pipeline(os.path.join(parent_dir, 'RFReg', experiment_name, 'ckpt'))
+    shap_values, features_vect, interaction_values = cv_pipeline.load_pipeline(os.path.join(parent_dir, 'RFReg', experiment_name, 'ckpt'))
     
-    plots_dir = os.path.join(parent_dir, 'results', 'plots', model, explenation_type)
-    create_plots(plots_dir, data, folds,model, shap_values, max_order_iq)   
+    plots_dir = os.path.join(parent_dir, 'results', experiment_name, model, explenation_type, 'plots')
+    create_plots(plots_dir, data, folds,model, shap_values, max_order_iq, interaction_values)   
     
     if max_order_iq > 1 and local_explanation: 
         smarts_top_all, molecules_statistics_all = process_folds_local_interactions(folds, data, shap_values, smarts_mapping_path, 10)
@@ -153,7 +153,7 @@ def train_RFReg(experiment_name, folds, data, parent_dir, max_order_iq):
     return RFReg_cv_pipeline
 
     
-def create_plots(plots_dir, data,folds, model, shap_values, max_order_iq=1):
+def create_plots(plots_dir, data,folds, model, shap_values, max_order_iq=1, interaction_values=None):
     if model == 'SHAP':
         plot_shap.generate_shap_plots_folds(data,shap_values, plots_dir,['all'])
         plot_shap.generate_shap_plots_local(data, shap_values,folds, plots_dir, ['force', 'waterfall'])
@@ -162,8 +162,8 @@ def create_plots(plots_dir, data,folds, model, shap_values, max_order_iq=1):
             plot_iq.plot_shapiq_local(data, shap_values,folds, plots_dir, ['all'])
             plot_iq.plot_shapiq_fold(data, shap_values, plots_dir, ['bar'])
         else:
-            plot_iq.plot_shapiq_local(data, shap_values,folds, plots_dir, ['force', 'waterfall'])
-            plot_iq.plot_shapiq_fold(data, shap_values, plots_dir, ['bar'])
+            plot_iq.plot_shapiq_local(data, interaction_values, folds, plots_dir, ['force', 'waterfall'])
+            plot_iq.plot_shapiq_fold(data, interaction_values, plots_dir, ['bar'])
     print("Plots saved to: ", plots_dir)
 
 
@@ -732,8 +732,8 @@ if __name__ == '__main__':
     
     # model = 'SHAP' # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
     # # model = ['SHAP'] # 'SHAP' or 'SHAP_IQ' - in the future it should be a list of models to run 
-    # local_explanation = False
-    # experiment_name= 'rf_test'
+    # local_explanation = True
+    # experiment_name= 'full_test'
     # max_order_iq = 1
     # train_model_rf = False
     # mainXaiFlow_all(model, local_explanation, max_order_iq, 'battery', experiment_name, folds=5, seed=42, train_rfreg=train_model_rf)

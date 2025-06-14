@@ -272,4 +272,4 @@ class CrossValidationShapPipeline:
         # if len(self.save_dir) > 0:
         #     self.save_results(results, proper_model_name, model.get_params())
 
-        return self.shap_values, self.featuers
+        return self.shap_values, self.featuers, []

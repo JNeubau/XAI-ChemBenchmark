@@ -57,6 +57,8 @@ class CrossValidationShapIqPipeline:
         self.iq_min_order = iq_min_order
         self.iq_max_order = iq_max_order
         self.model = None
+        self.features = None
+        self.interactions = None
 
     def tune_model(self, X_train: pd.DataFrame, y_train: pd.DataFrame, model: object,
                    param_grid: dict | None) -> object:
@@ -88,16 +90,16 @@ class CrossValidationShapIqPipeline:
         :param X_test: test data.
         :return: shap values.
         """
-        explainer = shapiq.TreeExplainer(model, index='SV', min_order=min_order, max_order=max_order)
-        # explainer = shap.TreeExplainer(model)
-        # print(X_test.head())
+        explainer = shapiq.TreeExplainer(model, index='k-SII', min_order=min_order, max_order=max_order)
         shap_values = []
-        new_X_test = X_test.to_numpy()
-        for i in range(new_X_test.shape[0]):
+        interaction_values = []
+        new_X_test = np.array(X_test)
+        for i in range(len(new_X_test)):
             shap_value = explainer.explain(new_X_test[i])
-            shap_values.append(shap_value.values)
-        shap_values = np.array(shap_values)
-        return shap_values
+            vals = shap_value.get_n_order_values(1)
+            interaction_values.append(shap_value)
+            shap_values.append(vals)
+        return shap_values, interaction_values
 
     def explain_model_interaction(self, model, X_test, min_order, max_order):
         """
@@ -107,11 +109,9 @@ class CrossValidationShapIqPipeline:
         :return: shap values.
         """
         explainer = shapiq.TreeExplainer(model, index='k-SII', min_order=min_order, max_order=max_order)
-        # explainer = shapiq.TreeExplainer(model, index='SV', min_order=min_order, max_order=max_order)
-        # print(X_test.head())
         shap_values = []
-        new_X_test = X_test.to_numpy()
-        for i in range(new_X_test.shape[0]):
+        new_X_test = np.array(X_test)
+        for i in range(len(new_X_test)):
             shap_value = explainer.explain(new_X_test[i])
             shap_values.append(shap_value)
         return shap_values
@@ -122,9 +122,13 @@ class CrossValidationShapIqPipeline:
         :param model: prediction model.
         :param X_test: test data.
         """
-        shap_values = self.explain_model_interaction(model, X_test, min_order=self.iq_min_order, max_order=self.iq_max_order)
-        # shap_values = self.explain_model(model, X_test, min_order=self.iq_min_order, max_order=self.iq_max_order)
+        if self.iq_max_order > 1:
+            shap_values = self.explain_model_interaction(model, X_test, min_order=self.iq_min_order, max_order=self.iq_max_order)
+        else:
+            shap_values, interaction_values = self.explain_model(model, X_test, min_order=self.iq_min_order, max_order=self.iq_max_order)
+            self.interactions.append(interaction_values)
         self.shap_values.append(shap_values)
+        self.features.append(X_test)
 
     def eval_model(self, y_pred: np.array, y_test: np.array) -> dict:
         """
@@ -147,6 +151,8 @@ class CrossValidationShapIqPipeline:
             scores[metric] = []
         self.scores = scores
         self.shap_values = []
+        self.interactions = []
+        self.features = []
 
     def update_scores(self, model_scores: dict):
         """
@@ -273,4 +279,4 @@ class CrossValidationShapIqPipeline:
             self.model = model
             self.update_shap(model, X_test)
 
-        return self.shap_values
+        return self.shap_values, self.features, self.interactions
