@@ -279,4 +279,4 @@ class CrossValidationShapIqPipeline:
             self.model = model
             self.update_shap(model, X_test)
 
-        return self.shap_values, self.features, self.interactions
+        return self.shap_values, self.features, self.interactions, []
