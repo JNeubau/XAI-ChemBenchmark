@@ -117,10 +117,11 @@ def mainXaiFlow_all(model, local_explanation=True, max_order_iq=1, dataset_name=
     
     # Get explanations
     cv_pipeline = select_pipeline(model, data, folds, max_order_iq)
-    shap_values, features_vect, interaction_values = cv_pipeline.load_pipeline(os.path.join(parent_dir, 'RFReg', experiment_name, 'ckpt'))
-    
+    shap_values, features_vect,interaction_values, expected_values = cv_pipeline.load_pipeline(os.path.join(parent_dir, 'RFReg', experiment_name, 'ckpt'))
+    capacity_pred_test = cv_pipeline.predict_capacity(data.drop(columns=['capacity_max', 'smiles']))
+
     plots_dir = os.path.join(parent_dir, 'results', experiment_name, model, explenation_type, 'plots')
-    create_plots(plots_dir, data, folds,model, shap_values, max_order_iq, interaction_values)   
+    create_plots(plots_dir, data, folds,model, shap_values,capacity_pred_test,expected_values, max_order_iq, interaction_values)   
     
     if max_order_iq > 1 and local_explanation: 
         smarts_top_all, molecules_statistics_all = process_folds_local_interactions(folds, data, shap_values, smarts_mapping_path, 10)
@@ -153,10 +154,10 @@ def train_RFReg(experiment_name, folds, data, parent_dir, max_order_iq):
     return RFReg_cv_pipeline
 
     
-def create_plots(plots_dir, data,folds, model, shap_values, max_order_iq=1, interaction_values=None):
+def create_plots(plots_dir, data,folds, model, shap_values,capacity_pred_test,expected_values, max_order_iq=1, interaction_values=None):
     if model == 'SHAP':
         plot_shap.generate_shap_plots_folds(data,shap_values, plots_dir,['all'])
-        plot_shap.generate_shap_plots_local(data, shap_values,folds, plots_dir, ['force', 'waterfall'])
+        plot_shap.generate_shap_plots_local(data, shap_values,folds, plots_dir, capacity_pred_test,expected_values,['force', 'waterfall'])
     if model == 'SHAP_IQ':
         if max_order_iq > 1:
             plot_iq.plot_shapiq_local(data, shap_values,folds, plots_dir, ['all'])
@@ -345,7 +346,11 @@ def process_folds_local(folds, data, shap_values, smarts_mapping_path, top_i=5):
                 "shap_sign": '',
                 "feature_in_smiles": False,
                 "capacity_max": test_f.iloc[molecule_idx]['capacity_max'],
-                "capacity_pred": 0
+                "capacity_pred": 0,
+                            'Positive_explanation_add_count': 0,
+            'Negative_explanation_add_count': 0,
+            'Positive_explanation_del_count': 0,
+            'Negative_explanation_del_count': 0
             } for s in smarts_top10.keys()}
             
             for key, value in smarts_top10.items():

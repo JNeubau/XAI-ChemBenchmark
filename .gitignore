@@ -346,3 +346,4 @@ visualizations/*
 main_test.py
 da_test.py
 XAIFlow/analysis/data/*
+*.tex

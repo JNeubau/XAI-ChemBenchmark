@@ -333,19 +333,19 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
         feature_importance_per_fold.append(top_features)
         
         # Plot feature importance
-        # plt.figure(figsize=(12, 6))
-        # features, importances = zip(*top_features)
-        # plt.barh([f"{f} ({i:.3f})" for f, i in zip(features, importances)], 
-        #         [abs(i) for i in importances])
-        # plt.title(f'Top Feature Importance - Fold {i}')
-        # plt.xlabel('|Impact on Prediction|')
-        # plt.tight_layout()
-        # plt.savefig(os.path.join(plots_dir, f'feature_importance_fold_{i}.png'))
-        # plt.close()
+        plt.figure(figsize=(12, 6))
+        features, importances = zip(*top_features)
+        plt.barh([f"{f} ({i:.3f})" for f, i in zip(features, importances)], 
+                [abs(i) for i in importances])
+        plt.title(f'Top Feature Importance - Fold {i}')
+        plt.xlabel('|Impact on Prediction|')
+        plt.tight_layout()
+        plt.savefig(os.path.join(plots_dir, f'feature_importance_fold_{i}.png'))
+        plt.close()
         
-        # # Create PDF report
-        # pdf_path = create_mmace_pdf(MMACE_Explanations, i, results_dir)
-        # print(f"Created PDF report for fold {i} at: {pdf_path}")
+        # Create PDF report
+        pdf_path = create_mmace_pdf(MMACE_Explanations, i, results_dir)
+        print(f"Created PDF report for fold {i} at: {pdf_path}")
     
     # Save all logs to CSV
     pd.DataFrame(all_logs, columns=["log"]).to_csv(log_file_path, index=False)

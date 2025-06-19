@@ -53,6 +53,7 @@ class CrossValidationShapPipeline:
         self.shap_values = None
         self.model = None
         self.featuers = None
+        self.expected_values = None 
 
     def tune_model(self, X_train: pd.DataFrame, y_train: pd.DataFrame, model: object,
                    param_grid: dict | None) -> object:
@@ -83,20 +84,23 @@ class CrossValidationShapPipeline:
         :param model: prediction model.
         :param X_test: test data.
         :return: shap values.
+        :return: expected value.
         """
         explainer = shap.TreeExplainer(model)
+        expected_value = explainer.expected_value
         shap_values = explainer.shap_values(X_test)
-        return shap_values
+        return shap_values, expected_value
 
     def update_shap(self, model: object, X_test: pd.DataFrame):
         """
-        Update shap values.
+        Update shap values and expected values.
         :param model: prediction model.
         :param X_test: test data.
         """
-        shap_values = self.explain_model(model, X_test)
+        shap_values, expected_value = self.explain_model(model, X_test)
         self.shap_values.append(shap_values)
         self.featuers.append(X_test)
+        self.expected_values.append(expected_value)
 
     def eval_model(self, y_pred: np.array, y_test: np.array) -> dict:
         """
@@ -120,6 +124,7 @@ class CrossValidationShapPipeline:
         self.scores = scores
         self.shap_values = []
         self.featuers = []
+        self.expected_values = []
 
     def update_scores(self, model_scores: dict):
         """
@@ -272,4 +277,4 @@ class CrossValidationShapPipeline:
         # if len(self.save_dir) > 0:
         #     self.save_results(results, proper_model_name, model.get_params())
 
-        return self.shap_values, self.featuers, []
+        return self.shap_values, self.featuers, [], self.expected_values
