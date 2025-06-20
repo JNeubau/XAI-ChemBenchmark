@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import shapiq
 import os
+import joblib
 
 from datetime import datetime
 from XAIFlow.AI_models.models import Models
@@ -55,6 +56,9 @@ class CrossValidationShapIqPipeline:
         self.shap_values = None
         self.iq_min_order = iq_min_order
         self.iq_max_order = iq_max_order
+        self.model = None
+        self.features = None
+        self.interactions = None
 
     def tune_model(self, X_train: pd.DataFrame, y_train: pd.DataFrame, model: object,
                    param_grid: dict | None) -> object:
@@ -86,16 +90,16 @@ class CrossValidationShapIqPipeline:
         :param X_test: test data.
         :return: shap values.
         """
-        explainer = shapiq.TreeExplainer(model, index='SV', min_order=min_order, max_order=max_order)
-        # explainer = shap.TreeExplainer(model)
-        # print(X_test.head())
+        explainer = shapiq.TreeExplainer(model, index='k-SII', min_order=min_order, max_order=max_order)
         shap_values = []
-        new_X_test = X_test.to_numpy()
-        for i in range(new_X_test.shape[0]):
+        interaction_values = []
+        new_X_test = np.array(X_test)
+        for i in range(len(new_X_test)):
             shap_value = explainer.explain(new_X_test[i])
-            shap_values.append(shap_value.values)
-        shap_values = np.array(shap_values)
-        return shap_values
+            vals = shap_value.get_n_order_values(1)
+            interaction_values.append(shap_value)
+            shap_values.append(vals)
+        return shap_values, interaction_values
 
     def explain_model_interaction(self, model, X_test, min_order, max_order):
         """
@@ -104,11 +108,10 @@ class CrossValidationShapIqPipeline:
         :param X_test: test data.
         :return: shap values.
         """
-        explainer = shapiq.TreeExplainer(model, index='SV', min_order=min_order, max_order=max_order)
-        # print(X_test.head())
+        explainer = shapiq.TreeExplainer(model, index='k-SII', min_order=min_order, max_order=max_order)
         shap_values = []
-        new_X_test = X_test.to_numpy()
-        for i in range(new_X_test.shape[0]):
+        new_X_test = np.array(X_test)
+        for i in range(len(new_X_test)):
             shap_value = explainer.explain(new_X_test[i])
             shap_values.append(shap_value)
         return shap_values
@@ -119,9 +122,13 @@ class CrossValidationShapIqPipeline:
         :param model: prediction model.
         :param X_test: test data.
         """
-        shap_values = self.explain_model_interaction(model, X_test, min_order=self.iq_min_order, max_order=self.iq_max_order)
-        # shap_values = self.explain_model(model, X_test, min_order=self.iq_min_order, max_order=self.iq_max_order)
+        if self.iq_max_order > 1:
+            shap_values = self.explain_model_interaction(model, X_test, min_order=self.iq_min_order, max_order=self.iq_max_order)
+        else:
+            shap_values, interaction_values = self.explain_model(model, X_test, min_order=self.iq_min_order, max_order=self.iq_max_order)
+            self.interactions.append(interaction_values)
         self.shap_values.append(shap_values)
+        self.features.append(X_test)
 
     def eval_model(self, y_pred: np.array, y_test: np.array) -> dict:
         """
@@ -144,6 +151,8 @@ class CrossValidationShapIqPipeline:
             scores[metric] = []
         self.scores = scores
         self.shap_values = []
+        self.interactions = []
+        self.features = []
 
     def update_scores(self, model_scores: dict):
         """
@@ -213,6 +222,7 @@ class CrossValidationShapIqPipeline:
 
             # model training
             model.fit(X_train, y_train[y_train.columns[0]])
+            self.model = model
 
             y_pred = model.predict(X_test).flatten()
 
@@ -229,3 +239,44 @@ class CrossValidationShapIqPipeline:
             self.save_results(results, proper_model_name, model.get_params())
 
         return results, self.scores, self.shap_values
+    
+    def predict_capacity(self, X_input):
+        """
+        Predict capacity using the trained model.
+        :param X_input: input data for prediction.
+        :return: predicted values.
+        """        
+        prediction = self.model.predict(X_input)
+        return prediction
+    
+    def load_model(self, model_path: str) -> object:
+        """
+        Load a trained model from a file.
+        :param model_path: path to the saved model.
+        :return: loaded model.
+        """
+        if os.path.exists(model_path):
+            loaded_model = joblib.load(model_path)
+            if self.verbose:
+                print(f"Model loaded from {model_path}")
+            return loaded_model
+        else:
+            raise FileNotFoundError(f"Model file not found at {model_path}")
+    
+    def load_pipeline(self, model_path: str | None = None):
+        """
+        Train the model.
+        :param model_path: path to saved model.
+        :return: explanations.
+        """
+        self.init_scores_shap()
+
+        for i, fold in enumerate(self.folds):
+            train_idx, test_idx = fold
+
+            X_test = copy.deepcopy(self.X.loc[test_idx, :]).reset_index(drop=True)
+            model = self.load_model(os.path.join(model_path, f"model_{i}.joblib"))
+            self.model = model
+            self.update_shap(model, X_test)
+
+        return self.shap_values, self.features, self.interactions, []

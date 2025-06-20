@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from datetime import datetime
 
-def plot_shapiq_local(data, shap_values, plots_dir, plots_to_run=None):
+def plot_shapiq_local(data, shap_values,folds, plots_dir, plots_to_run=None):
     """
     Generate SHAP-IQ plots for all features and save them in the specified results directory.
 
@@ -20,16 +20,18 @@ def plot_shapiq_local(data, shap_values, plots_dir, plots_to_run=None):
         return
     
     if 'all' in plots_to_run:
-        plots_to_run = ['force', 'waterfall']
+        # plots_to_run = ['force', 'waterfall']
+        plots_to_run = ['force', 'waterfall', 'upset', 'network']
         # plots_to_run = ['force', 'waterfall', 'bar', 'upset', 'network']
     
     os.makedirs(plots_dir, exist_ok=True)
     
     pdf_path = os.path.join(plots_dir, f"shapiq_plots_local_{datetime.now().strftime('%H_%M_%S')}.pdf")
     with PdfPages(pdf_path) as pdf:
-        for i, fold_shap_values in enumerate(shap_values):
+        for i, (fold_shap_values, fold_data) in enumerate(zip(shap_values,folds)):
+            test_f = data.loc[fold_data[1]]            
             for j, shap_val in enumerate(fold_shap_values):
-                smiles = data.iloc[j]['smiles']
+                smiles = test_f.iloc[j]['smiles']
                 feature_names = data.drop(columns=['capacity_max', 'smiles']).columns.str.replace('fingerprint', '', regex=False)
                 
                 if 'force' in plots_to_run:
@@ -72,7 +74,7 @@ def plot_shapiq_local(data, shap_values, plots_dir, plots_to_run=None):
                     
                 if 'network' in plots_to_run:
                     # Plot network plot
-                    plt.figure(figsize=(8, 6))
+                    plt.figure(figsize=(16, 12))
                     shapiq.plot.network_plot(
                         interaction_values=shap_val,
                         feature_names=feature_names,

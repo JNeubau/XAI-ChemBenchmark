@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import shap
 import os
+import joblib
 from datetime import datetime
 from XAIFlow.AI_models.models import Models
 from XAIFlow.AI_models.eval_metrics import EvalMetrics, smape, rmse, mape
@@ -51,6 +52,8 @@ class CrossValidationShapPipeline:
         self.scores = None
         self.shap_values = None
         self.model = None
+        self.featuers = None
+        self.expected_values = None 
 
     def tune_model(self, X_train: pd.DataFrame, y_train: pd.DataFrame, model: object,
                    param_grid: dict | None) -> object:
@@ -81,19 +84,23 @@ class CrossValidationShapPipeline:
         :param model: prediction model.
         :param X_test: test data.
         :return: shap values.
+        :return: expected value.
         """
         explainer = shap.TreeExplainer(model)
+        expected_value = explainer.expected_value
         shap_values = explainer.shap_values(X_test)
-        return shap_values
+        return shap_values, expected_value
 
     def update_shap(self, model: object, X_test: pd.DataFrame):
         """
-        Update shap values.
+        Update shap values and expected values.
         :param model: prediction model.
         :param X_test: test data.
         """
-        shap_values = self.explain_model(model, X_test)
+        shap_values, expected_value = self.explain_model(model, X_test)
         self.shap_values.append(shap_values)
+        self.featuers.append(X_test)
+        self.expected_values.append(expected_value)
 
     def eval_model(self, y_pred: np.array, y_test: np.array) -> dict:
         """
@@ -116,6 +123,8 @@ class CrossValidationShapPipeline:
             scores[metric] = []
         self.scores = scores
         self.shap_values = []
+        self.featuers = []
+        self.expected_values = []
 
     def update_scores(self, model_scores: dict):
         """
@@ -211,3 +220,61 @@ class CrossValidationShapPipeline:
         """        
         prediction = self.model.predict(X_input)
         return prediction
+    
+    def load_model(self, model_path: str) -> object:
+        """
+        Load a trained model from a file.
+        :param model_path: path to the saved model.
+        :return: loaded model.
+        """
+        if os.path.exists(model_path):
+            loaded_model = joblib.load(model_path)
+            if self.verbose:
+                print(f"Model loaded from {model_path}")
+            return loaded_model
+        else:
+            raise FileNotFoundError(f"Model file not found at {model_path}")
+    
+    def load_pipeline(self, model_path: str | None = None):
+        """
+        Train the model.
+        :param model_path: path to saved model.
+        :return: explanations.
+        """
+        # proper_model_name, model, param_grid = Models().get_model(model_name, model_path=model_path)
+        self.init_scores_shap()
+
+        # if self.verbose:
+        #     print(f"Training model {proper_model_name}")
+
+        for i, fold in enumerate(self.folds):
+            train_idx, test_idx = fold
+
+            # train-test split
+            # X_train = copy.deepcopy(self.X.loc[train_idx, :]).reset_index(drop=True)
+            # y_train = copy.deepcopy(self.y.loc[train_idx, :]).reset_index(drop=True)
+            X_test = copy.deepcopy(self.X.loc[test_idx, :]).reset_index(drop=True)
+            # y_test = copy.deepcopy(self.y.loc[test_idx, :]).reset_index(drop=True)
+
+            # model = self.tune_model(X_train, y_train, model, param_grid)
+
+            # model training
+            # model.fit(X_train, y_train[y_train.columns[0]])
+            model = self.load_model(os.path.join(model_path, f"model_{i}.joblib"))
+            self.model = model
+
+            # y_pred = model.predict(X_test).flatten()
+
+            # model eval
+            # y_test_numpy = y_test.to_numpy().flatten()
+            # y_pred_eval = self.eval_model(y_pred, y_test_numpy)
+
+            # self.update_scores(y_pred_eval)
+            self.update_shap(model, X_test)
+
+        # results = self.aggregate_scores()
+
+        # if len(self.save_dir) > 0:
+        #     self.save_results(results, proper_model_name, model.get_params())
+
+        return self.shap_values, self.featuers, [], self.expected_values

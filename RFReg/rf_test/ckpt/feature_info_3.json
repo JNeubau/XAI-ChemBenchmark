@@ -1,0 +1,8 @@
+{
+  "num_features": 117,
+  "feature_details": "MACCS fingerprints only (no ID column)",
+  "last_trained": "2025-05-14 14:28:00",
+  "model_path": {
+    "joblib": "C:\\Users\\neuba\\Documents\\magister\\repo\\algs\\XAI-experiments\\RFReg\\rf_test/ckpt/model_3.joblib"
+  }
+}
