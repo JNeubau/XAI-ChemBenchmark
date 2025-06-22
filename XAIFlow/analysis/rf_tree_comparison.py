@@ -104,14 +104,17 @@ def make_plot(data1: pd.DataFrame, data2: pd.DataFrame, save_dir: str):
     # Create overall boxplot
     if all_shap and all_meg:  # Check if both lists have data
         overall_data = pd.DataFrame({
-            'Method': ['SHAP']*len(all_shap) + ['MEG']*len(all_meg),
+            'Method': ['Py3.10']*len(all_shap) + ['Py3.7']*len(all_meg),
+            # 'Method': ['SHAP']*len(all_shap) + ['MEG']*len(all_meg),
             'Capacity': all_shap + all_meg
         })
         
-        sns.boxplot(x='Method', y='Capacity', data=overall_data, palette="Set3", hue='Method', legend=False)
-        plt.title('Overall Comparison of SHAP and MEG Predictions')
+        sns.boxplot(x='Method', y='Capacity', data=overall_data, 
+                    # palette="Set3", 
+                    hue='Method', legend=False)
+        plt.title('Overall Comparison of Py3.10 and Py3.7 Predictions')
         plt.ylabel('Predicted Capacity')
-        plt.savefig(os.path.join(save_dir, 'shap_vs_meg_overall_comparison.png'), dpi=300)
+        plt.savefig(os.path.join(save_dir, 'shap_vs_meg_overall_comparison.png'), dpi=400)
     else:
         print("Warning: Not enough data for overall comparison plot")
     
@@ -130,6 +133,8 @@ def make_bar_plot(data1:pd.DataFrame, data2:pd.DataFrame, save_dir:str):
         
         d1 = d1.dropna().values
         d2 = d2.dropna().values
+        if row == 4:
+            d1 = d1[:-1]
         
         ax = axes[row]
         
@@ -174,9 +179,80 @@ def read_data_scores_MEG(workdir, experiment_name):
     meg_scores = pd.DataFrame(rows)
     return meg_scores
 
+def plot_scores(shap_scores_df, meg_scores_df, save_path):
+    """
+    Plots a comparison of RMSE values between SHAP and MEG results.
+    
+    Parameters:
+    shap_scores_df (pd.DataFrame): DataFrame containing SHAP scores with 'rmse' column
+    meg_scores_df (pd.DataFrame): DataFrame containing MEG scores with 'test_mse' column
+    save_path (str): Directory to save the plot
+    """
+    # Extract RMSE from SHAP and calculate RMSE from MEG's MSE
+    shap_rmse = shap_scores_df['rmse'].values
+    meg_rmse = np.sqrt(meg_scores_df['test_mse'].values)
+    
+    # Calculate the final/average values
+    shap_final = shap_rmse[-1] if 'Final' in shap_scores_df.index else shap_rmse.mean()
+    meg_final = meg_rmse.mean()  # Calculate average for MEG
+    
+    # Create a DataFrame for easy plotting
+    folds = list(range(len(meg_rmse)))
+    data = pd.DataFrame({
+        'Fold': folds + ['Final'],
+        'P3.10 RMSE': list(shap_rmse[:-1] if 'Final' in shap_scores_df.index else shap_rmse) + [shap_final],
+        'P3.7 RMSE': list(meg_rmse) + [meg_final]
+    })
+    
+    # Reshape data for seaborn
+    # plot_data = pd.melt(data, id_vars=['Fold'], 
+    #                     value_vars=['P3.10 RMSE', 'P3.7 RMSE'],
+    #                     var_name='Method', value_name='RMSE')
+    
+    # Create a second plot with a line chart for comparison
+    plt.figure(figsize=(10, 6))
+    
+    # Line plot excluding the final point to see trends
+    line_data = data[data['Fold'] != 'Final'].copy()
+    line_data['Fold'] = line_data['Fold'].astype(int)  # Ensure fold is integer for line plot
+    
+    plt.plot(line_data['Fold'], line_data['P3.10 RMSE'], 'o-', color='red', linewidth=2, label='P3.10 RMSE')
+    plt.plot(line_data['Fold'], line_data['P3.7 RMSE'], 's-', color='blue', linewidth=2, label='P3.7 RMSE')
+    
+    # Add horizontal lines for final values
+    shap_final_value = data.loc[data['Fold'] == 'Final', 'P3.10 RMSE'].values[0]
+    meg_final_value = data.loc[data['Fold'] == 'Final', 'P3.7 RMSE'].values[0]
+    
+    plt.axhline(y=shap_final_value, color='red', linestyle='--', alpha=0.7, 
+               label=f'P3.10 Final')
+            #    label=f'P3.10 Final: {shap_final_value:.2f}')
+    plt.axhline(y=meg_final_value, color='blue', linestyle='--', alpha=0.7,
+               label=f'P3.7 Final')
+            #    label=f'P3.7 Final: {meg_final_value:.2f}')
+    
+    
+    # Add text annotations for the horizontal lines
+    plt.text(folds[-1] + 0.1, shap_final_value, f'{shap_final_value:.2f}', 
+            color='red', ha='center', va='bottom', fontweight='bold')
+    plt.text(folds[-1] + 0.1, meg_final_value, f'{meg_final_value:.2f}', 
+            color='blue', ha='center', va='bottom', fontweight='bold')
+    
+    plt.title('RMSE Trend Comparison by Fold', fontsize=16)
+    plt.xlabel('Fold', fontsize=12)
+    plt.ylabel('RMSE Value', fontsize=12)
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.legend()
+    plt.xticks(folds)
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_path, 'shap_vs_meg_rmse_trend.png'), dpi=300)
+    
+    plt.close('all')
+    return data
+
 if __name__ == "__main__":
     workdir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    experiment_name = "new_test"  
+    experiment_name = "final"  
 
     shap_df = read_shap_data(workdir, experiment_name)
     # print("SHAP Data:")
@@ -187,7 +263,7 @@ if __name__ == "__main__":
     # print(meg_data)
     
     make_plot(shap_df, meg_data, os.path.join(workdir, 'results', experiment_name))
-    make_bar_plot(shap_df, meg_data, os.path.join(workdir, 'results', experiment_name))
+    # make_bar_plot(shap_df, meg_data, os.path.join(workdir, 'results', experiment_name))
     
     shap_scores = read_data_scores_SHAP(workdir, experiment_name)
     print("\nSHAP Scores:")
@@ -196,3 +272,4 @@ if __name__ == "__main__":
     meg_scores = read_data_scores_MEG(workdir, experiment_name)
     print("\nMEG Scores:")
     print(meg_scores)
+    # plot_scores(shap_scores, meg_scores, os.path.join(workdir, 'results', experiment_name))
