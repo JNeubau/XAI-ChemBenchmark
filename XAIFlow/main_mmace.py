@@ -210,8 +210,10 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
                 cf_features = fps_df.iloc[0].astype(int)
 
                 feature_diff = cf_features - original_features
-                prediction_org = float(original['capacity_max'])
-                prediction_cf = float(cf.yhat)
+                # prediction_org = float(original['capacity_max']) #change to model.predict(original)
+                prediction_org = rf_model.predict(pd.DataFrame([original_features]))[0] if rf_model else original['capacity_max']
+                # prediction_cf = float(cf.yhat)
+                prediction_cf = rf_model.predict(pd.DataFrame([cf_features]))[0] if rf_model else cf.yhat
                 prediction_diff = prediction_cf - prediction_org
 
                 # get number of features changed

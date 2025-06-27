@@ -211,7 +211,7 @@ class CrossValidationLimePipeline:
 
             # All features are categorical (binary)
             categorical_features = list(range(n_features))
-            categorical_names = {i: [0, 1] for i in categorical_features}
+            class_names = {i: [0, 1] for i in categorical_features}
             # Fit the Explainer on the training data set using the LimeTabularExplainer
             explainer = lime.lime_tabular.LimeTabularExplainer(X_train.values, 
                                         feature_names = feature_names,
@@ -219,7 +219,8 @@ class CrossValidationLimePipeline:
                                         random_state=42,
                                         verbose=True,
                                         categorical_features = categorical_features,
-                                        categorical_names = categorical_names,
+                                        # categorical_names = class_names,
+                                        # class_names = class_names,
                                         discretize_continuous = False,
                                         )
 
@@ -297,15 +298,18 @@ class CrossValidationLimePipeline:
 
             # All features are categorical (binary)
             categorical_features = list(range(n_features))
+            # print(f"Categorical features: {categorical_features}")
             categorical_names = {i: [0, 1] for i in categorical_features}
             # Fit the Explainer on the training data set using the LimeTabularExplainer
+            # print(f"Type of X_train: {type(X_train.values)}, Feature names: {feature_names}, Categorical features: {categorical_features}")
             explainer = lime.lime_tabular.LimeTabularExplainer(X_train.values, 
                                         feature_names = feature_names,
                                         mode = 'regression',
                                         random_state=42,
                                         verbose=True,
                                         categorical_features = categorical_features,
-                                        categorical_names = categorical_names,
+                                        # categorical_names = categorical_names,
+                                        # class_names = categorical_names,
                                         discretize_continuous = False,
                                         )
 

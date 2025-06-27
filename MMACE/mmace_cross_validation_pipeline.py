@@ -210,7 +210,7 @@ class CrossValidationMMACEPipeline:
             cfs = exmol.rcf_explain(
                 samples,
                 filter_nondrug = False,
-                delta=0.25,
+                delta=1.0,
                 nmols=4
                 )
             

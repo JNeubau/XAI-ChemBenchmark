@@ -326,9 +326,9 @@ def process_folds_global(folds, data, lime_values, smarts_mapping_path, top_i=10
                     # Use test_f.iloc[idx] to get the current molecule in the fold
                     if idx < len(test_f):
                         smiles = test_f.iloc[idx]['smiles']
-                        print(f"Processing feature: {feature} for SMILES: {smiles}")
+                        # print(f"Processing feature: {feature} for SMILES: {smiles}")
                         feature_exists = int(data.loc[data['smiles'] == smiles, feature].values[0]) if feature in data.columns else 0
-                        print(f"Feature {feature} exists in SMILES {smiles}: {feature_exists}")
+                        # print(f"Feature {feature} exists in SMILES {smiles}: {feature_exists}")
                         if val >= 0 and feature_exists == 1:
                             positive_explanation_add_count[feature] += 1
                         if val < 0 and feature_exists == 1:
@@ -398,7 +398,7 @@ def process_folds_global(folds, data, lime_values, smarts_mapping_path, top_i=10
             correlation = df.corr(method='spearman').loc['lime_values', 'capacity_values']
             molecules_statistics[key]["lime_sign"] = f'Positive|{correlation}' if correlation > 0 else f'Negative|{correlation}'
             # Use sign_counts to fill positive_count and negative_count
-            print(f"Feature: {feature}, Positive count: {sign_counts[feature]['Positive']}, Negative count: {sign_counts[feature]['Negative']}")
+            # print(f"Feature: {feature}, Positive count: {sign_counts[feature]['Positive']}, Negative count: {sign_counts[feature]['Negative']}")
             molecules_statistics[key]["positive_changes"] = sign_counts[feature]['Positive']
             molecules_statistics[key]["negative_changes"] = sign_counts[feature]['Negative']
             molecules_statistics[key]["Positive_explanation_add_count"] = positive_explanation_add_count[feature]
