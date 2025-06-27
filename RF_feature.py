@@ -41,7 +41,11 @@ def plot_feature_importances(importances, feature_names=None, save_path="feature
 
 def aggregate_models(models_folder, X, y, feature_names=None, verbose=False):
     model_files = sorted(glob.glob(os.path.join(models_folder, "model_*.joblib")))
-    n_models = len(model_files)
+    model_files_37 = [f for f in model_files if "_37.joblib" in f]
+    model_files_other = [f for f in model_files if "_37.joblib" not in f]
+    print(f"Models with '_37': {model_files_37}")
+    print(f"Other models: {model_files_other}")
+    n_models = len(model_files_other)
     if n_models == 0:
         raise ValueError("No model files found in the specified folder.")
     print(f"Found {n_models} model files.")
@@ -50,10 +54,10 @@ def aggregate_models(models_folder, X, y, feature_names=None, verbose=False):
     all_importances = []
     all_perm_importances = []
 
-    for model_file in model_files:
+    for model_file in model_files_other:
         model = load_model(model_file, verbose=verbose)
         y_pred = model.predict(X)
-        rmse = mean_squared_error(y, y_pred, squared=False)
+        rmse = mean_squared_error(y, y_pred)
         mae = mean_absolute_error(y, y_pred)
         r2 = r2_score(y, y_pred)
         metrics.append([rmse, mae, r2])
@@ -88,7 +92,7 @@ def aggregate_models(models_folder, X, y, feature_names=None, verbose=False):
 
     # Partial Dependence Plot for top 2 features
     top_features = sorted_idx[:2]
-    model = load_model(model_files[0])  # Use the first model for PDP
+    model = load_model(model_files_other[0])  # Use the first model for PDP
     disp = PartialDependenceDisplay.from_estimator(
         model, X, features=top_features, feature_names=feature_names
     )
