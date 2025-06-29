@@ -216,26 +216,38 @@ def plot_scores(shap_scores_df, meg_scores_df, save_path):
     line_data = data[data['Fold'] != 'Final'].copy()
     line_data['Fold'] = line_data['Fold'].astype(int)  # Ensure fold is integer for line plot
     
-    plt.plot(line_data['Fold'], line_data['P3.10 RMSE'], 'o-', color='red', linewidth=2, label='P3.10 RMSE')
-    plt.plot(line_data['Fold'], line_data['P3.7 RMSE'], 's-', color='blue', linewidth=2, label='P3.7 RMSE')
+    plt.plot(line_data['Fold'], line_data['P3.10 RMSE'], 'o-', 
+            #  color='red', 
+             linewidth=2, label='P3.10 RMSE')
+    plt.plot(line_data['Fold'], line_data['P3.7 RMSE'], 's-', 
+            #  color='blue', 
+             linewidth=2, label='P3.7 RMSE')
     
     # Add horizontal lines for final values
     shap_final_value = data.loc[data['Fold'] == 'Final', 'P3.10 RMSE'].values[0]
     meg_final_value = data.loc[data['Fold'] == 'Final', 'P3.7 RMSE'].values[0]
     
-    plt.axhline(y=shap_final_value, color='red', linestyle='--', alpha=0.7, 
+    plt.axhline(y=shap_final_value,
+                # color='red', 
+                linestyle='--', alpha=0.7, 
                label=f'P3.10 Final')
             #    label=f'P3.10 Final: {shap_final_value:.2f}')
-    plt.axhline(y=meg_final_value, color='blue', linestyle='--', alpha=0.7,
+    plt.axhline(y=meg_final_value, 
+                color='orange', 
+                # color='blue', 
+                linestyle='--', alpha=0.7,
                label=f'P3.7 Final')
             #    label=f'P3.7 Final: {meg_final_value:.2f}')
     
     
     # Add text annotations for the horizontal lines
     plt.text(folds[-1] + 0.1, shap_final_value, f'{shap_final_value:.2f}', 
-            color='red', ha='center', va='bottom', fontweight='bold')
+            # color='red', 
+            ha='center', va='bottom', fontweight='bold')
     plt.text(folds[-1] + 0.1, meg_final_value, f'{meg_final_value:.2f}', 
-            color='blue', ha='center', va='bottom', fontweight='bold')
+            # color='orange', 
+            # color='blue', 
+            ha='center', va='bottom', fontweight='bold')
     
     plt.title('RMSE Trend Comparison by Fold', fontsize=16)
     plt.xlabel('Fold', fontsize=12)
@@ -254,15 +266,15 @@ if __name__ == "__main__":
     workdir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     experiment_name = "final"  
 
-    shap_df = read_shap_data(workdir, experiment_name)
+    # shap_df = read_shap_data(workdir, experiment_name)
     # print("SHAP Data:")
     # print(shap_df)
 
-    meg_data = read_meg_data(workdir, experiment_name)
+    # meg_data = read_meg_data(workdir, experiment_name)
     # print("\nMEG Data:")
     # print(meg_data)
     
-    make_plot(shap_df, meg_data, os.path.join(workdir, 'results', experiment_name))
+    # make_plot(shap_df, meg_data, os.path.join(workdir, 'results', experiment_name))
     # make_bar_plot(shap_df, meg_data, os.path.join(workdir, 'results', experiment_name))
     
     shap_scores = read_data_scores_SHAP(workdir, experiment_name)
@@ -272,4 +284,4 @@ if __name__ == "__main__":
     meg_scores = read_data_scores_MEG(workdir, experiment_name)
     print("\nMEG Scores:")
     print(meg_scores)
-    # plot_scores(shap_scores, meg_scores, os.path.join(workdir, 'results', experiment_name))
+    plot_scores(shap_scores, meg_scores, os.path.join(workdir, 'results', experiment_name))
