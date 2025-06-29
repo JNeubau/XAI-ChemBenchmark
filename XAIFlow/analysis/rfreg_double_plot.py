@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 
 plt.style.use(['fast'])
 
@@ -28,6 +29,7 @@ importances2 = [
     0.115, 0.107, 0.080, 0.062, 0.060, 
     0.045, 0.044, 0.044, 0.032, 0.030
 ]
+
 
 # Create a unified set of features
 all_features = list(set(features1 + features2))
@@ -61,10 +63,11 @@ for feature in sorted_features:
     values2.append(importance_dict2.get(feature, 0))
 
 # Create bars
-bars1 = ax.bar(positions - barWidth/2, [v if v > 0 else np.nan for v in values1], 
-               width=barWidth, label='Python 3.7')
-bars2 = ax.bar(positions + barWidth/2, [v if v > 0 else np.nan for v in values2], 
+bars2 = ax.bar(positions + barWidth/2, values2, 
                width=barWidth, label='Python 3.10')
+bars1 = ax.bar(positions - barWidth/2, values1, 
+               width=barWidth, label='Python 3.7')
+
 
 # Add importance values as text labels on each bar
 # for i, bar in enumerate(bars1):
@@ -86,13 +89,13 @@ ax.set_xlabel('Feature', fontsize=12)
 ax.set_ylabel('Importance', fontsize=12)
 ax.set_title('Combined Feature Importances Comparison', fontsize=16)
 ax.set_xticks(positions)
-ax.set_xticklabels(all_features, rotation=90)
+ax.set_xticklabels(sorted_features, rotation=90)
 
 # Adjust y-limit
 ax.set_ylim(0, max(max(values1), max(values2)) * 1.15)
 
 # Add a legend
-ax.legend(fontsize=12)
+ax.legend(fontsize=12,  loc='upper right')
 
 # Add grid lines for better readability
 ax.grid(axis='y', linestyle='--', alpha=0.7)
@@ -100,29 +103,3 @@ ax.grid(axis='y', linestyle='--', alpha=0.7)
 plt.tight_layout()
 plt.savefig('combined_feature_importance.png', dpi=300)
 plt.show()
-
-# # Create a combined plot showing both datasets side by side for each feature position
-# fig, ax = plt.subplots(figsize=(12, 6))
-
-# # Set width of bars
-# barWidth = 0.35
-# positions1 = np.arange(len(importances1))
-# positions2 = [p + barWidth for p in positions1]
-
-# # Create bars
-# ax.bar(positions1, importances1, width=barWidth, label='Pyhon 3.7')
-# ax.bar(positions2, importances2, width=barWidth, label='Python 3.10')
-
-# # Add labels
-# ax.set_xlabel('Feature Rank')
-# ax.set_ylabel('Importance')
-# ax.set_title('Comparison of Top 10 Feature Importances Between Datasets')
-# ax.set_xticks([p + barWidth/2 for p in positions1])
-# ax.set_xticklabels([f'#{i+1}' for i in range(len(positions1))])
-
-# # Add a legend
-# ax.legend()
-
-# plt.tight_layout()
-# plt.savefig('feature_importance_side_by_side.png', dpi=300)
-# plt.show()

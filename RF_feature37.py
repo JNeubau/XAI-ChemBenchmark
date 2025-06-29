@@ -52,7 +52,7 @@ def plot_feature_importances(importances, feature_names=None, save_path="feature
 def aggregate_models(models_folder, X, y, feature_names=None, verbose=False):
     model_files = sorted(glob.glob(os.path.join(models_folder, "model_*.joblib")))
     model_files_other = [f for f in model_files if "_37.joblib" in f]
-    XXmodel_files_other = [f for f in model_files if "_37.joblib" not in f]
+    # XXmodel_files_other = [f for f in model_files if "_37.joblib" not in f]
     # print("Models with '_37': {}".format(model_files_37))
     print("Other models: {}".format(model_files_other))
     n_models = len(model_files_other)
@@ -115,8 +115,9 @@ def aggregate_models(models_folder, X, y, feature_names=None, verbose=False):
 if __name__ == "__main__":
     parent_dir = os.path.dirname(os.getcwd())
     print("Parent directory:", parent_dir)
-    models_folder = 'path' #do zmiany
+    models_folder = os.path.join(parent_dir, 'XAI-experiments', 'RFReg', 'final', 'ckpt')
     X_path = os.path.join(parent_dir, 'XAI-experiments', 'data', 'new_maccs_merged_all.csv')
     X, y = load_data(X_path)
-    feature_names = ["maccsfingerprint{}".format(i) for i in range(167)]
+    # feature_names = ["maccsfingerprint{}".format(i) for i in range(167)]
+    feature_names = [f"maccsfingerprint{i}" for i in range(1, 167)]
     aggregate_models(models_folder, X, y, feature_names=feature_names)
