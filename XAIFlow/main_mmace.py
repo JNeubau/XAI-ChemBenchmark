@@ -184,6 +184,7 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
             original_fps = [list(Chem.MACCSkeys.GenMACCSKeys(original_smmiles).ToBitString())]
             original_fps = np.array(original_fps)[:, 1:]
             original_fps_df = pd.DataFrame(original_fps, columns=[f'maccsfingerprint{i}' for i in range(original_fps.shape[1])])
+            # print(f"original_fps_df: {original_fps_df[:10]}")
             original_features = original_fps_df.iloc[0].astype(int)
 
             # Load model for this fold (like in mmace_cross_validation_pipeline.py)
@@ -269,7 +270,8 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
                                 "SMILES_original": original['smiles'],
                                 "SMILES": str(original['smiles']),
                                 "SMILES_cf": str(cf.smiles),
-                                "Feature_key": feat,
+                                "Feature_key": f'maccsfingerprint{int(feat.replace("maccsfingerprint", ""))+1}',
+                                # "Feature_key": feat,
                                 "SMARTS": smarts_mapping.get(feat, [""])[0],
                                 "Prediction_original": prediction_org,
                                 "Prediction_cf": prediction_cf,

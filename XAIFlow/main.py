@@ -268,7 +268,8 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
     for key, smarts in smarts_top.items():
         excel_data["Fold_No"].append(key[0])
         excel_data["Smiles_key"].append(key[1])
-        excel_data["Feature_key"].append(key[2])
+        excel_data["Feature_key"].append(f'maccsfingerprint{int(key[2].replace("maccsfingerprint", "")) + 1}')
+        # excel_data["Feature_key"].append(key[2])
         excel_data["SMARTS"].append(smarts)
         excel_data["Molecule"].append(key[1])
         excel_data["number_of_molecules_where_fingerprint"].append(molecules_statistics_all[key]["number_of_molecules_where_fingerprint"])
@@ -396,7 +397,7 @@ def process_folds_local_interactions(folds, data, shap_values, smarts_mapping_pa
 
             smarts_top10 = {
                 (i, test_f.iloc[molecule_idx]['smiles'], tuple(feature)): [
-                    smarts_mapping[f'maccsfingerprint{int(f.replace("maccsfingerprint", "")) + 1}'][0]
+                    smarts_mapping[f'maccsfingerprint{int(f.replace("maccsfingerprint", ""))}'][0]
                     for f in feature
                 ]
                 for feature, _ in top_10_feature_names

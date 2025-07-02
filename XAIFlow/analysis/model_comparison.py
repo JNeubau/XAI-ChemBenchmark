@@ -162,6 +162,7 @@ def plot_overall_feature_ranking(overall_ranking_df, output_dir, timestamp, N=15
     plots_dir = os.path.join(output_dir, 'plots')
     os.makedirs(plots_dir, exist_ok=True)
     top_n = overall_ranking_df.head(N)
+    plt.style.use(['fast'])
     plt.figure(figsize=(15, 7))
     # Assign Feature to hue and set legend=False to avoid FutureWarning
     sns.barplot(
@@ -169,7 +170,7 @@ def plot_overall_feature_ranking(overall_ranking_df, output_dir, timestamp, N=15
         x='Feature',
         y='Mean_Avg_Explanation_Value',
         hue='Feature',
-        palette='viridis',
+        # palette='viridis',
         legend=False
     )
     plt.xticks(rotation=90, ha='right')
@@ -183,7 +184,7 @@ def plot_overall_feature_ranking(overall_ranking_df, output_dir, timestamp, N=15
 def create_ranking_plots(rankings_df, output_dir, timestamp):
     """Create visualizations for model rankings."""
     # Set style
-    plt.style.use('default')  # Use default matplotlib style instead of seaborn
+    # plt.style.use('default')  # Use default matplotlib style instead of seaborn
     
     # Create plots directory
     plots_dir = os.path.join(output_dir, 'plots')
@@ -198,6 +199,7 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
         'xtick.labelsize': 10,
         'ytick.labelsize': 10
     })
+    plt.style.use(['fast'])
     
     # Get top 10 features for each model
     top_features_by_model = {}
@@ -206,7 +208,7 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
     
     for model in rankings_df.index.get_level_values('Model').unique():
         model_data = rankings_df.xs(model)
-        top_10 = set(model_data.nlargest(10, 'Average_Explanation_Value').index)
+        top_10 = set(model_data.nlargest(5, 'Average_Explanation_Value').index)
         top_features_by_model[model] = top_10
         if first_model:
             common_features = top_10
@@ -221,13 +223,17 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
     
     # 1. Bar plot of top features by average explanation value
     plt.figure(figsize=(15, 8))
-    ax = sns.barplot(data=plot_data, x='Feature', y='Average_Explanation_Value', hue='Model', palette='deep')
+    ax = sns.barplot(data=plot_data, x='Feature', y='Average_Explanation_Value', hue='Model')#, palette='deep')
     plt.xticks(rotation=90, ha='right')  # Rotated labels for better readability
-    plt.title('Top Features Across All Models by Average Explanation Value', pad=20)
+    plt.title('Top Features Across All Models', pad=20)
     plt.xlabel('Feature', labelpad=10)
     plt.ylabel('Average Explanation Value', labelpad=10)
+    # Add grid lines to y-axis
+    ax.grid(axis='y', linestyle='--', alpha=0.7)
+    # ax.legend(fontsize=12)
+
     # Add legend outside of plot to avoid overlap
-    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    # plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.tight_layout()
     plt.savefig(os.path.join(plots_dir, f'common_top_features_bar_{timestamp}.png'), dpi=300, bbox_inches='tight', 
                 pad_inches=0.5)  # Added padding for legend
@@ -380,6 +386,7 @@ def get_smarts_for_feature(feature_key, smarts_mapping):
     Returns SMARTS string or None.
     """
     # Try direct match
+    feature_key = f'maccsfingerprint{int(feature_key.replace("maccsfingerprint", "")) - 1}' # Convert to zero-based index
     if feature_key in smarts_mapping:
         return smarts_mapping[feature_key]
     # Try with prefix (e.g., "maccsfingerprint12")
@@ -387,7 +394,7 @@ def get_smarts_for_feature(feature_key, smarts_mapping):
         return smarts_mapping.get(feature_key)
     # Try integer index (e.g., 12 -> "maccsfingerprint12")
     try:
-        idx = int(feature_key)
+        idx = int(feature_key) 
         return smarts_mapping.get(f"maccsfingerprint{idx}")
     except Exception:
         pass
@@ -621,7 +628,7 @@ def generate_comparison_report(results_dir, output_dir):
                 agg_model_data = model_data.groupby('Feature_key').agg({
                     'SMARTS': 'first',
                     'Explanation_value': 'mean',
-                    'Number_where_important': 'first'
+                    # 'Number_where_important': 'first'
                 }).reset_index()
                 agg_norm_model_data = norm_model_data.groupby('Feature_key').agg({
                     'Explanation_value': 'mean'

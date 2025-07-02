@@ -25,12 +25,14 @@ def load_data(data_path, verbose=False):
     if verbose:
         print(f"Loaded data from {data_path}, shape: {data.shape}")
         print(f"X shape: {X.shape}, y shape: {y.shape}")
+        print(f"First few rows of X:\n{X.head()}")
+    print(f"First few rows of X:\n{X.head()}")
     return X, y
 
 def plot_feature_importances(importances, feature_names=None, save_path="feature_importances.png", top_n=10):
     indices = np.argsort(importances)[::-1][:top_n]
     plt.figure(figsize=(10, 6))
-    plt.title(f"Top {top_n} Mean Feature Importances (Aggregated)")
+    plt.title(f"Top {top_n} Mean Feature Importances")
     if feature_names is not None:
         names = np.array(feature_names)[indices]
         plt.bar(range(top_n), importances[indices], align="center")
@@ -41,9 +43,9 @@ def plot_feature_importances(importances, feature_names=None, save_path="feature
 
 def aggregate_models(models_folder, X, y, feature_names=None, verbose=False):
     model_files = sorted(glob.glob(os.path.join(models_folder, "model_*.joblib")))
-    model_files_37 = [f for f in model_files if "_37.joblib" in f]
+    XXmodel_files_other = [f for f in model_files if "_37.joblib" in f]
     model_files_other = [f for f in model_files if "_37.joblib" not in f]
-    print(f"Models with '_37': {model_files_37}")
+    # print(f"Models with '_37': {model_files_37}")
     print(f"Other models: {model_files_other}")
     n_models = len(model_files_other)
     if n_models == 0:
@@ -106,5 +108,6 @@ if __name__ == "__main__":
     models_folder = 'path' #do zmiany
     X_path = os.path.join(parent_dir, 'XAI-experiments', 'data', 'new_maccs_merged_all.csv')
     X, y = load_data(X_path)
-    feature_names = [f"MACCS_{i}" for i in range(167)]
-    aggregate_models(models_folder, X, y, feature_names=feature_names)
+    feature_names = [f"maccsfingerprint{i}" for i in range(1,167)]
+    print(f"Feature names: {feature_names[:10]}... end {feature_names[-10:]}")  # Print first 10 feature names for brevity
+    aggregate_models(models_folder, X, y, feature_names=feature_names,verbose=True)
