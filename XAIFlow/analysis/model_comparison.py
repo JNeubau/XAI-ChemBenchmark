@@ -290,6 +290,25 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
                 pad_inches=0.5)  # Added padding for legend
     plt.close()
 
+        # 1b. Horizontal bar plot with bigger font and swapped axes
+    plt.figure(figsize=(15, 10))
+    ax2 = sns.barplot(
+        data=plot_data,
+        y='Feature',
+        x='Average_Explanation_Value',
+        hue='Model'
+    )
+    plt.yticks(fontsize=16)
+    plt.xticks(fontsize=16)
+    plt.xlabel('Mean Explanation Value', fontsize=18, labelpad=12)
+    plt.ylabel('Feature', fontsize=18, labelpad=12)
+    plt.title('Top Features Across All Models', fontsize=20, pad=24)
+    ax2.grid(axis='x', linestyle='--', alpha=0.7)
+    plt.legend(fontsize=14, bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+    plt.savefig(os.path.join(plots_dir, f'common_top_features_bar_horizontal_{timestamp}.png'), dpi=300, bbox_inches='tight', pad_inches=0.5)
+    plt.close()
+
     # 1c. Bump chart: Feature ranking changes across models
     # Prepare data for bump chart
     bump_data = rankings_df.reset_index()
