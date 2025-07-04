@@ -155,6 +155,57 @@ def compute_overall_feature_ranking(rankings_df):
     grouped = grouped.sort_values('Mean_Avg_Explanation_Value', ascending=False)
     return grouped
 
+def add_explanation_sign_to_overall(overall_ranking_df, model_rankings, sign_method='adddel'):
+    """
+    Add Explanation_sign column to the overall ranking DataFrame.
+    sign_method: 'minmax', 'adddel', or a custom callable.
+    """
+    # Aggregate counts for adddel method
+    agg_counts = model_rankings.reset_index().groupby('Feature').agg({
+        'Min_Value': 'min',
+        'Max_Value': 'max',
+        'Positive_explanation_add_count': 'sum',
+        'Negative_explanation_add_count': 'sum'
+    }).reset_index()
+
+    merged = overall_ranking_df.merge(agg_counts, left_on='Feature', right_on='Feature', how='left')
+
+    def influence_sign_minmax(row):
+        if row['Min_Value'] >= 0:
+            return "Positive"
+        elif row['Max_Value'] <= 0:
+            return "Negative"
+        else:
+            return "Mixed"
+
+    #TODO ->  chyba inaczej to okreslac, lub weźmiemy z innego rankingu
+    def influence_sign_adddel(row):
+        pos = row.get('Positive_explanation_add_count', 0) + row.get('Negative_explanation_del_count', 0) 
+        neg = row.get('Negative_explanation_add_count', 0) + row.get('Positive_explanation_del_count', 0)
+        print(f"Row: {row['Feature']}, Positive: {pos}, Negative: {neg}")
+        if pos == 0 and neg == 0:
+            return "Mixed"
+        # if pos/abs(pos+neg) < 0.2 and neg/abs(pos+neg) < 0.2:
+        #     return "Mixed"
+        elif pos/abs(pos+neg) > 0.6:
+            return "Positive"
+        elif neg/abs(pos+neg) > 0.6:
+            return "Negative"
+        else:
+            return "Mixed"
+
+    if callable(sign_method):
+        influence_sign_func = sign_method
+    elif sign_method == 'adddel':
+        influence_sign_func = influence_sign_adddel
+    else:
+        influence_sign_func = influence_sign_minmax
+
+    merged['Explanation_sign'] = merged.apply(influence_sign_func, axis=1)
+    # Drop helper columns if you want to keep only original + Explanation_sign
+    keep_cols = [c for c in overall_ranking_df.columns] + ['Explanation_sign']
+    return merged[keep_cols]
+
 def plot_overall_feature_ranking(overall_ranking_df, output_dir, timestamp, N=15):
     """
     Plot a bar chart for the overall feature ranking.
@@ -227,7 +278,7 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
     plt.xticks(rotation=90, ha='right')  # Rotated labels for better readability
     plt.title('Top Features Across All Models', pad=20)
     plt.xlabel('Feature', labelpad=10)
-    plt.ylabel('Average Explanation Value', labelpad=10)
+    plt.ylabel('Mean Explanation Value', labelpad=10)
     # Add grid lines to y-axis
     ax.grid(axis='y', linestyle='--', alpha=0.7)
     # ax.legend(fontsize=12)
@@ -459,12 +510,12 @@ def generate_anonymous_ranking_excel(model_rankings, overall_ranking_df, output_
         # If Positive_explanation_add_count > Negative_explanation_add_count, it's Positive, etc.
         pos = row.get('Positive_explanation_add_count', 0)
         neg = row.get('Negative_explanation_add_count', 0)
-        print(f"Row: {row['Feature']}, Positive: {pos}, Negative: {neg}")
+        # print(f"Row: {row['Feature']}, Positive: {pos}, Negative: {neg}")
         if pos > neg:
-            print(f"Row: {row['Feature']} is Positive")
+            # print(f"Row: {row['Feature']} is Positive")
             return "Positive"
         elif neg > pos:
-            print(f"Row: {row['Feature']} is Negative")
+            # print(f"Row: {row['Feature']} is Negative")
             return "Negative"
         else:
             return "Mixed"
@@ -595,7 +646,7 @@ def generate_comparison_report(results_dir, output_dir):
         
         # Compute overall feature ranking
         overall_ranking_df = compute_overall_feature_ranking(model_rankings)
-
+        overall_ranking_df = add_explanation_sign_to_overall(overall_ranking_df, model_rankings)
         # Compare feature importance
         feature_importance, model_correlation = compare_feature_importance(combined_data)
         norm_feature_importance, norm_model_correlation = compare_feature_importance(normalize_combined_data)
