@@ -608,6 +608,58 @@ def generate_anonymous_ranking_excel(model_rankings, overall_ranking_df, output_
 
     return anon_file
 
+def create_featurewise_bump_chart(rankings_df, output_dir, timestamp, N=10):
+    """
+    Create a bump chart with fingerprints (features) on the x-axis and methods (models) as lines.
+    Shows how each method ranks the top-N features.
+    """
+    plots_dir = os.path.join(output_dir, 'plots')
+    os.makedirs(plots_dir, exist_ok=True)
+
+    # Get top N features by mean importance across all models
+    avg_importance = rankings_df.groupby('Feature')['Average_Explanation_Value'].mean()
+    top_features = avg_importance.nlargest(N).index.tolist()
+
+    # Prepare data: for each model, get the rank of each top feature
+    bump_data = rankings_df.reset_index()
+    bump_data = bump_data[bump_data['Feature'].isin(top_features)]
+    bump_data['Rank'] = bump_data.groupby('Model')['Average_Explanation_Value'].rank(ascending=False, method='min')
+
+    # Pivot: rows=Model, columns=Feature, values=Rank
+    bump_pivot = bump_data.pivot(index='Model', columns='Feature', values='Rank')
+    # Ensure all top features are present as columns
+    bump_pivot = bump_pivot.reindex(columns=top_features)
+
+    # Assign a unique color to each model
+    models = bump_pivot.index.tolist()
+    n_models = len(models)
+    if n_models <= 10:
+        model_colors = sns.color_palette('tab10', n_colors=n_models)
+    else:
+        model_colors = sns.color_palette('tab20', n_colors=n_models)
+    color_map = dict(zip(models, model_colors))
+
+    plt.figure(figsize=(15, 8))
+    for model in models:
+        y = bump_pivot.loc[model]
+        plt.plot(
+            bump_pivot.columns,
+            y,
+            marker='o',
+            label=model,
+            linewidth=2,
+            color=color_map[model]
+        )
+    plt.gca().invert_yaxis()  # Rank 1 at the top
+    plt.title(f'Featurewise Bump Chart: Model Rankings for Top {N} Features', pad=20)
+    plt.xlabel('Fingerprint (Feature)', labelpad=10)
+    plt.ylabel('Model Rank (1 = Most Important)', labelpad=10)
+    plt.xticks(rotation=45)
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', title='Model', fontsize='small')
+    plt.tight_layout()
+    plt.savefig(os.path.join(plots_dir, f'featurewise_bump_chart_{timestamp}.png'), dpi=300, bbox_inches='tight', pad_inches=0.5)
+    plt.close()
+
 def generate_comparison_report(results_dir, output_dir):
     """Generate comprehensive comparison report."""
     try:
@@ -636,6 +688,7 @@ def generate_comparison_report(results_dir, output_dir):
         # Create plots
         create_ranking_plots(model_rankings, output_dir, timestamp)
         plot_overall_feature_ranking(overall_ranking_df, output_dir, timestamp)
+        create_featurewise_bump_chart(model_rankings, output_dir, timestamp)
         
         # Save results
         output_file = os.path.join(output_dir, f'model_comparison_{timestamp}.xlsx')

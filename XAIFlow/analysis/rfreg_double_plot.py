@@ -102,4 +102,33 @@ ax.grid(axis='y', linestyle='--', alpha=0.7)
 
 plt.tight_layout()
 plt.savefig('combined_feature_importance.png', dpi=300)
-plt.show()
+# plt.show()
+
+# --- New plot: horizontal bar plot with swapped axes ---
+# Reverse the order so the most important feature is at the top
+sorted_features_rev = list(reversed(sorted_features))
+values1_rev = list(reversed(values1))
+values2_rev = list(reversed(values2))
+positions_y = np.arange(len(sorted_features_rev))
+
+fig2, ax2 = plt.subplots(figsize=(12, 10))
+barHeight = 0.35
+
+bars1_h = ax2.barh(positions_y - barHeight/2, values1_rev, 
+                   height=barHeight, label='Python 3.7')
+bars2_h = ax2.barh(positions_y + barHeight/2, values2_rev, 
+                   height=barHeight, label='Python 3.10')
+
+ax2.set_ylabel('Feature', fontsize=16)
+ax2.set_xlabel('Importance', fontsize=16)
+ax2.set_title('Combined Feature Importances Comparison', fontsize=20)
+ax2.set_yticks(positions_y)
+ax2.set_yticklabels(sorted_features_rev, fontsize=14)
+ax2.set_xticks(ax2.get_xticks())
+ax2.set_xticklabels([f"{tick:.2f}" for tick in ax2.get_xticks()], fontsize=14)
+ax2.set_ylim(-1, len(sorted_features_rev))
+ax2.legend(fontsize=14, loc='lower right')
+ax2.grid(axis='x', linestyle='--', alpha=0.7)
+
+plt.tight_layout()
+plt.savefig('combined_feature_importance_horizontal.png', dpi=300)
