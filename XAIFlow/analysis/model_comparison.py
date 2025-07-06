@@ -146,12 +146,14 @@ def compute_overall_feature_ranking(rankings_df):
     """
     # rankings_df: MultiIndex (Model, Feature)
     df = rankings_df.reset_index()
-    grouped = df.groupby('Feature')['Average_Explanation_Value'].agg(['mean', 'std', 'count']).reset_index()
+    grouped = df.groupby('Feature')['Average_Explanation_Value'].agg(['mean', 'std', 'count','median']).reset_index()
     grouped = grouped.rename(columns={
         'mean': 'Mean_Avg_Explanation_Value',
         'std': 'Std_Avg_Explanation_Value',
-        'count': 'Model_Count'
+        'count': 'Model_Count',
+        'median': 'Median_Avg_Explanation_Value'
     })
+    # grouped = grouped.sort_values('Median_Avg_Explanation_Value', ascending=False)
     grouped = grouped.sort_values('Mean_Avg_Explanation_Value', ascending=False)
     return grouped
 
@@ -182,7 +184,7 @@ def add_explanation_sign_to_overall(overall_ranking_df, model_rankings, sign_met
     def influence_sign_adddel(row):
         pos = row.get('Positive_explanation_add_count', 0) + row.get('Negative_explanation_del_count', 0) 
         neg = row.get('Negative_explanation_add_count', 0) + row.get('Positive_explanation_del_count', 0)
-        print(f"Row: {row['Feature']}, Positive: {pos}, Negative: {neg}")
+        # print(f"Row: {row['Feature']}, Positive: {pos}, Negative: {neg}")
         if pos == 0 and neg == 0:
             return "Mixed"
         # if pos/abs(pos+neg) < 0.2 and neg/abs(pos+neg) < 0.2:
@@ -659,7 +661,7 @@ def generate_comparison_report(results_dir, output_dir):
         combined_data,normalize_combined_data = load_model_results(results_dir)
         # print(f"Found {len(combined_data)} total rows of data")
         # print(f"Models found: {combined_data['Model'].unique()}")
-        
+
         # Calculate rankings
         model_rankings = calculate_model_rankings(normalize_combined_data)
         
@@ -716,6 +718,28 @@ def generate_comparison_report(results_dir, output_dir):
                 top_features = agg_features.nlargest(10, 'Explanation_value')
                 top_features.to_excel(writer, sheet_name=f'{model}_TF', index=False)
         
+                # Add average ranking for top 10 features across all models
+                avg_rankings_df = model_rankings.reset_index()[['Model', 'Feature', 'Average_Explanation_Value']].copy()
+                avg_rankings_df['Rank'] = avg_rankings_df.groupby('Model')['Average_Explanation_Value'].rank(ascending=False, method='min')
+                avg_rank_df = avg_rankings_df.groupby('Feature')['Rank'].mean().reset_index()
+                avg_rank_df = avg_rank_df.rename(columns={'Rank': 'Average_Rank'})
+                avg_rank_df = avg_rank_df.sort_values('Average_Rank')
+                avg_rank_df_top10 = avg_rank_df.head(10).reset_index(drop=True)
+                # --- Count in how many models each feature is in the top 10 ---
+                top10_per_model = (
+                    avg_rankings_df.groupby('Model')
+                    .apply(lambda df: df.nsmallest(10, 'Rank')['Feature'], include_groups=False)
+                    .reset_index(drop=True)
+                )
+                feature_counts = top10_per_model.value_counts().reset_index()
+                feature_counts.columns = ['Feature', 'Top10_Count']
+                # Merge with avg_rank_df_top10
+                avg_rank_df_top10 = avg_rank_df_top10.merge(feature_counts, on='Feature', how='left')
+                avg_rank_df_top10['Top10_Count'] = avg_rank_df_top10['Top10_Count'].fillna(0).astype(int)
+
+                avg_rank_df_top10.to_excel(writer, sheet_name='Average_Rank_Top10', index=False)
+
+
         anon_file = generate_anonymous_ranking_excel(model_rankings, overall_ranking_df, output_dir, timestamp)
         print(f"Anonymous ranking Excel generated: {anon_file}")
 
