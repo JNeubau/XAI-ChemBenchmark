@@ -24,7 +24,6 @@ def mainMegFlow(train_RF_again = True, dataset_name='battery', experiment_name='
 
     split_dir = os.path.join('RFReg', experiment_name, 'folds')
     split_file = os.path.join(split_dir, 'split_info.json')
-
     with open(split_file, 'r') as f:
         split_data_list = json.load(f)
         
@@ -46,9 +45,9 @@ def mainMegFlow(train_RF_again = True, dataset_name='battery', experiment_name='
                 train_meg(dataset=dataset_name,
                     experiment_name=experiment_name,
                     sample=sam,
-                    epochs=200, # 5000
-                    max_steps_per_episode=1, #6
-                    num_counterfactuals=12,
+                    epochs=1000, # 5000
+                    max_steps_per_episode=2, #6
+                    num_counterfactuals=10,
                     fp_length=1024,  
                     fp_radius=2,
                     lr=1e-4,
@@ -180,7 +179,13 @@ if __name__ == '__main__':
     
     args = parser.parse_args()
     
-    mainMegFlow(train_RF_again=True, 
+    args.dataset_name = 'battery'
+    args.experiment_name = 'final'
+    args.fold = 5
+    args.data_file = os.path.join(os.getcwd(), 'data', 'new_maccs_merged_all.csv')
+    args.seed = 42
+    
+    mainMegFlow(train_RF_again=False, 
                 dataset_name=args.dataset_name, 
                 experiment_name=args.experiment_name, 
                 num_folds=args.fold, 

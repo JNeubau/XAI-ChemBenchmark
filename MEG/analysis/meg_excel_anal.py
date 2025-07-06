@@ -107,7 +107,7 @@ def process_dataframes(og_df, cf_df):
             if og_fp[i] == cf_fp[i]:
                 continue
             
-            feature_key = og_fp_df.columns[i]
+            feature_key = og_fp_df.columns[i+1]
             smarts = get_smarts(feature_key, smarts_mapping_path)
             similarity = tanimoto_similarity(og_smiles, cf_row['smiles'])
             
