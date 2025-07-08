@@ -129,7 +129,7 @@ def mainXaiFlow_all(model, local_explanation=True, max_order_iq=1, dataset_name=
     elif max_order_iq > 1 and not local_explanation:
         smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds_global_interactions(folds, data, shap_values, smarts_mapping_path, 10, cv_pipeline)
     elif local_explanation:
-        smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation)
+        smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation, None, features_vect)
     else:
         if model == 'SHAP_IQ':
             shap_values = [np.array(shap_values[i]) for i in range(len(shap_values))]
@@ -326,7 +326,7 @@ def save_scores_to_excel(scores_data, results_dir):
     print(f"Scores saved to {results_dir}")
     
 
-def process_folds_local(folds, data, shap_values, smarts_mapping_path, top_i=5):
+def process_folds_local(folds, data, shap_values, smarts_mapping_path, top_i=5, features_vect=None):
     smarts_top_all = {}
     match_molecules_all = {}
     molecules_statistics_all = {}
@@ -334,8 +334,21 @@ def process_folds_local(folds, data, shap_values, smarts_mapping_path, top_i=5):
         test_f = data.loc[fold[1]]
         shap_f = shap_values[i]
 
-        for molecule_idx, shap_array in enumerate(shap_f):
-            feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
+        features_f = np.array(features_vect[i])
+        feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist() 
+
+        for molecule_idx, shap_array in enumerate(shap_f):            
+            # Calculate counts for only this specific molecule
+            molecule_features = features_f[molecule_idx]
+            molecule_shap = shap_array
+            
+            # Calculate counts for this specific molecule
+            positive_added = (molecule_shap >= 0) & (molecule_features == 0)
+            positive_removed = (molecule_shap >= 0) & (molecule_features == 1)
+            negative_added = (molecule_shap < 0) & (molecule_features == 0)
+            negative_removed = (molecule_shap < 0) & (molecule_features == 1)
+
+            
             abs_shap_values = np.abs(shap_array)
             top_10_indices = np.argsort(abs_shap_values)[::-1]
             # top_10_indices = np.argsort(abs_shap_values)[-top_i:][::-1]
@@ -359,10 +372,10 @@ def process_folds_local(folds, data, shap_values, smarts_mapping_path, top_i=5):
                 "feature_in_smiles": False,
                 "capacity_max": test_f.iloc[molecule_idx]['capacity_max'],
                 "capacity_pred": 0,
-                            'Positive_explanation_add_count': 0,
-            'Negative_explanation_add_count': 0,
-            'Positive_explanation_del_count': 0,
-            'Negative_explanation_del_count': 0
+                'Positive_explanation_add_count': 0,
+                'Negative_explanation_add_count': 0,
+                'Positive_explanation_del_count': 0,
+                'Negative_explanation_del_count': 0
             } for s in smarts_top10.keys()}
             
             for key, value in smarts_top10.items():
@@ -374,9 +387,17 @@ def process_folds_local(folds, data, shap_values, smarts_mapping_path, top_i=5):
                 #     molecules_statistics[key]["number_where_important"] = count_mol_with_fingerprint
                 # else:
                 #     molecules_statistics[key]["number_where_important"] = molecules_statistics_all[key]["number_where_important"] + count_mol_with_fingerprint
+                feature_idx = feature_names.index(key[2])
                 molecules_statistics[key]["shap_value"] = abs(shap_array[feature_names.index(key[2])])
                 molecules_statistics[key]["shap_sign"] = 'Positive' if shap_array[feature_names.index(key[2])] >= 0 else 'Negative'
                 molecules_statistics[key]["feature_in_smiles"] = bool(data.loc[data['smiles'] == key[1], key[2]].values[0] == 1)
+
+                # Add the explanation counts for just this specific molecule and feature
+                molecules_statistics[key]['Positive_explanation_add_count'] = int(positive_added[feature_idx])
+                molecules_statistics[key]['Negative_explanation_add_count'] = int(negative_added[feature_idx])
+                molecules_statistics[key]['Positive_explanation_del_count'] = int(positive_removed[feature_idx])
+                molecules_statistics[key]['Negative_explanation_del_count'] = int(negative_removed[feature_idx])
+
 
             smarts_top_all.update(smarts_top10)
             match_molecules_all.update(match_molecules)
@@ -738,7 +759,7 @@ def number_where_important_global(molecules_statistics_all, match_molecules_all)
 
 def process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation=True, cv_pipeline=None, features_vect=None):
     if local_explanation:
-        return process_folds_local(folds, data, shap_values, smarts_mapping_path,top_i=data.shape[0])
+        return process_folds_local(folds, data, shap_values, smarts_mapping_path,top_i=data.shape[0], features_vect=features_vect)
     else:
         return process_folds_global(folds, data, shap_values, smarts_mapping_path, 10, cv_pipeline, features_vect)
 
