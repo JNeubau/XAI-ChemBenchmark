@@ -439,6 +439,11 @@ def process_folds_local_interactions(folds, data, shap_values, smarts_mapping_pa
             # sorted_top_list_interaction = [
             #     item for item in sorted_top_list_interaction[1:] if item[1] != 0
             # ]
+            
+            # Get the features for this molecule to calculate counts
+            feature_matrix = test_f.drop(columns=['capacity_max', 'smiles'])
+            molecule_features = feature_matrix.iloc[molecule_idx].values
+            feature_names = feature_matrix.columns.tolist()
 
             sorted_top_list_interaction = sorted_top_list_interaction[1:]
             # print(sorted_top_list_interaction)
@@ -477,9 +482,30 @@ def process_folds_local_interactions(folds, data, shap_values, smarts_mapping_pa
                     if list(key[2]) == feature:
                         molecules_statistics[key]["shap_value"] = abs(shap_value)
                         molecules_statistics[key]["shap_sign"] = 'Positive' if shap_value >= 0 else 'Negative'
+                        
+                        # Get feature presence status for all features in the interaction
+                        # feature_in_smiles = []
+                        # for f in key[2]:
+                        #     feature_idx = feature_names.index(f)
+                        #     feature_in_smiles.append(bool(molecule_features[feature_idx] == 1))
+                            
                         molecules_statistics[key]["feature_in_smiles"] = [
                             bool(data.loc[data['smiles'] == key[1], f].values[0] == 1) for f in key[2]
                         ]
+                        if shap_value >= 0:  # Positive interaction
+                            if all(molecule_features[feature_names.index(f)] == 1 for f in key[2]):
+                                # All features present - positive deletion case
+                                molecules_statistics[key]['Positive_explanation_del_count'] = 1
+                            else:
+                                # At least one feature missing - positive addition case
+                                molecules_statistics[key]['Positive_explanation_add_count'] = 1
+                        else:  # Negative interaction
+                            if all(molecule_features[feature_names.index(f)] == 1 for f in key[2]):
+                                # All features present - negative deletion case
+                                molecules_statistics[key]['Negative_explanation_del_count'] = 1
+                            else:
+                                # At least one feature missing - negative addition case
+                                molecules_statistics[key]['Negative_explanation_add_count'] = 1
                         break
 
             smarts_top_all.update(smarts_top10)
