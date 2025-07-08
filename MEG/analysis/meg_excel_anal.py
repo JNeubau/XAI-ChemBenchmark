@@ -107,13 +107,14 @@ def process_dataframes(og_df, cf_df):
             if og_fp[i] == cf_fp[i]:
                 continue
             
-            feature_key = og_fp_df.columns[i+1]
+            feature_key = og_fp_df.columns[i]
             smarts = get_smarts(feature_key, smarts_mapping_path)
+            feature_key = og_fp_df.columns[i+1]
             similarity = tanimoto_similarity(og_smiles, cf_row['smiles'])
             
             pred_diff = cf_row['prediction_difference']
             
-            rf_model = get_rf_model(os.path.join(os.getcwd(), 'RFReg', experiment_name, 'ckpt', f'model_{fold_no}.joblib'))
+            rf_model = get_rf_model(os.path.join(os.getcwd(), 'RFReg', experiment_name, 'ckpt', f'model_{fold_no}_37.joblib'))
             input_df = og_fp_df.copy()
             input_df.iloc[0, i] = abs(int(input_df.iloc[0, i]) - 1)
             pred_reverted = rf_model.predict(input_df)[0]
