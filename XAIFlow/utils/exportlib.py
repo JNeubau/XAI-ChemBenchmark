@@ -96,7 +96,7 @@ def save_data_to_excel_with_highlights_no_sort(data, smiles_list, smarts_list, e
     clean_up_png_files_from_dir(image_dir)
     
     
-def save_data_to_excel_with_highlights(data, excel_file):
+def save_data_to_excel_with_highlights(data, excel_file,with_images=True):
     """
     Save data to an Excel file with molecule images generated from SMILES strings and highlighted substructures.
     The data will be sorted by SMILES and a specified feature.
@@ -105,6 +105,7 @@ def save_data_to_excel_with_highlights(data, excel_file):
     - data (dict): A dictionary containing the data to be saved.
                    Keys should be column names, and values should be lists of column data.
     - excel_file (str): The path to the Excel file where the data will be saved.
+    - with_images (bool): Whether to generate and insert images of SMILES and SMARTS. Default: True.
     """    
     df = pd.DataFrame(data, 
                      columns=["Fold_No", 'Smiles_key', 'Feature_key', 
@@ -122,42 +123,43 @@ def save_data_to_excel_with_highlights(data, excel_file):
         df.to_excel(writer, index=False, sheet_name="Data", startrow=0, startcol=13)
         worksheet = writer.sheets["Data"]
 
-        for i, row in df.iterrows():
-            smiles = row['Molecule']
-            smarts = row['SMARTS']
-            mol = Chem.MolFromSmiles(smiles)
-            match_smart = Chem.MolFromSmarts(smarts)
-            if mol and match_smart:
-                highlight_atoms = [atom for match in mol.GetSubstructMatches(match_smart) for atom in match]
+        if with_images:
+            for i, row in df.iterrows():
+                smiles = row['Molecule']
+                smarts = row['SMARTS']
+                mol = Chem.MolFromSmiles(smiles)
+                match_smart = Chem.MolFromSmarts(smarts)
+                if mol and match_smart:
+                    highlight_atoms = [atom for match in mol.GetSubstructMatches(match_smart) for atom in match]
 
-                if row['Explanation_sign'].split('|')[0] == 'Negative':
-                    color = 'lightcoral'
-                else:
-                    color = 'aquamarine'
-                
-                img = Draw.MolToImage(
-                    mol, 
-                    highlightAtoms=highlight_atoms, 
-                    # highlight_bonds=highlight_bonds, 
-                    highlightColor=ColorConverter().to_rgb(color))
-                img_buffer = BytesIO()
-                img.save(img_buffer, format='PNG')
-                img_buffer.seek(0)
+                    if row['Explanation_sign'].split('|')[0] == 'Negative':
+                        color = 'lightcoral'
+                    else:
+                        color = 'aquamarine'
+                    
+                    img = Draw.MolToImage(
+                        mol, 
+                        highlightAtoms=highlight_atoms, 
+                        # highlight_bonds=highlight_bonds, 
+                        highlightColor=ColorConverter().to_rgb(color))
+                    img_buffer = BytesIO()
+                    img.save(img_buffer, format='PNG')
+                    img_buffer.seek(0)
 
-                row_num = i + 1
-                col = 0
-                worksheet.insert_image(row_num, col, '', {'image_data': img_buffer})
+                    row_num = i + 1
+                    col = 0
+                    worksheet.insert_image(row_num, col, '', {'image_data': img_buffer})
 
-                img_smt = Draw.MolToImage(match_smart)
-                img_smt_buffer = BytesIO()
-                img_smt.save(img_smt_buffer, format='PNG')
-                img_smt_buffer.seek(0)
+                    img_smt = Draw.MolToImage(match_smart)
+                    img_smt_buffer = BytesIO()
+                    img_smt.save(img_smt_buffer, format='PNG')
+                    img_smt_buffer.seek(0)
 
-                col_smt = 6
-                worksheet.insert_image(row_num, col_smt, '', {'image_data': img_smt_buffer})
-                worksheet.set_row(row_num, 250)
+                    col_smt = 6
+                    worksheet.insert_image(row_num, col_smt, '', {'image_data': img_smt_buffer})
+                    worksheet.set_row(row_num, 250)
 
-def save_interactions_to_excel_with_highlights(data, excel_file):
+def save_interactions_to_excel_with_highlights(data, excel_file,with_images=True):
     """
     Save data to an Excel file with molecule images generated from SMILES strings and highlighted substructures.
     The data will be sorted by SMILES and a specified feature.
@@ -166,6 +168,7 @@ def save_interactions_to_excel_with_highlights(data, excel_file):
     - data (dict): A dictionary containing the data to be saved.
                    Keys should be column names, and values should be lists of column data.
     - excel_file (str): The path to the Excel file where the data will be saved.
+    - with_images (bool): Whether to generate and insert images of SMILES and SMARTS. Default: True.
     """    
     df = pd.DataFrame(data, 
                      columns=["Fold_No", 'Smiles_key', 'Feature_key', 
@@ -180,48 +183,48 @@ def save_interactions_to_excel_with_highlights(data, excel_file):
     with pd.ExcelWriter(excel_file, engine="xlsxwriter", mode='w') as writer:
         df.to_excel(writer, index=False, sheet_name="Data", startrow=0, startcol=0)
         worksheet = writer.sheets["Data"]
+        if with_images:
+            for i, row in df.iterrows():
+                smiles = row['Molecule']
+                smarts = row['SMARTS']
+                mol = Chem.MolFromSmiles(smiles)
+                match_smarts = []
+                highlight_atoms_list = []
+                for j, smart in enumerate(smarts):
+                    match_smart = Chem.MolFromSmarts(smart)
+                    if mol and match_smart:
+                        match_smarts.append(match_smart)
+                        highlight_atoms = [atom for match in mol.GetSubstructMatches(match_smart) for atom in match]
+                        highlight_atoms_list = highlight_atoms_list + highlight_atoms
 
-        for i, row in df.iterrows():
-            smiles = row['Molecule']
-            smarts = row['SMARTS']
-            mol = Chem.MolFromSmiles(smiles)
-            match_smarts = []
-            highlight_atoms_list = []
-            for j, smart in enumerate(smarts):
-                match_smart = Chem.MolFromSmarts(smart)
-                if mol and match_smart:
-                    match_smarts.append(match_smart)
-                    highlight_atoms = [atom for match in mol.GetSubstructMatches(match_smart) for atom in match]
-                    highlight_atoms_list = highlight_atoms_list + highlight_atoms
+                if row['Explanation_sign'].split('|')[0] == 'Negative':
+                    color = 'lightcoral'
+                else:
+                    color = 'aquamarine'
+                
+                # for j, match_smart in enumerate(match_smarts):
+                img = Draw.MolToImage(
+                    mol, 
+                    highlightAtoms=highlight_atoms_list, 
+                    # highlight_bonds=highlight_bonds, 
+                    highlightColor=ColorConverter().to_rgb(color))
+                img_buffer = BytesIO()
+                img.save(img_buffer, format='PNG')
+                img_buffer.seek(0)
 
-            if row['Explanation_sign'].split('|')[0] == 'Negative':
-                color = 'lightcoral'
-            else:
-                color = 'aquamarine'
-            
-            # for j, match_smart in enumerate(match_smarts):
-            img = Draw.MolToImage(
-                mol, 
-                highlightAtoms=highlight_atoms_list, 
-                # highlight_bonds=highlight_bonds, 
-                highlightColor=ColorConverter().to_rgb(color))
-            img_buffer = BytesIO()
-            img.save(img_buffer, format='PNG')
-            img_buffer.seek(0)
+                row_num = i + 1
+                col = len(df.columns) + 1
+                worksheet.insert_image(row_num, col, '', {'image_data': img_buffer})
 
-            row_num = i + 1
-            col = len(df.columns) + 1
-            worksheet.insert_image(row_num, col, '', {'image_data': img_buffer})
+                for j, match_smart in enumerate(match_smarts):
+                    img_smt = Draw.MolToImage(match_smart)
+                    img_smt_buffer = BytesIO()
+                    img_smt.save(img_smt_buffer, format='PNG')
+                    img_smt_buffer.seek(0)
 
-            for j, match_smart in enumerate(match_smarts):
-                img_smt = Draw.MolToImage(match_smart)
-                img_smt_buffer = BytesIO()
-                img_smt.save(img_smt_buffer, format='PNG')
-                img_smt_buffer.seek(0)
-
-                col_smt = col + (6 * (j +1))
-                worksheet.insert_image(row_num, col_smt, '', {'image_data': img_smt_buffer})
-            worksheet.set_row(row_num, 250)
+                    col_smt = col + (6 * (j +1))
+                    worksheet.insert_image(row_num, col_smt, '', {'image_data': img_smt_buffer})
+                worksheet.set_row(row_num, 250)
     
 def save_scores_to_excel_new_sheet(data, excel_file):
     """

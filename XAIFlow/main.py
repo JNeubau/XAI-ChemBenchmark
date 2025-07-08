@@ -121,10 +121,10 @@ def mainXaiFlow_all(model, local_explanation=True, max_order_iq=1, dataset_name=
     capacity_pred_test = cv_pipeline.predict_capacity(data.drop(columns=['capacity_max', 'smiles']))
 
     plots_dir = os.path.join(parent_dir, 'results', experiment_name, model, explenation_type, 'plots')
-    create_plots(plots_dir, data, folds,model, shap_values,capacity_pred_test,expected_values, max_order_iq, interaction_values)   
+    # create_plots(plots_dir, data, folds,model, shap_values,capacity_pred_test,expected_values, max_order_iq, interaction_values)   
     
     if max_order_iq > 1 and local_explanation: 
-        smarts_top_all, molecules_statistics_all = process_folds_local_interactions(folds, data, shap_values, smarts_mapping_path, 10)
+        smarts_top_all, molecules_statistics_all = process_folds_local_interactions(folds, data, shap_values, smarts_mapping_path, top_i=166)
         match_molecules_all = {}
     elif max_order_iq > 1 and not local_explanation:
         smarts_top_all, match_molecules_all, molecules_statistics_all = process_folds_global_interactions(folds, data, shap_values, smarts_mapping_path, 10, cv_pipeline)
@@ -268,7 +268,17 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
     for key, smarts in smarts_top.items():
         excel_data["Fold_No"].append(key[0])
         excel_data["Smiles_key"].append(key[1])
-        excel_data["Feature_key"].append(f'maccsfingerprint{int(key[2].replace("maccsfingerprint", "")) + 1}')
+
+        if isinstance(key[2], str):
+            excel_data["Feature_key"].append(f'maccsfingerprint{int(key[2].replace("maccsfingerprint", "")) + 1}')
+        elif isinstance(key[2], tuple):
+            feature_keys = [
+                f'maccsfingerprint{int(f.replace("maccsfingerprint", "")) + 1}' if isinstance(f, str) else str(f)
+                for f in key[2]
+            ]
+            excel_data["Feature_key"].append(','.join(feature_keys))
+        else:
+            excel_data["Feature_key"].append(str(key[2]))
         # excel_data["Feature_key"].append(key[2])
         excel_data["SMARTS"].append(smarts)
         excel_data["Molecule"].append(key[1])
@@ -300,13 +310,13 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
 
 def save_molecules_to_excel(excel_data, results_dir):
     results_dir = results_dir + f'\\molecule_results_with_highlights_{datetime.now().strftime("%H-%M-%S")}.xlsx'
-    save_data_to_excel_with_highlights(excel_data, results_dir)
+    save_data_to_excel_with_highlights(excel_data, results_dir,with_images=False)
     print(f"Molecule results with highlights saved to {results_dir}")
     
     
-def save_interactions_to_excel(excel_data, results_dir):
+def save_interactions_to_excel(excel_data, results_dir, with_images=False):
     results_dir = results_dir + f'\\molecule_results_with_highlights_{datetime.now().strftime("%H-%M-%S")}.xlsx'
-    save_interactions_to_excel_with_highlights(excel_data, results_dir)
+    save_interactions_to_excel_with_highlights(excel_data, results_dir,with_images=False)
     print(f"Interaction results saved to {results_dir}")
 
 
@@ -327,8 +337,9 @@ def process_folds_local(folds, data, shap_values, smarts_mapping_path, top_i=5):
         for molecule_idx, shap_array in enumerate(shap_f):
             feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
             abs_shap_values = np.abs(shap_array)
-            top_10_indices = np.argsort(abs_shap_values)[-top_i:][::-1]
-            top_10_indices = [idx for idx in top_10_indices if abs_shap_values[idx] != 0]
+            top_10_indices = np.argsort(abs_shap_values)[::-1]
+            # top_10_indices = np.argsort(abs_shap_values)[-top_i:][::-1]
+            # top_10_indices = [idx for idx in top_10_indices if abs_shap_values[idx] != 0]
             top_10_feature_names = [feature_names[i] for i in top_10_indices]
 
             with open(smarts_mapping_path, 'r') as f:
@@ -378,15 +389,38 @@ def process_folds_local_interactions(folds, data, shap_values, smarts_mapping_pa
     smarts_top_all = {}
     match_molecules_all = {}
     molecules_statistics_all = {}
+    print(f"Number of folds: {len(folds)}")
     for i, fold in enumerate(folds):
+        print(f"Processing fold {i}/{len(folds)}")
         test_f = data.loc[fold[1]]
         shap_f = shap_values[i]
 
         for molecule_idx, shap_array in enumerate(shap_f):
+            # print(f"SHAP array for molecule {molecule_idx} in fold {i}: {shap_array}\n")
+            all_interactions = shap_array.values
+            print(f"Number of interactions for molecule {molecule_idx} in fold {i}: {all_interactions.shape[0]}\n")
             # dictionary, sorted list of tuples
-            _, sorted_top_list_interaction = shap_array.get_top_k(top_i + 1, as_interaction_values=False)
+            _, sorted_top_list_interaction = shap_array.get_top_k(all_interactions.shape[0], as_interaction_values=False)
+            
+            # =========================
+            #  for interaction in interactions:
+            #     key = tuple(sorted(interaction[0]))  # Sort indices to ensure consistent key
+            #     value = abs(interaction[1])
+            #     if key not in mean_interactions:
+            #         mean_interactions[key] = []
+            #     mean_interactions[key].append(value)
+            # =========================
+
+            # _, sorted_top_list_interaction = shap_array.get_top_k(top_i + 1, as_interaction_values=False)
+            # print(f"First element in sorted_top_list_interaction: {sorted_top_list_interaction[0]}\n")
+            print(f"Second element in sorted_top_list_interaction: {sorted_top_list_interaction[15]}\n")
+            # Remove the first element and filter out explanations with 0 value
+            # sorted_top_list_interaction = [
+            #     item for item in sorted_top_list_interaction[1:] if item[1] != 0
+            # ]
+
             sorted_top_list_interaction = sorted_top_list_interaction[1:]
-            print(sorted_top_list_interaction)
+            # print(sorted_top_list_interaction)
             feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
             top_10_feature_names = [
                 ([feature_names[j] for j in i[0]], i[1]) for i in sorted_top_list_interaction
@@ -410,7 +444,11 @@ def process_folds_local_interactions(folds, data, shap_values, smarts_mapping_pa
                 "shap_sign": '',
                 "feature_in_smiles": False ,
                 "capacity_max": test_f.iloc[molecule_idx]['capacity_max'],
-                "capacity_pred": 0
+                "capacity_pred": 0,
+                'Positive_explanation_add_count': 0,
+                'Negative_explanation_add_count': 0,
+                'Positive_explanation_del_count': 0,
+                'Negative_explanation_del_count': 0
             } for s in smarts_top10.keys()}
             
             for key, value in smarts_top10.items():
@@ -700,7 +738,7 @@ def number_where_important_global(molecules_statistics_all, match_molecules_all)
 
 def process_folds(folds, data, shap_values, smarts_mapping_path, local_explanation=True, cv_pipeline=None, features_vect=None):
     if local_explanation:
-        return process_folds_local(folds, data, shap_values, smarts_mapping_path)
+        return process_folds_local(folds, data, shap_values, smarts_mapping_path,top_i=data.shape[0])
     else:
         return process_folds_global(folds, data, shap_values, smarts_mapping_path, 10, cv_pipeline, features_vect)
 

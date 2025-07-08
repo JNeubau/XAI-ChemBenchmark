@@ -100,12 +100,14 @@ def export_mmace_feature_changes_to_excel(cf_change_rows, results_dir):
     from rdkit.Chem import Draw
     from io import BytesIO
 
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+
     if not cf_change_rows:
         print("No counterfactual feature changes to export.")
         return
 
     df = pd.DataFrame(cf_change_rows)
-    excel_file = os.path.join(results_dir, "mmace_cf_molecule_results_with_highlights_all_features.xlsx")
+    excel_file = os.path.join(results_dir, f"mmace_cf_molecule_results_with_highlights_all_features_{timestamp}.xlsx")
 
     with pd.ExcelWriter(excel_file, engine="xlsxwriter") as writer:
         df.to_excel(writer, index=False, sheet_name="Data", startrow=0, startcol=6)
@@ -333,7 +335,7 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
         mean_importance = {feat: np.mean(impacts) for feat, impacts in fold_importance.items()}
         # print(f"Mean importance for fold {i}: {mean_importance}")
         # Get top features
-        top_features = sorted(mean_importance.items(), key=lambda x: abs(x[1]), reverse=True)[:10]
+        top_features = sorted(mean_importance.items(), key=lambda x: abs(x[1]), reverse=True)#[:10]
         feature_importance_per_fold.append(top_features)
         
         # Plot feature importance
@@ -372,87 +374,88 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
         cf_change_df.to_csv(csv_path, index=False)
         print(f"Counterfactual feature change CSV saved to {csv_path}")
         # Export to Excel with images
-        # export_mmace_feature_changes_to_excel(cf_change_rows, results_dir)
+        export_mmace_feature_changes_to_excel(cf_change_rows, results_dir)
         
         # --- Aggregate data in cf_change_rows for each fold ---
         # Aggregate to match the structure of cf_change_rows for Excel export
-        agg_cols = [
-            'Fold_no', 'Feature_key','SMARTS' ,'Model'
-        ]
-        agg_df = (
-            cf_change_df
-            .groupby(agg_cols)
-            .agg({
-                'Prediction_difference': 'mean',
-                'Explanation_value': 'mean',
-                'Explanation_sign': lambda x: x.mode()[0] if not x.mode().empty else '',
-                'SMILES_original': lambda x: '',
-                'SMILES': lambda x: '',
-                'SMILES_cf': lambda x: '',
-                'features_original': lambda x: {},
-                'features_cf': lambda x: {},
-            })
-            .reset_index()
-        )
-        # Add count column for number of changes per group
-        agg_df['count_changes'] = cf_change_df.groupby(agg_cols)['Prediction_difference'].count().values
+        # agg_cols = [
+        #     'Fold_no', 'Feature_key','SMARTS' ,'Model'
+        # ]
+        # agg_df = (
+        #     cf_change_df
+        #     .groupby(agg_cols)
+        #     .agg({
+        #         'Prediction_difference': 'mean',
+        #         'Explanation_value': 'mean',
+        #         'Explanation_sign': lambda x: x.mode()[0] if not x.mode().empty else '',
+        #         'SMILES_original': lambda x: '',
+        #         'SMILES': lambda x: '',
+        #         'SMILES_cf': lambda x: '',
+        #         'features_original': lambda x: {},
+        #         'features_cf': lambda x: {},
+        #     })
+        #     .reset_index()
+        # )
+        # # Add count column for number of changes per group
+        # agg_df['count_changes'] = cf_change_df.groupby(agg_cols)['Prediction_difference'].count().values
 
-        # Add counts for positive/negative explanations with Added/Removed
-        # Positive explanation & AddedRemoved == 1
-        agg_df["Positive_explanation_add_count"] = (
-            cf_change_df[
-            (cf_change_df["Explanation_sign"].str.lower() == "positive") & (cf_change_df["AddedRemoved"] == 1)
-            ]
-            .groupby(agg_cols)
-            .size()
-            .reindex(agg_df.set_index(agg_cols).index, fill_value=0)
-            .values
-        )
-        # Negative explanation & AddedRemoved == 1
-        agg_df["Negative_explanation_add_count"] = (
-            cf_change_df[
-            (cf_change_df["Explanation_sign"].str.lower() == "negative") & (cf_change_df["AddedRemoved"] == 1)
-            ]
-            .groupby(agg_cols)
-            .size()
-            .reindex(agg_df.set_index(agg_cols).index, fill_value=0)
-            .values
-        )
-        # Positive explanation & AddedRemoved == -1
-        agg_df["Positive_explanation_del_count"] = (
-            cf_change_df[
-            (cf_change_df["Explanation_sign"].str.lower() == "positive") & (cf_change_df["AddedRemoved"] == -1)
-            ]
-            .groupby(agg_cols)
-            .size()
-            .reindex(agg_df.set_index(agg_cols).index, fill_value=0)
-            .values
-        )
-        # Negative explanation & AddedRemoved == -1
-        agg_df["Negative_explanation_del_count"] = (
-            cf_change_df[
-            (cf_change_df["Explanation_sign"].str.lower() == "negative") & (cf_change_df["AddedRemoved"] == -1)
-            ]
-            .groupby(agg_cols)
-            .size()
-            .reindex(agg_df.set_index(agg_cols).index, fill_value=0)
-            .values
-        )
+        # # Add counts for positive/negative explanations with Added/Removed
+        # # Positive explanation & AddedRemoved == 1
+        # agg_df["Positive_explanation_add_count"] = (
+        #     cf_change_df[
+        #     (cf_change_df["Explanation_sign"].str.lower() == "positive") & (cf_change_df["AddedRemoved"] == 1)
+        #     ]
+        #     .groupby(agg_cols)
+        #     .size()
+        #     .reindex(agg_df.set_index(agg_cols).index, fill_value=0)
+        #     .values
+        # )
+        # # Negative explanation & AddedRemoved == 1
+        # agg_df["Negative_explanation_add_count"] = (
+        #     cf_change_df[
+        #     (cf_change_df["Explanation_sign"].str.lower() == "negative") & (cf_change_df["AddedRemoved"] == 1)
+        #     ]
+        #     .groupby(agg_cols)
+        #     .size()
+        #     .reindex(agg_df.set_index(agg_cols).index, fill_value=0)
+        #     .values
+        # )
+        # # Positive explanation & AddedRemoved == -1
+        # agg_df["Positive_explanation_del_count"] = (
+        #     cf_change_df[
+        #     (cf_change_df["Explanation_sign"].str.lower() == "positive") & (cf_change_df["AddedRemoved"] == -1)
+        #     ]
+        #     .groupby(agg_cols)
+        #     .size()
+        #     .reindex(agg_df.set_index(agg_cols).index, fill_value=0)
+        #     .values
+        # )
+        # # Negative explanation & AddedRemoved == -1
+        # agg_df["Negative_explanation_del_count"] = (
+        #     cf_change_df[
+        #     (cf_change_df["Explanation_sign"].str.lower() == "negative") & (cf_change_df["AddedRemoved"] == -1)
+        #     ]
+        #     .groupby(agg_cols)
+        #     .size()
+        #     .reindex(agg_df.set_index(agg_cols).index, fill_value=0)
+        #     .values
+        # )
 
-                # Take only top 10 features per fold by absolute value of Explanation_value
-        top10_agg_df = (
-            agg_df
-            .sort_values(['Fold_no', 'Explanation_value'], key=lambda x: x.abs(), ascending=[True, False])
-            .groupby('Fold_no')
-            .head(10)
-            .reset_index(drop=True)
-        )
+        #         # Take only top 10 features per fold by absolute value of Explanation_value
+        # top10_agg_df = (
+        #     agg_df
+        #     .sort_values(['Fold_no', 'Explanation_value'], key=lambda x: x.abs(), ascending=[True, False])
+        #     .groupby('Fold_no')
+        #     .head(10)
+        #     .reset_index(drop=True)
+        # )
 
-        agg_csv_path = os.path.join(results_dir, "mmace_cf_feature_changes_aggregated_by_fold.csv")
-        top10_agg_df.to_csv(agg_csv_path, index=False)
-        print(f"Aggregated counterfactual feature change CSV saved to {agg_csv_path}")
-        # Export aggregated data to Excel using the same function
-        export_mmace_feature_changes_to_excel(top10_agg_df.to_dict(orient='records'), results_dir)
+        # agg_csv_path = os.path.join(results_dir, "mmace_cf_feature_changes_aggregated_by_fold.csv")
+        # top10_agg_df.to_csv(agg_csv_path, index=False)
+        # print(f"Aggregated counterfactual feature change CSV saved to {agg_csv_path}")
+        # # Export aggregated data to Excel using the same function
+        # # export_mmace_feature_changes_to_excel(top10_agg_df.to_dict(orient='records'), results_dir)
+        # export_mmace_feature_changes_to_excel(cf_change_df, results_dir)
     return feature_importance_per_fold
    
 if __name__ == '__main__':

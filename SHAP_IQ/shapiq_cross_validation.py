@@ -110,11 +110,24 @@ class CrossValidationShapIqPipeline:
         """
         explainer = shapiq.TreeExplainer(model, index='k-SII', min_order=min_order, max_order=max_order)
         shap_values = []
+        # interaction_values = []
         new_X_test = np.array(X_test)
         for i in range(len(new_X_test)):
             shap_value = explainer.explain(new_X_test[i])
+            # vals = []
+            # for i in range (1, max_order + 1):
+            #     vals.append(shap_value.get_n_order_values(i))
+            #     # if i == 1:
+            #     #     vals = shap_value.get_n_order_values(i)
+            #     # else:
+            #     #     vals += shap_value.get_n_order_values(i)
+            # print(f"SHAP values for instance {i}: {vals}")
+            # # vals = shap_value.get_n_order_values(max_order)
+            # interaction_values.append(vals)
             shap_values.append(shap_value)
-        return shap_values
+            temp = shap_value.values
+            print(f'=================\nSHAP values for instance {i}: {temp.shape}\n=================')
+        return shap_values#, interaction_values
 
     def update_shap(self, model: object, X_test: pd.DataFrame):
         """
@@ -124,6 +137,7 @@ class CrossValidationShapIqPipeline:
         """
         if self.iq_max_order > 1:
             shap_values = self.explain_model_interaction(model, X_test, min_order=self.iq_min_order, max_order=self.iq_max_order)
+            # self.interactions.append(interaction_values)
         else:
             shap_values, interaction_values = self.explain_model(model, X_test, min_order=self.iq_min_order, max_order=self.iq_max_order)
             self.interactions.append(interaction_values)

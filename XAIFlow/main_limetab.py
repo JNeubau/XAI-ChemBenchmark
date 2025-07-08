@@ -185,7 +185,7 @@ def prepare_data_for_excel_export(match_molecules, smarts_top, molecules_statist
 
 def save_molecules_to_excel(excel_data, results_dir):
     results_dir = results_dir + f'\\molecule_results_with_highlights_{datetime.now().strftime("%H-%M-%S")}.xlsx'
-    save_data_to_excel_with_highlights(excel_data, results_dir)
+    save_data_to_excel_with_highlights(excel_data, results_dir,with_images=False)
     print(f"Molecule results with highlights saved to {results_dir}")
 
 
@@ -240,7 +240,8 @@ def process_folds_local(folds, data, lime_values, smarts_mapping_path, top_i=5):
             lime_dict = {item[0].split('=')[0]: item[1] for item in lime_array}
             
             # Get top features
-            top_features = sorted(lime_dict.items(), key=lambda x: abs(x[1]), reverse=True)[:top_i]
+            # top_features = sorted(lime_dict.items(), key=lambda x: abs(x[1]), reverse=True)[:top_i]
+            top_features = sorted(lime_dict.items(), key=lambda x: abs(x[1]), reverse=True)
             feature_names_only = [feature for feature, _ in top_features]
 
             # Map features to SMARTS and collect statistics

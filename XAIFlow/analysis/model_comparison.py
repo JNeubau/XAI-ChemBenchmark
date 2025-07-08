@@ -23,9 +23,10 @@ def normalize_explanation_values(df):
     for model in df['Model'].unique():
         model_mask = df['Model'] == model
         values = df.loc[model_mask, 'Explanation_value']
-        
         abs_values = abs(values)
+        print(f"Model: {model}, Values before normalization: {values.describe()}\n")
         sum_value = abs_values.sum()
+        print(f"Model: {model}, Sum of absolute values: {sum_value}\n")
         
         df.loc[model_mask, 'Explanation_value'] = values / sum_value
         # print(f"Values after normalization: {df.loc[model_mask, 'Explanation_value'].describe()}")
@@ -92,24 +93,26 @@ def calculate_model_rankings(df):
             
             # Create a row for each feature
             # Extract numeric value from 'Explanation_sign' (e.g., "Positive|0.4010989010989011")
-            def parse_corr_value(val):
-                if isinstance(val, str) and '|' in val:
-                    try:
-                        return float(val.split('|')[1])
-                    except Exception:
-                        return np.nan
-                return np.nan
+            # def parse_corr_value(val):
+            #     if isinstance(val, str) and '|' in val:
+            #         try:
+            #             return float(val.split('|')[1])
+            #         except Exception:
+            #             return np.nan
+            #     return np.nan
 
-            corr_values = feature_data['Explanation_sign'].apply(parse_corr_value)
+            # corr_values = feature_data['Explanation_sign'].apply(parse_corr_value)
             row = {
                 'Model': model,
                 'Feature': feature_key,
                 'Average_Explanation_Value': abs(feature_data['Explanation_value']).mean(),
+                'SumFolds_Explanation_Value': abs(feature_data['Explanation_value']).sum() / 5,
+                'Median_Explanation_Value': abs(feature_data['Explanation_value']).median(),                
                 'Std_Dev': feature_data['Explanation_value'].std(),
                 'Min_Value': feature_data['Explanation_value'].min(),
                 'Max_Value': feature_data['Explanation_value'].max(),
                 'Fold_Count': feature_data['Fold_No'].nunique(),
-                'Corr_value': corr_values.mean(),
+                # 'Corr_value': corr_values.mean(),
                 'Positive_explanation_add_count': feature_data['Positive_explanation_add_count'].sum(),
                 'Negative_explanation_add_count': feature_data['Negative_explanation_add_count'].sum(),
                 'Positive_explanation_del_count': feature_data['Positive_explanation_del_count'].sum(),
@@ -131,11 +134,15 @@ def compare_feature_importance(df):
         values='Explanation_value',
         index='Feature_key',
         columns='Model',
-        aggfunc='mean'
+        aggfunc='mean',
+        fill_value=0,
+        sort=True
     )
     
+    print(f"Pivot table: {pivot_table}")
+
     # Calculate correlation between model explanations
-    correlation_matrix = pivot_table.corr()
+    correlation_matrix = pivot_table.corr()#.sort_values(by='MEG', ascending=False)
     
     return pivot_table, correlation_matrix
 
@@ -146,7 +153,9 @@ def compute_overall_feature_ranking(rankings_df):
     """
     # rankings_df: MultiIndex (Model, Feature)
     df = rankings_df.reset_index()
+    
     grouped = df.groupby('Feature')['Average_Explanation_Value'].agg(['mean', 'std', 'count','median']).reset_index()
+    # grouped = df.groupby('Feature')['Average_Explanation_Value'].agg(['mean', 'std', 'count','median']).reset_index()
     grouped = grouped.rename(columns={
         'mean': 'Mean_Avg_Explanation_Value',
         'std': 'Std_Avg_Explanation_Value',
@@ -154,6 +163,11 @@ def compute_overall_feature_ranking(rankings_df):
         'median': 'Median_Avg_Explanation_Value'
     })
     # grouped = grouped.sort_values('Median_Avg_Explanation_Value', ascending=False)
+
+    # calculate mean rank across models
+    # grouped['Mean_Rank'] = grouped['Mean_Avg_Explanation_Value'].rank(ascending=False, method='min')
+    # grouped['Median_Rank'] = grouped['Median_Avg_Explanation_Value'].rank(ascending=False, method='min')
+
     grouped = grouped.sort_values('Mean_Avg_Explanation_Value', ascending=False)
     return grouped
 
@@ -261,7 +275,8 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
     
     for model in rankings_df.index.get_level_values('Model').unique():
         model_data = rankings_df.xs(model)
-        top_10 = set(model_data.nlargest(5, 'Average_Explanation_Value').index)
+        top_10 = set(model_data.nlargest(5, 'SumFolds_Explanation_Value').index)
+        # top_10 = set(model_data.nlargest(5, 'Average_Explanation_Value').index)
         top_features_by_model[model] = top_10
         if first_model:
             common_features = top_10
@@ -272,17 +287,20 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
     # Filter the dataframe to include only common top features
     plot_data = rankings_df.reset_index()
     plot_data = plot_data[plot_data['Feature'].isin(common_features)]
-    plot_data = plot_data.sort_values('Average_Explanation_Value', ascending=False)
+    plot_data = plot_data.sort_values('SumFolds_Explanation_Value', ascending=False)
+    # plot_data = plot_data.sort_values('Average_Explanation_Value', ascending=False)
     
     # 1. Bar plot of top features by average explanation value
     plt.figure(figsize=(15, 8))
-    ax = sns.barplot(data=plot_data, x='Feature', y='Average_Explanation_Value', hue='Model')#, palette='deep')
+    ax = sns.barplot(data=plot_data, x='Feature', y='SumFolds_Explanation_Value', hue='Model')#, palette='deep')
+    # ax = sns.barplot(data=plot_data, x='Feature', y='Average_Explanation_Value', hue='Model')#, palette='deep')
     plt.xticks(rotation=90, ha='right')  # Rotated labels for better readability
     plt.title('Top Features Across All Models', pad=20)
     plt.xlabel('Feature', labelpad=10)
     plt.ylabel('Mean Explanation Value', labelpad=10)
     # Add grid lines to y-axis
     ax.grid(axis='y', linestyle='--', alpha=0.7)
+    
     # ax.legend(fontsize=12)
 
     # Add legend outside of plot to avoid overlap
@@ -297,9 +315,17 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
     ax2 = sns.barplot(
         data=plot_data,
         y='Feature',
-        x='Average_Explanation_Value',
-        hue='Model'
+        x='SumFolds_Explanation_Value',
+        hue='Model',
+        # palette='colorblind'
     )
+    # plt.figure(figsize=(15, 10))
+    # ax2 = sns.barplot(
+    #     data=plot_data,
+    #     y='Feature',
+    #     x='Average_Explanation_Value',
+    #     hue='Model'
+    # )
     plt.yticks(fontsize=16)
     plt.xticks(fontsize=16)
     plt.xlabel('Mean Explanation Value', fontsize=18, labelpad=12)
@@ -457,16 +483,21 @@ def get_smarts_for_feature(feature_key, smarts_mapping):
     Try to find the SMARTS string for a given feature_key.
     Returns SMARTS string or None.
     """
-    # Try direct match
-    feature_key = f'maccsfingerprint{int(feature_key.replace("maccsfingerprint", "")) - 1}' # Convert to zero-based index
-    if feature_key in smarts_mapping:
-        return smarts_mapping[feature_key]
+    # Try direct match (sanitize input for int conversion)
+    try:
+        key_str = str(feature_key).replace("maccsfingerprint", "").replace(",", "").strip()
+        idx = int(key_str)
+        zero_based_key = f"maccsfingerprint{idx - 1}"
+        if zero_based_key in smarts_mapping:
+            return smarts_mapping[zero_based_key]
+    except Exception:
+        pass
     # Try with prefix (e.g., "maccsfingerprint12")
     if isinstance(feature_key, str) and feature_key.startswith("maccsfingerprint"):
         return smarts_mapping.get(feature_key)
     # Try integer index (e.g., 12 -> "maccsfingerprint12")
     try:
-        idx = int(feature_key) 
+        idx = int(str(feature_key).replace(",", "").strip())
         return smarts_mapping.get(f"maccsfingerprint{idx}")
     except Exception:
         pass
@@ -668,6 +699,7 @@ def generate_comparison_report(results_dir, output_dir):
         # Compute overall feature ranking
         overall_ranking_df = compute_overall_feature_ranking(model_rankings)
         overall_ranking_df = add_explanation_sign_to_overall(overall_ranking_df, model_rankings)
+        # overall_ranking_df = add_mean_median_ranking(overall_ranking_df, model_rankings)
         # Compare feature importance
         feature_importance, model_correlation = compare_feature_importance(combined_data)
         norm_feature_importance, norm_model_correlation = compare_feature_importance(normalize_combined_data)
@@ -681,7 +713,9 @@ def generate_comparison_report(results_dir, output_dir):
         # Create plots
         create_ranking_plots(model_rankings, output_dir, timestamp)
         plot_overall_feature_ranking(overall_ranking_df, output_dir, timestamp)
-        
+        # plot_model_correlation(model_correlation, output_dir, timestamp)
+        plot_model_correlation(norm_model_correlation, output_dir, timestamp)
+
         # Save results
         output_file = os.path.join(output_dir, f'model_comparison_{timestamp}.xlsx')
         with pd.ExcelWriter(output_file) as writer:
@@ -714,30 +748,35 @@ def generate_comparison_report(results_dir, output_dir):
                     how='left'
                 )
                 
+                # TODO -> sprawdzic to czy dziala
                 # Get top 10 features by mean Explanation_value
                 top_features = agg_features.nlargest(10, 'Explanation_value')
                 top_features.to_excel(writer, sheet_name=f'{model}_TF', index=False)
         
                 # Add average ranking for top 10 features across all models
-                avg_rankings_df = model_rankings.reset_index()[['Model', 'Feature', 'Average_Explanation_Value']].copy()
-                avg_rankings_df['Rank'] = avg_rankings_df.groupby('Model')['Average_Explanation_Value'].rank(ascending=False, method='min')
-                avg_rank_df = avg_rankings_df.groupby('Feature')['Rank'].mean().reset_index()
-                avg_rank_df = avg_rank_df.rename(columns={'Rank': 'Average_Rank'})
-                avg_rank_df = avg_rank_df.sort_values('Average_Rank')
-                avg_rank_df_top10 = avg_rank_df.head(10).reset_index(drop=True)
-                # --- Count in how many models each feature is in the top 10 ---
-                top10_per_model = (
-                    avg_rankings_df.groupby('Model')
-                    .apply(lambda df: df.nsmallest(10, 'Rank')['Feature'], include_groups=False)
-                    .reset_index(drop=True)
-                )
-                feature_counts = top10_per_model.value_counts().reset_index()
-                feature_counts.columns = ['Feature', 'Top10_Count']
-                # Merge with avg_rank_df_top10
-                avg_rank_df_top10 = avg_rank_df_top10.merge(feature_counts, on='Feature', how='left')
-                avg_rank_df_top10['Top10_Count'] = avg_rank_df_top10['Top10_Count'].fillna(0).astype(int)
+            avg_rankings_df = model_rankings.reset_index()[['Model', 'Feature', 'Average_Explanation_Value']].copy()
+            avg_rankings_df['Rank'] = avg_rankings_df.groupby('Model')['Average_Explanation_Value'].rank(ascending=False, method='min')
+            avg_rank_df = avg_rankings_df.groupby('Feature')['Rank'].median().reset_index()
+            # avg_rank_df = avg_rankings_df.groupby('Feature')['Rank'].mean().reset_index()
+            avg_rank_df = avg_rank_df.rename(columns={'Rank': 'Average_Rank'})
+            avg_rank_df = avg_rank_df.sort_values('Average_Rank')
 
-                avg_rank_df_top10.to_excel(writer, sheet_name='Average_Rank_Top10', index=False)
+
+            avg_rank_df_top10 = avg_rank_df.reset_index(drop=True)
+            # --- Count in how many models each feature is in the top 10 ---
+            top10_per_model = (
+                avg_rankings_df.groupby('Model')
+                .apply(lambda df: df.nsmallest(10, 'Rank')['Feature'], include_groups=False)
+                .reset_index(drop=True)
+            )
+            feature_counts = top10_per_model.value_counts().reset_index()
+            feature_counts.columns = ['Feature', 'Top10_Count']
+            # Merge with avg_rank_df_top10
+            avg_rank_df_top10 = avg_rank_df_top10.merge(feature_counts, on='Feature', how='left')
+            avg_rank_df_top10['Top10_Count'] = avg_rank_df_top10['Top10_Count'].fillna(0).astype(int)
+            #take top 10 from features that have Top10_Count > 0
+            avg_rank_df_top10 = avg_rank_df_top10[avg_rank_df_top10['Top10_Count'] > 0].nsmallest(10, 'Average_Rank').reset_index(drop=True)
+            avg_rank_df_top10.to_excel(writer, sheet_name='Average_Rank_Top10', index=False)
 
 
         anon_file = generate_anonymous_ranking_excel(model_rankings, overall_ranking_df, output_dir, timestamp)
@@ -747,6 +786,28 @@ def generate_comparison_report(results_dir, output_dir):
     except Exception as e:
         print(f"Error: {str(e)}")
         raise
+
+def plot_model_correlation(correlation_matrix, output_dir, timestamp):
+    """
+    Plot a heatmap of the correlation between models' feature importances.
+    """
+    plots_dir = os.path.join(output_dir, 'plots')
+    os.makedirs(plots_dir, exist_ok=True)
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(correlation_matrix, annot=True, vmin=-1, vmax=1, cmap='coolwarm', fmt=".2f", square=True, cbar_kws={'label': 'Correlation'})
+    plt.title('Correlation Between Models\' Feature Importances', pad=20)
+    plt.tight_layout()
+    plt.savefig(os.path.join(plots_dir, f'model_correlation_heatmap_{timestamp}.png'), dpi=300, bbox_inches='tight', pad_inches=0.5)
+    plt.close()
+
+    plots_dir = os.path.join(output_dir, 'plots')
+    os.makedirs(plots_dir, exist_ok=True)
+    plt.figure(figsize=(8, 6))
+    sns.clustermap(correlation_matrix, annot=True, vmin=-1, vmax=1, cmap='coolwarm', fmt=".2f", square=True, cbar_kws={'label': 'Correlation'})
+    plt.title('Correlation Between Models\' Feature Importances', pad=20)
+    plt.tight_layout()
+    plt.savefig(os.path.join(plots_dir, f'model_correlation_cclustermap_{timestamp}.png'), dpi=300, bbox_inches='tight', pad_inches=0.5)
+    plt.close()
 
 if __name__ == "__main__":
     try:
