@@ -55,6 +55,9 @@ def mainXaiFlow(model, local_explanation=True, experiment_name='rf_test', folds=
         folds, data, lime_values, smarts_mapping_path, local_explanation, cv_pipeline)
     molecules_statistics_all = count_molecules_with_fingerprint(data, molecules_statistics_all)
     molecules_statistics_all = count_important_features(data, molecules_statistics_all)
+
+    #remove molecule_statistic_all row where Explanation_value is 0
+    # molecules_statistics_all = {k: v for k, v in molecules_statistics_all.items() if v["lime_value"] != 0}
     
     excel_data = prepare_data_for_excel_export(match_molecules_all, smarts_top_all, molecules_statistics_all)
     save_molecules_to_excel(excel_data, results_dir)
@@ -246,6 +249,8 @@ def process_folds_local(folds, data, lime_values, smarts_mapping_path, top_i=5):
 
             # Map features to SMARTS and collect statistics
             for feature in feature_names_only:
+                if lime_dict[feature] ==0:
+                    continue
                 key = (i, test_f.iloc[molecule_idx]['smiles'], feature)
                 maccs_idx = int(feature.replace("maccsfingerprint", "")) #+ 1
                 smarts_top_all[key] = smarts_mapping[f'maccsfingerprint{maccs_idx}'][0]

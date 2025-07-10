@@ -267,24 +267,30 @@ def process_folds(folds, data, samples, cfs, MMACE_Explanations, results_dir, ex
                             pred_reverted = rf_model.predict(input_df)[0]
                             explanation_value = prediction_cf - pred_reverted
                             feature_impacts.append((feat, explanation_value))
-                            cf_change_rows.append({
-                                "Fold_no": i,
-                                "SMILES_original": original['smiles'],
-                                "SMILES": str(original['smiles']),
-                                "SMILES_cf": str(cf.smiles),
-                                "Feature_key": f'maccsfingerprint{int(feat.replace("maccsfingerprint", ""))+1}',
-                                # "Feature_key": feat,
-                                "SMARTS": smarts_mapping.get(feat, [""])[0],
-                                "Prediction_original": prediction_org,
-                                "Prediction_cf": prediction_cf,
-                                "Prediction_difference": prediction_diff,
-                                "Explanation_value": np.abs(explanation_value),
-                                "Explanation_sign": 'Positive' if explanation_value > 0 else 'Negative',
-                                "AddedRemoved": diff,
-                                "Model": "MMACE",
-                                "features_original": original_features.to_dict(),
-                                "features_cf": cf_features.to_dict()
-                            })
+                            if np.abs(explanation_value) != 0:
+                                # print(f'SHAP LIKE: expl{explanation_value}\n')
+                                cf_change_rows.append({
+                                    "Fold_no": i,
+                                    "SMILES_original": original['smiles'],
+                                    "SMILES": str(original['smiles']),
+                                    "SMILES_cf": str(cf.smiles),
+                                    "Feature_key": f'maccsfingerprint{int(feat.replace("maccsfingerprint", ""))+1}',
+                                    # "Feature_key": feat,
+                                    "SMARTS": smarts_mapping.get(feat, [""])[0],
+                                    "Prediction_original": prediction_org,
+                                    "Prediction_cf": prediction_cf,
+                                    "Prediction_difference": prediction_diff,
+                                    "Explanation_value": np.abs(explanation_value),
+                                    "Explanation_sign": 'Positive' if explanation_value > 0 else 'Negative',
+                                    "AddedRemoved": diff,
+                                    "Model": "MMACE",
+                                    "features_original": original_features.to_dict(),
+                                    "features_cf": cf_features.to_dict(),
+                                    'Positive_explanation_add_count': 1 if explanation_value > 0 and diff == 1 else 0,
+                                    'Negative_explanation_add_count': 1 if explanation_value < 0 and diff == 1 else 0,
+                                    'Positive_explanation_del_count': 1 if explanation_value > 0 and diff == -1 else 0,
+                                    'Negative_explanation_del_count': 1 if explanation_value < 0 and diff == -1 else 0
+                                })
                             all_logs.append([f"Fold {i}, instance {idx}, feature {feat}: shap_like explanation_value={explanation_value}"])
                             # --- SHAP-like CSV log ---
                             shaplike_logs.append({

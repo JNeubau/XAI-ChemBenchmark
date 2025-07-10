@@ -352,7 +352,7 @@ def process_folds_local(folds, data, shap_values, smarts_mapping_path, top_i=5, 
             abs_shap_values = np.abs(shap_array)
             top_10_indices = np.argsort(abs_shap_values)[::-1]
             # top_10_indices = np.argsort(abs_shap_values)[-top_i:][::-1]
-            # top_10_indices = [idx for idx in top_10_indices if abs_shap_values[idx] != 0]
+            top_10_indices = [idx for idx in top_10_indices if abs_shap_values[idx] != 0]
             top_10_feature_names = [feature_names[i] for i in top_10_indices]
 
             with open(smarts_mapping_path, 'r') as f:
@@ -436,16 +436,16 @@ def process_folds_local_interactions(folds, data, shap_values, smarts_mapping_pa
             # print(f"First element in sorted_top_list_interaction: {sorted_top_list_interaction[0]}\n")
             print(f"Second element in sorted_top_list_interaction: {sorted_top_list_interaction[15]}\n")
             # Remove the first element and filter out explanations with 0 value
-            # sorted_top_list_interaction = [
-            #     item for item in sorted_top_list_interaction[1:] if item[1] != 0
-            # ]
+            sorted_top_list_interaction = [
+                item for item in sorted_top_list_interaction[1:] if item[1] != 0
+            ]
             
             # Get the features for this molecule to calculate counts
             feature_matrix = test_f.drop(columns=['capacity_max', 'smiles'])
             molecule_features = feature_matrix.iloc[molecule_idx].values
             feature_names = feature_matrix.columns.tolist()
 
-            sorted_top_list_interaction = sorted_top_list_interaction[1:]
+            # sorted_top_list_interaction = sorted_top_list_interaction[1:]
             # print(sorted_top_list_interaction)
             feature_names = test_f.drop(columns=['capacity_max', 'smiles']).columns.tolist()
             top_10_feature_names = [
