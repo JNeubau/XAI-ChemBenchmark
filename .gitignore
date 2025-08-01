@@ -348,3 +348,5 @@ da_test.py
 XAIFlow/analysis/data/*
 *.tex
 rfreg_feature*
+
+*.txt

@@ -29,8 +29,6 @@ def normalize_explanation_values(df):
         # print(f"Model: {model}, Sum of absolute values: {sum_value}\n")
         
         df.loc[model_mask, 'Explanation_value'] = values / sum_value
-        # norm_values= df.loc[model_mask, 'Explanation_value']
-        # print(f'AAAAAAAAAA Sum of {model}, {norm_values.sum()}\n')
         # print(f"Values after normalization: {df.loc[model_mask, 'Explanation_value'].describe()}")
         # print(f"Values after normalization: {df.loc[model_mask, 'Explanation_value']}")
 
@@ -146,6 +144,8 @@ def compare_feature_importance(df):
         fill_value=0,
         sort=True
     )
+
+    # print(f"Pivot Table:\n{pivot_table}\n")
     
     # Calculate correlation between model explanations
     correlation_matrix = pivot_table.corr()#.sort_values(by='MEG', ascending=False)
@@ -169,8 +169,8 @@ def compute_overall_feature_ranking(rankings_df):
     df = rankings_df.reset_index()
     
     
-    # grouped = df.groupby('Feature')['SumFolds_Explanation_Value'].agg(['mean', 'std', 'count','median']).reset_index()
-    grouped = df.groupby('Feature')['Average_Explanation_Value'].agg(['mean', 'std', 'count','median']).reset_index()
+    grouped = df.groupby('Feature')['SumFolds_Explanation_Value'].agg(['mean', 'std', 'count','median']).reset_index()
+    # grouped = df.groupby('Feature')['Average_Explanation_Value'].agg(['mean', 'std', 'count','median']).reset_index()
     grouped = grouped.rename(columns={
         'mean': 'Mean_Avg_Explanation_Value',
         'std': 'Std_Avg_Explanation_Value',
@@ -292,8 +292,8 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
     
     for method in rankings_df.index.get_level_values('Model').unique():
         model_data = rankings_df.xs(method)
-        # top_10 = set(model_data.nlargest(5, 'SumFolds_Explanation_Value').index)
-        top_10 = set(model_data.nlargest(5, 'Average_Explanation_Value').index)
+        top_10 = set(model_data.nlargest(5, 'SumFolds_Explanation_Value').index)
+        # top_10 = set(model_data.nlargest(5, 'Average_Explanation_Value').index)
         top_features_by_model[method] = top_10
         if first_model:
             common_features = top_10
@@ -304,8 +304,7 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
     # Filter the dataframe to include only common top features
     plot_data = rankings_df.reset_index()
     plot_data = plot_data[plot_data['Feature'].isin(common_features)]
-    # plot_data = plot_data.sort_values('SumFolds_Explanation_Value', ascending=False)
-    plot_data = plot_data.sort_values('Average_Explanation_Value', ascending=False)
+    plot_data = plot_data.sort_values('SumFolds_Explanation_Value', ascending=False)
     #plot data rename data in FEATURE column e.g., from maccsfingerprint25 to MACCS_25
     plot_data['Feature'] = plot_data['Feature'].str.replace('maccsfingerprint', 'MACCS_', regex=False)
 
@@ -313,8 +312,8 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
     
     # 1. Bar plot of top features by average explanation value
     plt.figure(figsize=(15, 8))
-    # ax = sns.barplot(data=plot_data, x='Feature', y='SumFolds_Explanation_Value', hue='Model')#, palette='deep')
-    ax = sns.barplot(data=plot_data, x='Feature', y='Average_Explanation_Value', hue='Model')#, palette='deep')
+    ax = sns.barplot(data=plot_data, x='Feature', y='SumFolds_Explanation_Value', hue='Model')#, palette='deep')
+    # ax = sns.barplot(data=plot_data, x='Feature', y='Average_Explanation_Value', hue='Model')#, palette='deep')
     plt.xticks(rotation=90, ha='right')  # Rotated labels for better readability
     plt.title('Top Features Across All Models', pad=20)
     plt.xlabel('Feature', labelpad=10)
@@ -371,8 +370,7 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
     ax2 = sns.barplot(
         data=plot_data,
         y='Feature',
-        # x='SumFolds_Explanation_Value',
-        x='Average_Explanation_Value',
+        x='SumFolds_Explanation_Value',
         hue='Model',
         # palette=custom_colors
         palette= custom_palette
@@ -400,8 +398,8 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
     # Prepare data for bump chart
     bump_data = rankings_df.reset_index()
     # Rank features within each model (1 = highest average explanation value)
-    # bump_data['Rank'] = bump_data.groupby('Model')['SumFolds_Explanation_Value'].rank(ascending=False, method='average')
-    bump_data['Rank'] = bump_data.groupby('Model')['Average_Explanation_Value'].rank(ascending=False, method='average')
+    bump_data['Rank'] = bump_data.groupby('Model')['SumFolds_Explanation_Value'].rank(ascending=False, method='average')
+    # bump_data['Rank'] = bump_data.groupby('Model')['Average_Explanation_Value'].rank(ascending=False, method='min')
     
     # Fix for deprecation warning: handle top N features selection differently
     N = 10
@@ -469,8 +467,8 @@ def create_ranking_plots(rankings_df, output_dir, timestamp):
     # Prepare data for bump chart (worst features)
     bump_data_worst = rankings_df.reset_index()
     # Rank features within each model (1 = highest, so worst = largest rank)
-    # bump_data_worst['Rank'] = bump_data_worst.groupby('Model')['SumFolds_Explanation_Value'].rank(ascending=False, method='average')
-    bump_data_worst['Rank'] = bump_data_worst.groupby('Model')['Average_Explanation_Value'].rank(ascending=False, method='average')
+    bump_data_worst['Rank'] = bump_data_worst.groupby('Model')['SumFolds_Explanation_Value'].rank(ascending=False, method='average')
+    # bump_data_worst['Rank'] = bump_data_worst.groupby('Model')['Average_Explanation_Value'].rank(ascending=False, method='min')
     N_worst = 3
     worst_features = []
     for method in bump_data_worst['Model'].unique():
@@ -652,12 +650,12 @@ def generate_anonymous_ranking_excel(model_rankings, overall_ranking_df, output_
     # )
     anon_rankings['Method'] = anon_rankings['Model'].map(model_map)
     # Add RANK per method (1 = best)
-    # anon_rankings['RANK'] = anon_rankings.groupby('Method')['SumFolds_Explanation_Value'].rank(ascending=False, method='average')
-    anon_rankings['RANK'] = anon_rankings.groupby('Method')['Average_Explanation_Value'].rank(ascending=False, method='average')
+    anon_rankings['RANK'] = anon_rankings.groupby('Method')['SumFolds_Explanation_Value'].rank(ascending=False, method='average')
+    # anon_rankings['RANK'] = anon_rankings.groupby('Method')['Average_Explanation_Value'].rank(ascending=False, method='average')
     anon_rankings = anon_rankings.drop(columns=['Model'])
     # Add Influence_Sign to columns
-    # cols = ['Method', 'Feature', 'SumFolds_Explanation_Value', 'Std_Dev', 'Min_Value', 'Max_Value', 'Fold_Count', 'Explanation_sign', 'RANK']
-    cols = ['Method', 'Feature', 'Average_Explanation_Value', 'Std_Dev', 'Min_Value', 'Max_Value', 'Fold_Count', 'Explanation_sign', 'RANK']
+    cols = ['Method', 'Feature', 'SumFolds_Explanation_Value', 'Std_Dev', 'Min_Value', 'Max_Value', 'Fold_Count', 'Explanation_sign', 'RANK']
+    # cols = ['Method', 'Feature', 'Average_Explanation_Value', 'Std_Dev', 'Min_Value', 'Max_Value', 'Fold_Count', 'Explanation_sign', 'RANK']
     anon_rankings = anon_rankings[[c for c in cols if c in anon_rankings.columns]]
 
     # Prepare overall ranking (already anonymized)
@@ -686,10 +684,10 @@ def generate_anonymous_ranking_excel(model_rankings, overall_ranking_df, output_
         return None
 
     # --- Calculate average rank for each feature across methods ---
-    # avg_rankings_df = model_rankings.reset_index()[['Model', 'Feature', 'SumFolds_Explanation_Value']].copy()
-    avg_rankings_df = model_rankings.reset_index()[['Model', 'Feature', 'Average_Explanation_Value']].copy()
-    # avg_rankings_df['Rank'] = avg_rankings_df.groupby('Model')['SumFolds_Explanation_Value'].rank(ascending=False, method='average')
-    avg_rankings_df['Rank'] = avg_rankings_df.groupby('Model')['Average_Explanation_Value'].rank(ascending=False, method='average')
+    avg_rankings_df = model_rankings.reset_index()[['Model', 'Feature', 'SumFolds_Explanation_Value']].copy()
+    # avg_rankings_df = model_rankings.reset_index()[['Model', 'Feature', 'Average_Explanation_Value']].copy()
+    avg_rankings_df['Rank'] = avg_rankings_df.groupby('Model')['SumFolds_Explanation_Value'].rank(ascending=False, method='average')
+    # avg_rankings_df['Rank'] = avg_rankings_df.groupby('Model')['Average_Explanation_Value'].rank(ascending=False, method='min')
     avg_rank_df = avg_rankings_df.groupby('Feature')['Rank'].mean().reset_index()
     avg_rank_df = avg_rank_df.rename(columns={'Rank': 'Average_Rank'})
     avg_rank_df = avg_rank_df.sort_values('Average_Rank')
@@ -702,8 +700,8 @@ def generate_anonymous_ranking_excel(model_rankings, overall_ranking_df, output_
         for i, model in enumerate(models):
             method_name = model_map[model]
             method_df = anon_rankings[anon_rankings['Method'] == method_name].copy()
-            # method_df_top = method_df.nlargest(N, 'SumFolds_Explanation_Value').reset_index(drop=True)
-            method_df_top = method_df.nlargest(N, 'Average_Explanation_Value').reset_index(drop=True)
+            method_df_top = method_df.nlargest(N, 'SumFolds_Explanation_Value').reset_index(drop=True)
+            # method_df_top = method_df.nlargest(N, 'Average_Explanation_Value').reset_index(drop=True)
             method_df_top.to_excel(writer, sheet_name=method_name, index=False, startrow=0, startcol=0)
             worksheet = writer.sheets[method_name]
             # Insert SMARTS images
@@ -814,14 +812,12 @@ def generate_comparison_report(results_dir, output_dir):
                 ).reset_index()
                 agg_norm_model_data = norm_model_data.groupby('Feature_key').agg(
                     # SMARTS
-                    # SumFolds_Explanation_Value=('Explanation_value', calculate_sum_folds_explanation_value_norm),
-                    Average_Explanation_Value=('Explanation_value', 'mean'),
+                    SumFolds_Explanation_Value=('Explanation_value', calculate_sum_folds_explanation_value_norm),
                     Positive_explanation_add_count=('Positive_explanation_add_count', 'sum'),
                     Negative_explanation_add_count=('Negative_explanation_add_count', 'sum'),
                     Positive_explanation_del_count=('Positive_explanation_del_count', 'sum'),
                     Negative_explanation_del_count=('Negative_explanation_del_count', 'sum')
-                # ).reset_index().rename(columns={'SumFolds_Explanation_Value': 'Normalized_Explanation_value'})
-                ).reset_index().rename(columns={'Average_Explanation_Value': 'Normalized_Explanation_value'})
+                ).reset_index().rename(columns={'SumFolds_Explanation_Value': 'Normalized_Explanation_value'})
                 
                 # Merge normalized values
                 agg_features = pd.merge(
@@ -838,22 +834,22 @@ def generate_comparison_report(results_dir, output_dir):
                 top_features.to_excel(writer, sheet_name=f'{model}_TF', index=False)
         
                 # Add average ranking for top 10 features across all models
-            # avg_rankings_df = model_rankings.reset_index()[['Model', 'Feature', 'SumFolds_Explanation_Value',
-            #                                                 'Positive_explanation_add_count',
-            #                                                 'Negative_explanation_add_count',
-            #                                                 'Positive_explanation_del_count',
-            #                                                 'Negative_explanation_del_count'                                                            
-            #                                                 ]].copy()
-            avg_rankings_df = model_rankings.reset_index()[['Model', 'Feature', 'Average_Explanation_Value',
+            avg_rankings_df = model_rankings.reset_index()[['Model', 'Feature', 'SumFolds_Explanation_Value',
                                                             'Positive_explanation_add_count',
                                                             'Negative_explanation_add_count',
                                                             'Positive_explanation_del_count',
                                                             'Negative_explanation_del_count'                                                            
                                                             ]].copy()
-            # avg_rankings_df['Rank'] = avg_rankings_df.groupby('Model')['SumFolds_Explanation_Value'                                                                     
-            #                                                            ].rank(ascending=False, method='average')
-            avg_rankings_df['Rank'] = avg_rankings_df.groupby('Model')['Average_Explanation_Value'                                                                     
+            # avg_rankings_df = model_rankings.reset_index()[['Model', 'Feature', 'Average_Explanation_Value',
+            #                                                 'Positive_explanation_add_count',
+            #                                                 'Negative_explanation_add_count',
+            #                                                 'Positive_explanation_del_count',
+            #                                                 'Negative_explanation_del_count'                                                            
+            #                                                 ]].copy()
+            avg_rankings_df['Rank'] = avg_rankings_df.groupby('Model')['SumFolds_Explanation_Value'                                                                     
                                                                        ].rank(ascending=False, method='average')
+            # avg_rankings_df['Rank'] = avg_rankings_df.groupby('Model')['Average_Explanation_Value'                                                                     
+            #                                                            ].rank(ascending=False, method='min')
             # avg_rank_df = avg_rankings_df.groupby('Feature')['Rank'].median().reset_index()
             avg_rank_df = avg_rankings_df.groupby('Feature')['Rank'].mean().reset_index()
             avg_rank_df = avg_rank_df.rename(columns={'Rank': 'Average_Rank'})
