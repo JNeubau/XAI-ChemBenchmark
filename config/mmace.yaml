@@ -1,0 +1,5 @@
+fingerprint_type: "maccs"
+num_samples: 100
+num_mutations: 2
+delta: 50.0
+nmols: 10
