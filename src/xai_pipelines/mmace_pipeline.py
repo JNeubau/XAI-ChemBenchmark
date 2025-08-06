@@ -32,16 +32,19 @@ class MMacePipeline(BaseXAIPipeline):
         self.nmols = nmols
 
     def init_explainer(self, **kwargs) -> object:
+        y_train = kwargs['y_train'].to_numpy()
+        y_train_median = np.median(y_train.flatten())
         return {
             'num_samples': self.num_samples,
             'alphabet': self.alphabet,
             'max_mutations': self.num_mutations,
             'fp_type': 'ECFP4',
-        }
+        }, y_train_median
 
     def explain_model(self, model: object, X_test: pd.DataFrame, explainer: Any, smiles_list: pd.Series):
         samples_fold = []
         cfs_fold = []
+        explainer, transition_point = explainer
 
         def get_representation(x):
             fps, column_names = Fingerprints().apply(self.fingerprint_type, smiles=[x])
@@ -73,6 +76,7 @@ class MMacePipeline(BaseXAIPipeline):
             print(f"Samples: {len(samples)}")
             cfs = exmol.rcf_explain(
                 samples,
+                transition_point=transition_point,
                 filter_nondrug=False,
                 delta=self.delta,
                 nmols = self.nmols,

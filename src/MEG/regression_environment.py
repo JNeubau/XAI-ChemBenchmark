@@ -18,6 +18,7 @@ class RegressionEnvironment(MoleculeEnvironment):
             atom_types: np.ndarray,
             model_to_explain: Any,
             target_diff: float,
+            transition_point: float,
             original_molecule: str,
             fingerprint_type: str,
             fp_len: int,
@@ -33,7 +34,6 @@ class RegressionEnvironment(MoleculeEnvironment):
             **kwargs
         )
         self.model_to_explain = model_to_explain
-        self.target_diff = target_diff
         self.discount_factor = discount_factor
         self.weight_sim = weight_sim
         self.fingerprint_type = fingerprint_type
@@ -42,7 +42,8 @@ class RegressionEnvironment(MoleculeEnvironment):
         self.original_molecule_dict = self.mol_to_dict(original_molecule)
         self.origin_pred = model_to_explain.predict(self.original_molecule_dict['x'])
 
-        self.gain = lambda p: torch.sign(self.distance(p, self.origin_pred)).item()
+        self.optim_direction = np.sign(transition_point - self.origin_pred)
+        self.target_diff = np.max([target_diff, self.distance([transition_point], self.origin_pred)])
 
         self.similarity, self.make_encoding, self.original_encoding = self.get_similarity(self.original_molecule_dict, fp_len,
                                                                                           fp_rad)
@@ -69,14 +70,18 @@ class RegressionEnvironment(MoleculeEnvironment):
     def reward(self):
         molecule = self.mol_to_dict(self.state)
         prediction = self.model_to_explain.predict(molecule['x'])
-        value_change = self.distance(prediction, self.origin_pred)
+        value_change = self.distance(self.origin_pred, prediction)
+        change_direction = np.sign(prediction - self.origin_pred)
+        is_in_optim_direction = change_direction == self.optim_direction
 
         if prediction < 0:
-            diff = 0.0
-        elif value_change >= self.target_diff:
+            diff = -1.0
+        elif value_change >= self.target_diff and change_direction == self.optim_direction:
             diff = 1.0
         else:
-            diff = value_change / self.target_diff
+            diff = np.min([value_change / self.target_diff, 1.0])
+            diff = diff if is_in_optim_direction else -diff
+            diff = 1 / (1 + np.exp(-diff))
 
         sim_score = self.similarity(self.make_encoding(molecule), self.original_encoding)
         reward = diff * (1 - self.weight_sim) + sim_score * self.weight_sim

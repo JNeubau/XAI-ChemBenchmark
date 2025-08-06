@@ -20,6 +20,7 @@ class MegRegressionExplainer:
             self,
             writer: SummaryWriter,
             target_diff: float,
+            transition_point: float,
             env_params: dict,
             agent_params: dict,
             samples: int = 10,
@@ -30,6 +31,7 @@ class MegRegressionExplainer:
         self.samples = samples
         self.env_params = env_params
         self.agent_params = agent_params
+        self.transition_point = transition_point
         self.epochs = epochs
 
     def action_encoder(self, action: Any):
@@ -152,6 +154,7 @@ class MegRegressionExplainer:
         cf_queue = SortedQueue(self.samples, sort_predicate=lambda x: x['reward'])
         env_params = {
             **self.env_params,
+            'transition_point': self.transition_point,
             'atom_types': atoms_unique,
             'model_to_explain': model_to_explain,
             'target_diff': self.target_diff,

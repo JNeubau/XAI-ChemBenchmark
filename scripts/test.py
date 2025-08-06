@@ -34,16 +34,16 @@ if __name__ == '__main__':
     # print(f"Results: {results}")
     # print(f"Scores: {scores}")
     # print(f"Feature Importance: {f_imp}")
-    # with open('../config/lime.yaml', 'r') as f:
-    #     config = yaml.safe_load(f)
-    # lime_piepline = LimePipeline(
-    #     X=X,
-    #     y=y,
-    #     z=z,  # Pass the SMILES data
-    #     folds=folds,
-    # )
-    # results = lime_piepline.xai_pipeline(model_path='../results/', **config)
-    # print(results)
+    with open('../config/lime.yaml', 'r') as f:
+        config = yaml.safe_load(f)
+    lime_piepline = LimePipeline(
+        X=X,
+        y=y,
+        z=z,  # Pass the SMILES data
+        folds=folds,
+    )
+    results = lime_piepline.xai_pipeline(model_path='../results/', **config)
+    print(results)
     # with open('../config/shap.yaml', 'r') as f:
     #     config = yaml.safe_load(f)
     # shap_piepline = ShapPipeline(
@@ -54,16 +54,16 @@ if __name__ == '__main__':
     # )
     # results = shap_piepline.xai_pipeline(model_path='../results/')
     # print(results)
-    with open('../config/shapiq.yaml', 'r') as f:
-        config = yaml.safe_load(f)
-    shapiq_piepline = ShapiqPipeline(
-        X=X,
-        y=y,
-        z=z,  # Pass the SMILES data
-        folds=folds,
-    )
-    results = shapiq_piepline.xai_pipeline(model_path='../results/', **config)
-    print(results)
+    # with open('../config/shapiq.yaml', 'r') as f:
+    #     config = yaml.safe_load(f)
+    # shapiq_piepline = ShapiqPipeline(
+    #     X=X,
+    #     y=y,
+    #     z=z,  # Pass the SMILES data
+    #     folds=folds,
+    # )
+    # results = shapiq_piepline.xai_pipeline(model_path='../results/', **config)
+    # print(results)
     # with open('../config/mmace.yaml', 'r') as f:
     #     config = yaml.safe_load(f)
     # shapiq_piepline = MMacePipeline(

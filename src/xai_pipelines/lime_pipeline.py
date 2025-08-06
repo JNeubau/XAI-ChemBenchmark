@@ -55,6 +55,13 @@ class LimePipeline(BaseXAIPipeline):
             lime_explanation = explainer.explain_instance(instance, model.predict, num_features=len(instance))
             lime_value = lime_explanation.as_list()
             lime_values.append(lime_value)
+            lime_explanation = {
+                'intercept': lime_explanation.intercept[0],
+                'prediction_local': lime_explanation.local_pred,
+                'right': lime_explanation.predicted_value,
+                'score': lime_explanation.score,
+                'local_exp': lime_explanation.local_exp[0],
+            }
             lime_explanations.append(lime_explanation)
 
         self.values['lime_values'].append(lime_values)

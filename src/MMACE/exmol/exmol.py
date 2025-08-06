@@ -978,7 +978,8 @@ def cf_explain(
 
 def rcf_explain(
     examples: List[Example],
-    delta: Union[Any, Tuple[float, float]] = (-1, 1),
+    transition_point: float,
+    delta: float = 1,
     nmols: int = 4,
     filter_nondrug: Optional[bool] = None,
 ) -> List[Example]:
@@ -987,12 +988,17 @@ def rcf_explain(
     lower than base.
 
     :param examples: Output from :func:`sample_space`
+    :param transition_point: float indicating the point at which the example is considered a counterfactual
     :param delta: float or tuple of hi/lo indicating margin for what is counterfactual
     :param nmols: Desired number of molecules
-    :param filter_nondrug: Whether or not to filter out non-drug molecules. Default is True if input passes filter
+    :param filter_nondrug: Whether to filter out non-drug molecules. Default is True if input passes filter
     """
-    if type(delta) is float:
-        delta = (-delta, delta)
+    delta = np.max([np.abs(delta), np.abs(transition_point - examples[0].yhat)])
+
+    def is_counterfactual(e):
+        optim_direction = np.sign(transition_point - examples[0].yhat)
+        return (np.abs(e.yhat - examples[0].yhat) < delta and np.sign(e.yhat - examples[0].yhat) == optim_direction)
+
 
     def is_high(e):
         return e.yhat + delta[0] >= examples[0].yhat
@@ -1000,21 +1006,22 @@ def rcf_explain(
     def is_low(e):
         return e.yhat + delta[1] <= examples[0].yhat
 
-    hresult = (
-        []
-        if delta[0] is None
-        else _select_examples(is_high, examples[1:], nmols // 2, filter_nondrug)
-    )
-    for i, h in enumerate(hresult):
-        h.label = f"Increase ({i+1})"
-    lresult = (
-        []
-        if delta[1] is None
-        else _select_examples(is_low, examples[1:], nmols // 2, filter_nondrug)
-    )
-    for i, l in enumerate(lresult):
-        l.label = f"Decrease ({i+1})"
-    return examples[:1] + lresult + hresult
+    # hresult = (
+    #     []
+    #     if delta[0] is None
+    #     else _select_examples(is_high, examples[1:], nmols // 2, filter_nondrug)
+    # )
+    # for i, h in enumerate(hresult):
+    #     h.label = f"Increase ({i+1})"
+    # lresult = (
+    #     []
+    #     if delta[1] is None
+    #     else _select_examples(is_low, examples[1:], nmols // 2, filter_nondrug)
+    # )
+    results = _select_examples(is_counterfactual, examples[1:], nmols, filter_nondrug)
+    # for i, l in enumerate(lresult):
+    #     l.label = f"Decrease ({i+1})"
+    return results
 
 
 def plot_space(

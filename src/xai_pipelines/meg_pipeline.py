@@ -1,6 +1,7 @@
 import os
 from typing import Any
 
+import numpy as np
 import pandas as pd
 from torch.utils.tensorboard import SummaryWriter
 
@@ -27,6 +28,9 @@ class MegPipeline(BaseXAIPipeline):
         os.makedirs(f'{kwargs["base_path"]}/meg_explainer', exist_ok=True)
         writer = SummaryWriter(f'{kwargs['base_path']}/meg_explainer')
 
+        y_train = kwargs['y_train'].to_numpy()
+        y_train_median = np.median(y_train.flatten())
+
         kwargs['env_params']['filter_columns'] = self.filter_columns
         kwargs['env_params']['fingerprint_type'] = self.fingerprint_type
         kwargs['agent_params']['sample'] = kwargs['sample']
@@ -34,6 +38,7 @@ class MegPipeline(BaseXAIPipeline):
         explainer = MegRegressionExplainer(
             writer=writer,
             target_diff=self.delta,
+            transition_point=y_train_median,
             env_params=kwargs['env_params'],
             agent_params=kwargs['agent_params'],
             samples=self.samples,

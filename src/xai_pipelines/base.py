@@ -74,6 +74,7 @@ class BaseXAIPipeline(ABC):
 
             kwargs['model'] = model
             kwargs['X_train'] = X_train
+            kwargs['y_train'] = y_train
             kwargs['sample'] = i
 
             self.explain_model(model, X_test, self.init_explainer(**kwargs), smiles_test)

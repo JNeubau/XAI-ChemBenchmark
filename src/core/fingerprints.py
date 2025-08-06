@@ -51,7 +51,8 @@ class Fingerprints:
         if name in self._fingerprints:
             fp = self._fingerprints[name](**kwargs)
             fingerprints = fp.fit_transform(smiles)
-            features_names = fp.get_feature_names_out()
+            #features_names = fp.get_feature_names_out()
+            features_names = [f'feature_{i}' for i in range(fingerprints.shape[1])]
             return fingerprints, features_names
         raise ValueError(f"Fingerprint function '{name}' is not defined.")
 
