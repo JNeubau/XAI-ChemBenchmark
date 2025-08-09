@@ -1,16 +1,19 @@
-from sklearn.model_selection import GridSearchCV
-from sklearn.metrics import make_scorer, root_mean_squared_error
+import warnings
+
+from sklearn.metrics import root_mean_squared_error
 import copy
-from typing import Any
 import numpy as np
 import pandas as pd
 import joblib
 import os
-from datetime import datetime
+import optuna
 
-from src.predictive_model.evaluation import smape, EvalMetrics
+from src.predictive_model.evaluation import EvalMetrics
 from src.predictive_model.factory import Models
 from src.predictive_model.utils import custom_data_split
+
+optuna.logging.set_verbosity(optuna.logging.ERROR)
+warnings.filterwarnings("ignore")
 
 
 class PredictiveModelTrainingPipeline:
@@ -26,6 +29,7 @@ class PredictiveModelTrainingPipeline:
             metrics: list,
             save_dir: str,
             data_name: str,
+            num_bins: int,
             hyperparam_opt: bool = True,
             verbose: bool = False,
     ):
@@ -47,6 +51,7 @@ class PredictiveModelTrainingPipeline:
         self.verbose = verbose
         self.metrics = metrics
         self.hyperparam_opt = hyperparam_opt
+        self.num_bins = num_bins
         self.scores = None
         self.feature_importance = None
 
@@ -61,12 +66,34 @@ class PredictiveModelTrainingPipeline:
         :return: model with optimized parameters.
         """
         if self.hyperparam_opt:
-            scorer = make_scorer(root_mean_squared_error, greater_is_better=False)
-            folds = custom_data_split(X_train, y_train, train_size=0.6)
-            opt = GridSearchCV(estimator=model, param_grid=param_grid, cv=folds, scoring=scorer, refit=True, n_jobs=-1,
-                               return_train_score=True)
-            opt.fit(X_train.to_numpy(), y_train[y_train.columns[0]].to_numpy())
-            best_score, best_params = opt.best_score_, opt.best_params_
+            folds = custom_data_split(X_train, y_train, num_bins=self.num_bins, train_size=0.7)
+            x_train_opt, y_train_opt = X_train.iloc[folds[0][0], :], y_train.iloc[folds[0][0], :]
+            x_test_opt, y_test_opt = X_train.iloc[folds[0][1], :], y_train.iloc[folds[0][1], :]
+
+            def objective(trial):
+                params = {}
+                for key, value in param_grid.items():
+                    if isinstance(value, list):
+                        params[key] = trial.suggest_categorical(key, value)
+                    elif isinstance(value, tuple):
+                        if isinstance(value[0], int):
+                            params[key] = trial.suggest_int(key, value[0], value[1])
+                        else:
+                            params[key] = trial.suggest_float(key, value[0], value[1])
+                    else:
+                        raise ValueError(f"Unsupported parameter type: {type(value)}")
+
+                model.set_params(**params)
+                model.fit(x_train_opt.to_numpy(), y_train_opt[y_train.columns[0]].to_numpy())
+                y_pred = model.predict(x_test_opt.to_numpy()).flatten()
+                score = root_mean_squared_error(y_test_opt.to_numpy(), y_pred)
+                return score
+
+            study = optuna.create_study(direction="minimize", sampler=optuna.samplers.QMCSampler(seed=42))
+
+            study.optimize(objective, n_trials=100, show_progress_bar=False)
+            best_params = study.best_params
+            best_score = study.best_value
             model.set_params(**best_params)
             if self.verbose:
                 print(f"Best score: {best_score}\n Best params: {best_params}")
@@ -91,17 +118,20 @@ class PredictiveModelTrainingPipeline:
         scores = {}
         for metric in self.metrics:
             scores[metric] = []
+            scores[f'baseline_{metric}'] = []
         self.scores = scores
         self.feature_importance = []
 
-    def update_scores(self, model_scores: dict, f_importance: pd.DataFrame | None = None):
+    def update_scores(self, model_scores: dict, baselines: dict, f_importance: pd.DataFrame | None = None):
         """
         Update scores dictionary.
         :param model_scores: dictionary with model scores.
+        :param baselines: dictionary with baseline scores.
         :param f_importance: feature importance dataframe.
         """
         for metric in self.metrics:
             self.scores[metric].append(model_scores[metric])
+            self.scores[f'baseline_{metric}'].append(baselines[f'{metric}'])
         if f_importance is not None:
             self.feature_importance.append(f_importance)
         else:
@@ -116,30 +146,8 @@ class PredictiveModelTrainingPipeline:
         for metric in self.metrics:
             metric_scores = self.scores[metric]
             results[metric] = round(sum(metric_scores) / len(metric_scores), 4)
+            results[f'baseline_{metric}'] = round(sum(self.scores[f'baseline_{metric}']) / len(self.scores[f'baseline_{metric}']), 4)
         return results
-
-    def save_results(self, results: dict, model_name: str, model_params: Any):
-        """
-        Save results to a file.
-        :param results: dictionary with results.
-        :param model_name: name of the model.
-        :param model_params: model parameters.
-        """
-        save_scores_path = os.path.join(self.save_dir, f"results_{model_name}.txt")
-        metric_lines = [f"{metric}: {score}\n" for metric, score in results.items()]
-        lines = [
-            "\n******************************************************\n",
-            f"{datetime.now().strftime('%d-%m-%Y %H:%M:%S')}\n",
-            f"{model_name}\n" f"Model parameters: {model_params}\n",
-            f"Training data: {self.data_name}\n",
-            *metric_lines,
-            "******************************************************\n",
-        ]
-        if self.verbose:
-            for l in lines:
-                print(l)
-        with open(save_scores_path, "a", encoding="utf-8") as f:
-            f.writelines(lines)
 
     def save_model(self, model: object, fold_num: int):
         """
@@ -189,7 +197,10 @@ class PredictiveModelTrainingPipeline:
             y_test_numpy = y_test.to_numpy().flatten()
             y_pred_eval = self.eval_model(y_pred, y_test_numpy)
 
-            self.update_scores(y_pred_eval, f_imp)
+            baseline = np.median(y_train[y_train.columns[0]].to_numpy()) * np.ones_like(y_test_numpy)
+            baselines = self.eval_model(baseline, y_test_numpy)
+
+            self.update_scores(y_pred_eval, baselines, f_imp)
             if len(self.save_dir) > 0:
                 self.save_model(model, fold_num=i)
 

@@ -1,0 +1,14 @@
+output_path: '../results/'
+train:
+  model_type: 'RFReg'
+  metrics:  ['smape', 'mape', 'rmse', 'pairwise_accuracy_score', 'ndcg_score']
+real_dataset:
+  target_column: 'capacity_max'
+  data_path: '../data/real_data/'
+  num_splits: 10
+  num_bins: 10
+synthetic_dataset:
+  target_column: 'target'
+  data_path: '../data/synthetic_data/'
+  num_splits: 10
+  num_bins: 10

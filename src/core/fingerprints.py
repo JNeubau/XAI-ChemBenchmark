@@ -1,8 +1,12 @@
 """Functions for generating fingerprints."""
+from functools import partial
 from typing import Callable, Literal
 
+import numpy as np
 import pandas as pd
 import skfp
+from rdkit import Chem
+from rdkit.Chem import rdMolDescriptors
 from skfp.fingerprints import (
     ECFPFingerprint,
     EStateFingerprint,
@@ -40,7 +44,7 @@ class Fingerprints:
 
         return decorator
 
-    def apply(self, name, smiles, **kwargs) -> tuple:
+    def apply(self, names: list, smiles: list, **kwargs) -> tuple:
         """
         Apply the fingerprint function with the given name.
         :param name: name of the fingerprint function.
@@ -48,13 +52,22 @@ class Fingerprints:
         :param kwargs: additional arguments for the fingerprint function.
         :return: list of fingerprints and feature names.
         """
-        if name in self._fingerprints:
-            fp = self._fingerprints[name](**kwargs)
-            fingerprints = fp.fit_transform(smiles)
-            #features_names = fp.get_feature_names_out()
-            features_names = [f'feature_{i}' for i in range(fingerprints.shape[1])]
-            return fingerprints, features_names
-        raise ValueError(f"Fingerprint function '{name}' is not defined.")
+        fingerprints = []
+        features_names = []
+        for name in names:
+            if name not in self._fingerprints:
+                raise ValueError(f"Fingerprint function '{name}' is not defined.")
+            fp = self._fingerprints[name](**kwargs[name])
+            fps = fp.fit_transform(smiles)
+            if name != 'descriptor':
+                fps_names = [f'{name}_feature_{i}' for i in range(fps.shape[1])]
+            else:
+                fps_names = fp.get_feature_names_out()
+            # fps_names = [f'{name}_feature_{i}' for i in range(fps.shape[1])]
+            fingerprints.append(fps)
+            features_names.extend(fps_names)
+        fingerprints = np.concat(fingerprints, axis=1)
+        return fingerprints, features_names
 
 
 @Fingerprints.register("ecfp")
@@ -132,6 +145,57 @@ def topological_fingerprint(size: int = 1024, torsion_atoms: int = 4, count: boo
     """
     return TopologicalTorsionFingerprint(fp_size=size, torsion_atom_count=torsion_atoms, include_chirality=True, count=count)
 
+@Fingerprints.register("descriptor")
+def descriptor() -> object:
+    return CustomDescriptor()
+
+class CustomDescriptor:
+    def __init__(self):
+        self.desc = {
+            'radius': skfp.descriptors.radius,
+            'diameter': skfp.descriptors.diameter,
+            "num_heteroatoms": rdMolDescriptors.CalcNumHeteroatoms,
+            "num_rotatable_bonds": rdMolDescriptors.CalcNumRotatableBonds,
+            "num_h_acceptors": rdMolDescriptors.CalcNumLipinskiHBA,
+            "num_h_donors": rdMolDescriptors.CalcNumLipinskiHBD,
+            "tpsa": rdMolDescriptors.CalcTPSA,
+            "mol_wt": rdMolDescriptors.CalcExactMolWt,
+            "o%": partial(self.calculate_percentage, idx=8),
+            "n%": partial(self.calculate_percentage, idx=7),
+            "c%": partial(self.calculate_percentage, idx=6),
+        }
+
+    def calculate_percentage(self, mol: Chem.Mol, idx: int) -> float:
+        """
+        Calculate the percentage of oxygen atoms in the molecule.
+        :param mol: RDKit molecule object.
+        :return: percentage of oxygen atoms.
+        """
+        num_oxygen = sum(1 for atom in mol.GetAtoms() if atom.GetAtomicNum() == idx)
+        num_atoms = mol.GetNumAtoms()
+        return num_oxygen / num_atoms
+
+    def fit_transform(self, smiles: list) -> np.ndarray:
+        """
+        Custom descriptor for fingerprints.
+        :param smiles: list of SMILES strings.
+        :return: array with custom descriptors.
+        """
+        descriptors = np.zeros((len(smiles), len(self.desc.keys())))
+        for i, s in enumerate(smiles):
+            mol = Chem.MolFromSmiles(s)
+            if mol is None:
+                continue
+            for j, (name, func) in enumerate(self.desc.items()):
+                descriptors[i, j] = func(mol)
+        return descriptors
+
+    def get_feature_names_out(self) -> list:
+        """
+        Get feature names for custom descriptors.
+        :return: list of feature names.
+        """
+        return list(self.desc.keys())
 
 def fingerprints_dataset(
     df: pd.DataFrame, smiles_col: str, target_col: str, fingerprint_type: Literal["ecfp", "maccs", "functional_groups", "estate", "layered", "pattern", "rdf", "topological"], **kwargs

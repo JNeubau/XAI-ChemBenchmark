@@ -98,20 +98,21 @@ def get_trained_model(model_path: str) -> object:
 
 def _get_xgb_params():
     return {
-        "n_estimators": [10, 15, 25, 40, 50, 75, 100],
+        "n_estimators": (5, 100),
         "learning_rate": [0.05, 0.10, 0.15],
-        "max_depth": [3, 5, 8, 10, None],
-        "min_child_weight": [1, 3, 5, 7],
+         "max_depth": list(range(5, 16)) + [None],
+        "min_child_weight": [3, 5, 7],
         "gamma": [0.0, 0.1, 0.2],
-        "colsample_bytree": [0.1, 0.2, 0.3, 0.4],
+        "colsample_bytree": [0.2, 0.3, 0.4],
+        "objective": ["rank:pairwise"]
     }
 
 
 def _get_rf_params():
     return {
-        "n_estimators": [10, 15, 25, 40, 50, 75, 100],
-        "max_depth": [None, 3, 5, 8, 10],
-        "min_samples_split": [2, 3, 4, 5],
-        "min_samples_leaf": [1, 2, 4],
+        "n_estimators": (5, 100),
+        "max_depth": list(range(5, 16)) + [None],
+        "min_samples_split": (2, 5),
+        "min_samples_leaf": (1, 5),
         "bootstrap": [True, False],
     }
