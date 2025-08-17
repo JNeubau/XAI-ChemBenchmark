@@ -11,6 +11,11 @@ from src.MEG.agent import MegAgent
 from src.MEG.environment import SortedQueue
 from src.MEG.regression_environment import RegressionEnvironment
 
+torch.manual_seed(42)
+random.seed(42)
+np.random.seed(42)
+torch.use_deterministic_algorithms(True)
+
 
 class MegRegressionExplainer:
     """
@@ -144,10 +149,6 @@ class MegRegressionExplainer:
         :param smiles: The SMILES representation of the molecule to explain.
         :return: Explanations for the model's prediction.
         """
-        torch.manual_seed(42)
-        random.seed(42)
-        np.random.seed(42)
-        torch.use_deterministic_algorithms(True)
 
         mol = Chem.MolFromSmiles(smiles)
         atoms_unique = np.unique([atom.GetSymbol() for atom in mol.GetAtoms()])

@@ -54,21 +54,21 @@ if __name__ == '__main__':
     real_datasets = os.listdir(real['data_path'])
     synthetic_datasets = os.listdir(synthetic['data_path'])
 
-    for dataset in real_datasets:
-        dataset_name = dataset.split('.')[0]
-        dataset_train = {
-            'data_path': os.path.join(real['data_path'], dataset),
-            'target_column': real['target_column'],
-            'num_splits': real['num_splits'],
-            'num_bins': real['num_bins'],
-            'metrics': train['metrics'],
-            'save_dir': os.path.join(real_results_dir, dataset_name),
-            'data_name': dataset_name,
-            'model_type': train['model_type']
-        }
-        os.makedirs(dataset_train['save_dir'], exist_ok=True)
-        print(f"Training model on real dataset: {dataset_name}")
-        train_model(dataset_train)
+    # for dataset in real_datasets:
+    #     dataset_name = dataset.split('.')[0]
+    #     dataset_train = {
+    #         'data_path': os.path.join(real['data_path'], dataset),
+    #         'target_column': real['target_column'],
+    #         'num_splits': real['num_splits'],
+    #         'num_bins': real['num_bins'],
+    #         'metrics': train['metrics'],
+    #         'save_dir': os.path.join(real_results_dir, dataset_name),
+    #         'data_name': dataset_name,
+    #         'model_type': train['model_type']
+    #     }
+    #     os.makedirs(dataset_train['save_dir'], exist_ok=True)
+    #     print(f"Training model on real dataset: {dataset_name}")
+    #     train_model(dataset_train)
 
     for dataset in synthetic_datasets:
         dataset_name = dataset.split('.')[0]

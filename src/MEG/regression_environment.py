@@ -1,3 +1,4 @@
+import random
 from typing import Any
 
 import numpy as np
@@ -11,6 +12,11 @@ from sklearn.metrics import mean_absolute_error
 from src.MEG.environment import MoleculeEnvironment
 from src.core.fingerprints import Fingerprints
 
+torch.manual_seed(42)
+random.seed(42)
+np.random.seed(42)
+torch.use_deterministic_algorithms(True)
+
 
 class RegressionEnvironment(MoleculeEnvironment):
     def __init__(
@@ -20,7 +26,8 @@ class RegressionEnvironment(MoleculeEnvironment):
             target_diff: float,
             transition_point: float,
             original_molecule: str,
-            fingerprint_type: str,
+            fingerprint_type: list[str],
+            fp_params: dict,
             fp_len: int,
             fp_rad: int | float,
             discount_factor: float,
@@ -37,6 +44,7 @@ class RegressionEnvironment(MoleculeEnvironment):
         self.discount_factor = discount_factor
         self.weight_sim = weight_sim
         self.fingerprint_type = fingerprint_type
+        self.fingerprint_params = fp_params
         self.filter_columns = filter_columns
         self.distance = lambda x, y: mean_absolute_error(x, y)
         self.original_molecule_dict = self.mol_to_dict(original_molecule)
@@ -57,7 +65,7 @@ class RegressionEnvironment(MoleculeEnvironment):
         return similarity, make_encoding, original_encoding
 
     def mol_to_dict(self, molecule: str):
-        fps, column_names = Fingerprints().apply(self.fingerprint_type, smiles=[molecule])
+        fps, column_names = Fingerprints().apply(self.fingerprint_type, smiles=[molecule], **self.fingerprint_params)
         fps_df = pd.DataFrame(fps, columns=column_names)
         if self.filter_columns:
             fps_df = fps_df.loc[:, self.filter_columns]
@@ -81,7 +89,8 @@ class RegressionEnvironment(MoleculeEnvironment):
         else:
             diff = np.min([value_change / self.target_diff, 1.0])
             diff = diff if is_in_optim_direction else -diff
-            diff = 1 / (1 + np.exp(-diff))
+            #diff = 1 / (1 + np.exp(-diff))
+            diff = np.tanh(diff)
 
         sim_score = self.similarity(self.make_encoding(molecule), self.original_encoding)
         reward = diff * (1 - self.weight_sim) + sim_score * self.weight_sim

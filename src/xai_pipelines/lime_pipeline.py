@@ -2,6 +2,7 @@ from typing import Any, Iterable
 
 import pandas as pd
 from lime.lime_tabular import LimeTabularExplainer
+from sklearn.preprocessing import StandardScaler
 
 from src.xai_pipelines.base import BaseXAIPipeline
 
@@ -16,18 +17,21 @@ class LimePipeline(BaseXAIPipeline):
         Initialize the LIME explainer.
         :return: LIME explainer object.
         """
+        scaler = StandardScaler()
         X_train = kwargs['X_train']
-        feature_names = list(X_train.columns)
-        categorical_features = list(range(len(feature_names)))
+        scaler.fit(X_train)
+        X_train_scaled = scaler.transform(X_train)
+        X_train_scaled = pd.DataFrame(X_train_scaled, columns=X_train.columns)
+
+        feature_names = list(X_train_scaled.columns)
         return LimeTabularExplainer(
-            X_train.values,
+            X_train_scaled.values,
             feature_names=feature_names,
             mode=kwargs['mode'],
             random_state=kwargs['random_state'],
             verbose=kwargs['verbose'],
-            categorical_features=categorical_features,
             discretize_continuous=kwargs['discretize_continuous'],
-        )
+        ), scaler
 
     def init_values(self):
         """
@@ -47,12 +51,25 @@ class LimePipeline(BaseXAIPipeline):
         :param explainer: LIME explainer object.
         :param smiles_list: Series with SMILES strings corresponding to the test dataset.
         """
+        explainer, scaler = explainer
+        X_test_scaled = scaler.transform(X_test)
+        X_test_scaled = pd.DataFrame(X_test_scaled, columns=X_test.columns)
+
+        def model_predict(example):
+            """
+            Predict function for the model.
+            :param instance: input instance for prediction.
+            :return: model predictions.
+            """
+            instance_reverse = scaler.inverse_transform(example)
+            return model.predict(instance_reverse)
+
         lime_values = []
         lime_explanations = []
 
-        for idx, (instance, smiles) in enumerate(zip(X_test.values, smiles_list)):
+        for idx, (instance, smiles) in enumerate(zip(X_test_scaled.values, smiles_list)):
             print(f"LIME: Processing molecule {idx}, SMILES: {smiles}, len: {len(instance)}")
-            lime_explanation = explainer.explain_instance(instance, model.predict, num_features=len(instance))
+            lime_explanation = explainer.explain_instance(instance, model_predict, num_features=len(instance))
             lime_value = lime_explanation.as_list()
             lime_values.append(lime_value)
             lime_explanation = {

@@ -7,12 +7,19 @@ state space, action space, and reward function are defined.
 import collections
 import copy
 import itertools
+import random
 from abc import abstractmethod, ABC
 from typing import Any
 
 import numpy as np
+import torch
 from rdkit import Chem
 from rdkit.Chem import Draw
+
+torch.manual_seed(42)
+random.seed(42)
+np.random.seed(42)
+torch.use_deterministic_algorithms(True)
 
 
 class Result(collections.namedtuple("Result", ["state", "reward", "terminated"])):
@@ -177,7 +184,26 @@ class MoleculeEnvironment(ABC):
         # add the same state
         if allow_no_modification:
             valid_actions.add(state)
+        valid_actions = self._validity_double_check(valid_actions)
         return valid_actions
+
+    def _validity_double_check(self, valid_actions: set) -> set:
+        """
+        Double check the validity of the actions.
+        This is a workaround for the fact that some actions may not be valid after
+        sanitization.
+        """
+        valid_actions_checked = set()
+        for action in valid_actions:
+            mol = Chem.MolFromSmiles(action)
+            if mol is None:
+                continue
+            try:
+                Chem.SanitizeMol(mol, catchErrors=True)
+                valid_actions_checked.add(action)
+            except Exception:
+                continue
+        return valid_actions_checked
 
     def _atom_additions(
         self,

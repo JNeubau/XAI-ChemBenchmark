@@ -5,6 +5,7 @@ from typing import Iterable, Any
 import pandas as pd
 import os
 import joblib
+from sklearn.preprocessing import StandardScaler
 
 
 class BaseXAIPipeline(ABC):
@@ -52,10 +53,12 @@ class BaseXAIPipeline(ABC):
         """
         pass
 
-    def xai_pipeline(self, model_path: str | None = None, **kwargs) -> tuple:
+    def xai_pipeline(self, model_path: str | None = None, scale: bool = False, **kwargs) -> tuple:
         """
         Explain the model.
         :param model_path: path to saved model.
+        :param model_to_use: pre-trained model to use instead of loading from file.
+        :param scale: whether to scale the data.
         :return: tuple with results, scores, explanations.
         """
         self.init_values()

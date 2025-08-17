@@ -13,7 +13,11 @@ class ShapPipeline(BaseXAIPipeline):
 
     def init_explainer(self, **kwargs) -> object:
         model = kwargs['model']
-        return shap.TreeExplainer(model)
+        shap_type = kwargs['shap_type']
+        if shap_type == 'tree':
+            return shap.TreeExplainer(model)
+        else:
+            return shap.KernelExplainer(model.predict, data=kwargs['X_train'], seed=42)
 
     def explain_model(self, model: object, X_test: pd.DataFrame, explainer: Any, smiles_list: pd.Series):
         expected_value = explainer.expected_value

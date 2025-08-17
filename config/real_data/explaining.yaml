@@ -1,0 +1,9 @@
+
+target_column: 'capacity_max'
+data_path: '../data/real_data/'
+dataset_name: 'data_batteries_ecfp_descriptor'
+num_splits: 10
+num_bins: 10
+models_path: '../results/real_data/'
+configs_path: '../config/real_data/'
+save_path:  '../results/real_data/'

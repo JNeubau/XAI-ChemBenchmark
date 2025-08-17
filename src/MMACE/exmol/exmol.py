@@ -997,7 +997,7 @@ def rcf_explain(
 
     def is_counterfactual(e):
         optim_direction = np.sign(transition_point - examples[0].yhat)
-        return (np.abs(e.yhat - examples[0].yhat) < delta and np.sign(e.yhat - examples[0].yhat) == optim_direction)
+        return np.abs(e.yhat - examples[0].yhat) >= delta and np.sign(e.yhat - examples[0].yhat) == optim_direction
 
 
     def is_high(e):

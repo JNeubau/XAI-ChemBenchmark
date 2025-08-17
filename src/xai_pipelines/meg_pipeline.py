@@ -1,13 +1,20 @@
 import os
+import random
 from typing import Any
 
 import numpy as np
 import pandas as pd
+import torch
 from torch.utils.tensorboard import SummaryWriter
 
 from src.MEG.explainer import MegRegressionExplainer
 from src.core.fingerprints import Fingerprints
 from src.xai_pipelines.base import BaseXAIPipeline
+
+torch.manual_seed(42)
+random.seed(42)
+np.random.seed(42)
+torch.use_deterministic_algorithms(True)
 
 
 class MegPipeline(BaseXAIPipeline):
@@ -16,10 +23,14 @@ class MegPipeline(BaseXAIPipeline):
     """
 
     def __init__(self, X: pd.DataFrame, y: pd.DataFrame, z: pd.Series, folds: list,
-                 fingerprint_type: str = 'maccs', delta: float = 1.0, samples: int = 10, epochs:int = 10):
+                 fingerprint_type: list[str], fp_params: dict, delta: float = 1.0, samples: int = 10, epochs:int = 10):
 
         super().__init__(X, y, z, folds)
         self.fingerprint_type = fingerprint_type
+        for key, value in fp_params.items():
+            if value is None:
+                fp_params[key] = {}
+        self.fingerprint_params = fp_params
         self.delta = delta
         self.samples = samples
         self.epochs = epochs
@@ -33,6 +44,7 @@ class MegPipeline(BaseXAIPipeline):
 
         kwargs['env_params']['filter_columns'] = self.filter_columns
         kwargs['env_params']['fingerprint_type'] = self.fingerprint_type
+        kwargs['env_params']['fp_params'] = self.fingerprint_params
         kwargs['agent_params']['sample'] = kwargs['sample']
 
         explainer = MegRegressionExplainer(
@@ -57,6 +69,7 @@ class MegPipeline(BaseXAIPipeline):
             'counterfactuals_smiles': [],
             'counterfactuals_encoding': [],
             'counterfactuals_similarity': [],
+            'counterfactuals_pred_reward': [],
             'pred_original': [],
             'pred_counterfactual': []
         }
@@ -66,6 +79,7 @@ class MegPipeline(BaseXAIPipeline):
             processed_results['counterfactuals_smiles'].append(cf['smiles'])
             processed_results['counterfactuals_encoding'].append(cf['encoding'])
             processed_results['counterfactuals_similarity'].append(cf['reward_sim'])
+            processed_results['counterfactuals_pred_reward'].append(cf['reward_pred'])
             processed_results['pred_counterfactual'].append(cf['prediction']['output'])
             processed_results['pred_original'].append(cf['prediction']['original'])
 
@@ -76,6 +90,7 @@ class MegPipeline(BaseXAIPipeline):
             'counterfactuals_smiles': [],
             'counterfactuals_encoding': [],
             'counterfactuals_similarity': [],
+            'counterfactuals_pred_reward': [],
             'pred_original': [],
             'pred_counterfactual': []
         }
@@ -94,6 +109,7 @@ class MegPipeline(BaseXAIPipeline):
             'counterfactuals_smiles': [],
             'counterfactuals_encoding': [],
             'counterfactuals_similarity': [],
+            'counterfactuals_pred_reward': [],
             'pred_original': [],
             'pred_counterfactual': []
         }

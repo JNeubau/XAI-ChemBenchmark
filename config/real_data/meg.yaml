@@ -1,6 +1,12 @@
 base_path: '../meg_results'
 delta: 50.0
-fingerprint_type: 'maccs'
+fingerprint_type: ['ecfp', 'descriptor']
+fp_params:
+  ecfp:
+    radius: 2
+    size: 1024
+    count: True
+  descriptor:
 env_params:
   fp_len: 1024
   fp_rad: 2
@@ -10,18 +16,18 @@ env_params:
   allow_no_modification: False
   allow_bonds_between_rings: True
   allowed_ring_sizes: [5, 6]
-  max_steps: 10
+  max_steps: 2
   record_path: False
-  discount_factor: 0.9
-  weight_sim: 0.35
+  discount_factor: 0.9987
+  weight_sim: 0.1
 agent_params:
   exp_name: 'battery'
   lr: 0.0001
   replay_buffer_size: 100000
-  max_steps_per_episodes: 2 #6
+  max_steps_per_episodes: 2
   update_interval: 1
   batch_size: 32
   gamma: 0.95
   polyak: 0.995
-samples: 10
-epochs: 2 #1000
+samples: 25 #25
+epochs: 1000 #50

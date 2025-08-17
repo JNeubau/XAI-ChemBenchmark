@@ -18,21 +18,29 @@ class ShapiqPipeline(BaseXAIPipeline):
         """
         model = kwargs['model']
         max_order = kwargs['max_order']
+        shapiq_type = kwargs['shapiq_type']
         index_type = 'SV' if max_order == 1 else 'k-SII'
-        return shapiq.TreeExplainer(model, index=index_type, max_order=max_order)
+        if shapiq_type == 'tree':
+            return shapiq.TreeExplainer(model, index=index_type, max_order=max_order), None
+        else:
+            return shapiq.TabularExplainer(model.predict, index=index_type, max_order=max_order, data=kwargs['X_train'].to_numpy()), 2 * len(kwargs['X_train'].columns) + 2048
 
     def explain_model(self, model: object, X_test: pd.DataFrame, explainer: Any, smiles_list: pd.Series):
+        explainer, budget = explainer
         shap_values = []
         interaction_values = []
         new_X_test = np.array(X_test)
         for i in range(len(new_X_test)):
-            shap_value = explainer.explain(new_X_test[i])
+            if budget is None:
+                shap_value = explainer.explain(new_X_test[i])
+            else:
+                shap_value = explainer.explain(new_X_test[i], budget=budget, random_state=42)
             if explainer.max_order == 1:
-                vals = shap_value.get_n_order_values(1) #here it does not account for baseline probably
+                vals = shap_value.get_n_order_values(1)
                 shap_values.append(vals)
                 interaction_values.append(shap_value.to_dict())
             else:
-                shap_values.append(shap_value.to_dict())
+                interaction_values.append(shap_value.to_dict())
         self.values['shap_values'].append(shap_values)
         self.values['interactions'].append(interaction_values)
         self.values['features'].append(X_test)

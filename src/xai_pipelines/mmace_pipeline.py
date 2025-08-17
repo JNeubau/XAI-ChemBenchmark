@@ -3,6 +3,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from rdkit import Chem
+from sklearn.preprocessing import StandardScaler
 
 from src.MMACE import exmol
 from src.core.fingerprints import Fingerprints
@@ -15,11 +16,15 @@ class MMacePipeline(BaseXAIPipeline):
     """
 
     def __init__(self, X: pd.DataFrame, y: pd.DataFrame, z: pd.Series, folds: list,
-                 fingerprint_type: str = 'maccs', num_samples: int = 2500, alphabet: list | None = None,
+                 fingerprint_type: list[str], fp_params: dict, num_samples: int = 2500, alphabet: list | None = None,
                  num_mutations: int = 2, delta: float | tuple = 1.0, nmols: int = 4):
 
         super().__init__(X, y, z, folds)
         self.fingerprint_type = fingerprint_type
+        for key, value in fp_params.items():
+            if value is None:
+                fp_params[key] = {}
+        self.fingerprint_params = fp_params
         self.num_samples = num_samples
         self.num_mutations = num_mutations
         self.alphabet = alphabet if alphabet is not None else exmol.get_basic_alphabet()
@@ -47,7 +52,7 @@ class MMacePipeline(BaseXAIPipeline):
         explainer, transition_point = explainer
 
         def get_representation(x):
-            fps, column_names = Fingerprints().apply(self.fingerprint_type, smiles=[x])
+            fps, column_names = Fingerprints().apply(self.fingerprint_type, smiles=[x], **self.fingerprint_params)
             fps_df = pd.DataFrame(fps, columns=column_names)
             fps_df = fps_df.loc[:, self.filter_columns]
             return fps_df.values

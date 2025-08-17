@@ -1,0 +1,8 @@
+target_column: 'target'
+data_path: '../data/synthetic_data/'
+dataset_name: 'qm9_piecewise_linear_6'
+num_splits: 10
+num_bins: 10
+models_path: '../results/synthetic_data/'
+configs_path: '../config/synthetic_data/'
+save_path:  '../results/synthetic_data/'
