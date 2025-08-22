@@ -21,7 +21,7 @@ def save_results(results, save_path, method_name):
     print(f"Results saved to {os.path.join(save_path, f'{method_name}_results.pickle')}")
 
 if __name__ == "__main__":
-    explaining_config_path = '../config/real_data/explaining.yaml'
+    explaining_config_path = '../config/synthetic_data/explaining.yaml'
 
     with open(explaining_config_path, 'r') as f:
         config = yaml.safe_load(f)
@@ -124,7 +124,7 @@ if __name__ == "__main__":
         epochs=meg_config['epochs']
     )
     results_meg = meg_pipeline.xai_pipeline(model_path=model_path, **meg_config)
-    save_results(results_meg, save_path, 'meg1')
+    save_results(results_meg, save_path, 'meg2')
 
 
 

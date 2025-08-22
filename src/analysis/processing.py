@@ -95,7 +95,7 @@ def meg_cf_percent(meg_results, target):
         sim = sim[cf_r >= 1]
         similarities += list(sim)
         counterfactuals += real_cfs
-    return counterfactuals / all, np.mean(similarities)
+    return counterfactuals / all, np.mean(similarities), np.std(similarities)
 
 
 def meg_ranking(meg_results, target):
@@ -152,7 +152,7 @@ def mmace_cf_percent(mmace_results, target, min_diff=0):
                 elif pred_original[j] < train_data_median < pred_counterfactuals[j][k] and np.abs(
                         pred_original[j] - pred_counterfactuals[j][k]) >= min_diff:
                     counterfactuals += 1
-    return counterfactuals / all, np.mean(similarities)
+    return counterfactuals / all, np.mean(similarities), np.std(similarities)
 
 
 def mmace_ranking(mmace_results, target):

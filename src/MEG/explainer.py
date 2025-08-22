@@ -47,6 +47,7 @@ class MegRegressionExplainer:
         Train the MEG explainer.
         """
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        print(f"Using device: {device}")
         agent = MegAgent(
             num_input=self.env_params['fp_len'] + 1,
             num_output=1,

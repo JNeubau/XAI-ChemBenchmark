@@ -1,6 +1,6 @@
 target_column: 'target'
 data_path: '../data/synthetic_data/'
-dataset_name: 'qm9_nonlinear_6'
+dataset_name: 'qm9_simple_linear6'
 num_splits: 10
 num_bins: 10
 scale: True

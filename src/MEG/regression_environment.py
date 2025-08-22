@@ -82,12 +82,10 @@ class RegressionEnvironment(MoleculeEnvironment):
         change_direction = np.sign(prediction - self.origin_pred)
         is_in_optim_direction = change_direction == self.optim_direction
 
-        if prediction < 0:
-            diff = -1.0
-        elif value_change >= self.target_diff and change_direction == self.optim_direction:
+        if value_change >= self.target_diff and change_direction == self.optim_direction:
             diff = 1.0
         else:
-            diff = np.min([value_change / self.target_diff, 1.0])
+            diff = value_change / self.target_diff
             diff = diff if is_in_optim_direction else -diff
             #diff = 1 / (1 + np.exp(-diff))
             diff = np.tanh(diff)

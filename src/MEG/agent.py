@@ -1,8 +1,10 @@
+import os
 import random
 
 import numpy as np
 import torch
 
+os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
 torch.manual_seed(42)
 random.seed(42)
 np.random.seed(42)
@@ -99,11 +101,11 @@ class MegAgent:
 
     def train_step(self, batch_size: int, gamma: float, polyak: float) -> torch.Tensor:
         experience = self.replay_buffer.sample(batch_size)
-        states_ = torch.stack([S for S, *_ in experience])
+        states_ = torch.stack([S for S, *_ in experience]).to(self.device)
         next_states_ = [S for *_, S, _ in experience]
         q = self.dqn(states_)
         q_target = torch.stack(
-            [self.target_dqn(S).max(dim=0).values.detach() for S in next_states_]
+            [self.target_dqn(S.to(self.device)).max(dim=0).values.detach() for S in next_states_]
         )
 
         rewards = (
