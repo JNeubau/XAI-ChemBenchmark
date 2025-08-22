@@ -1,0 +1,309 @@
+import sys
+
+import numpy as np
+
+from scripts.bulk_explain_gt import GtModel
+from src.analysis.processing import lime_ranking, shap_ranking, shapiq_ranking, meg_ranking, mmace_ranking, \
+    meg_cf_percent, mmace_cf_percent
+from src.analysis.xai_eval import pgi, pgu, feature_agreement
+import pickle
+import os
+import joblib
+from joblib import Parallel, delayed
+import pandas as pd
+from sklearn.preprocessing import StandardScaler
+
+
+
+
+def convert_term_ranking_to_feature_ranking(ranking_with_interactions: pd.DataFrame) -> list:
+    """
+    Converts a ranking of terms (features + interactions) into a ranking of
+    only features based on their earliest appearance.
+    """
+    ranking_with_interactions['rank'] = ranking_with_interactions['abs_ranking'].rank(method='min', ascending=False).astype(int)
+    feature_to_best_rank = {}
+    for i in range(len(ranking_with_interactions)):
+        term = ranking_with_interactions.iloc[i]['features']
+        idx = ranking_with_interactions.iloc[i]['rank']
+        constituent_features = term.split(' x ')
+        for feature in constituent_features:
+            if feature not in feature_to_best_rank:
+                feature_to_best_rank[feature] = idx
+            else:
+                feature_to_best_rank[feature] = min(feature_to_best_rank[feature], idx)
+
+    return feature_to_best_rank
+
+def aggregate_rankings_by_mean_position(list_of_rankings: list) -> list:
+    if not list_of_rankings:
+        return []
+    all_items = set()
+    for ranking in list_of_rankings:
+        all_items.update(list(ranking.keys()))
+    item_scores = {}
+    for item in all_items:
+        positions = []
+        for ranking in list_of_rankings:
+            try:
+                position = ranking[item]
+            except:
+                position = len(ranking)
+            positions.append(position)
+        item_scores[item] = np.mean(positions)
+    sorted_items = sorted(item_scores.keys(), key=lambda item: item_scores[item])
+    return sorted_items
+
+def compute_aggregated_ranking(ranking_per_fold_dict: dict, dataset_names, dataset_name):
+    model_dir = dataset_names[dataset_name][1]
+    target = dataset_names[dataset_name][2]
+    results_dir = dataset_names[dataset_name][0]
+    pgis, pgus = [], []
+    fas = []
+    fas_interactions = []
+
+    with open(os.path.join(results_dir, 'lime_results.pickle'), 'rb') as f:
+        results = pickle.load(f)
+
+    for i in range(len(ranking_per_fold_dict['lime'])):
+
+        sys.modules['__main__'].GtModel = GtModel
+
+        model = os.path.join(model_dir, f'model_{i}.joblib')
+        model = joblib.load(model)
+        test_examples = results['test_data'][i].drop(columns=[target])
+        train_examples = results['training_data'][i].drop(columns=[target])
+
+        rankings = []
+        for key in ranking_per_fold_dict.keys():
+            ranking_current = ranking_per_fold_dict[key][i]
+            ranking_current = convert_term_ranking_to_feature_ranking(ranking_current)
+            rankings.append(ranking_current)
+
+        aggregated_ranking = aggregate_rankings_by_mean_position(rankings)
+        _, pgi_one = pgi(test_examples, aggregated_ranking, model, train_examples)
+        _, pgu_one = pgu(test_examples, aggregated_ranking, model, train_examples)
+
+        pgis.append(pgi_one)
+        pgus.append(pgu_one)
+
+        feature_name = 'ecfp_feature'
+        important_features = [30, 123, 10, 16, 81, 33]
+        important_features_simple = [f'{feature_name}_{i}' for i in important_features]
+        important_features_piecewise_interactions = [f'{feature_name}_{i}' for i in important_features] + [
+            f'{feature_name}_10 x {feature_name}_{j}' for j in important_features if j != 10]
+        important_feature_nonlinear_interactions = [f'{feature_name}_{i}' for i in important_features] + [
+            f'{feature_name}_30 x {feature_name}_123']
+
+        choices = {
+            'qm9_simple_linear6': important_features_simple,
+            'qm9_piecewise_linear_6': important_features_piecewise_interactions,
+            'qm9_nonlinear_6': important_feature_nonlinear_interactions
+        }
+
+        fa = feature_agreement(choices['qm9_simple_linear6'], aggregated_ranking)
+        fas.append(fa)
+
+    pgi_mean = np.mean(pgis)
+    pgu_mean = np.mean(pgus)
+    pgi_std = np.std(pgis)
+    pgu_std = np.std(pgus)
+    fa_mean = np.mean(fas)
+    fa_std = np.std(fas)
+    if key == 'shapiq2':
+        fa_interactions_mean = np.mean(fas_interactions)
+        fa_interactions_std = np.std(fas_interactions)
+    else:
+        fa_interactions_mean = None
+        fa_interactions_std = None
+
+    return 'aggregated', {
+        'pgi_mean': pgi_mean,
+        'pgu_mean': pgu_mean,
+        'pgi_std': pgi_std,
+        'pgu_std': pgu_std,
+        'fa_mean': fa_mean,
+        'fa_std': fa_std,
+        'fa_interactions_mean': fa_interactions_mean,
+        'fa_interactions_std': fa_interactions_std,
+    }
+
+
+def run_experiment_on_dataset(dataset_name, datasets_names, results_dict):
+    """
+    Runs a full experiment for a given dataset, calculating rankings and metrics
+    for multiple XAI methods in parallel.
+    """
+    results_dir, model_dir, target = datasets_names[dataset_name]
+
+
+
+    def process_method(key):
+        """
+        This is the function that will be parallelized. It processes ONE XAI method (key)
+        and returns ALL of its calculated data.
+        """
+        # --- 1. Load data for the method ---
+        file_name, ranking_func, *cf_info = results_dict[key]
+        cf_func = cf_info[0] if cf_info else None
+
+        sys.modules['__main__'].GtModel = GtModel
+
+        with open(os.path.join(results_dir, file_name), 'rb') as f:
+            results = pickle.load(f)
+
+        # --- 2. Calculate Rankings and Counterfactuals ---
+        ranking, rankings_per_fold = ranking_func(results, target)
+
+        cf_validity, cf_similarity, cf_similarity_std = None, None, None
+        if cf_func:
+            cf_validity, cf_similarity, cf_similarity_std = cf_func(results, target=target)
+
+        # --- 3. Calculate PGI/PGU per fold ---
+        pgis, pgus = [], []
+        fas, fas_interactions = [], []
+
+        for i in range(len(rankings_per_fold)):
+            print(key, i)
+            model = joblib.load(os.path.join(model_dir, f'model_{i}.joblib'))
+            test_examples = results['test_data'][i].drop(columns=[target])
+            train_examples = results['training_data'][i].drop(columns=[target])
+            ranking_current = list(rankings_per_fold[i]['features'])
+
+            _, pgi_one = pgi(test_examples, ranking_current, model, train_examples)
+            _, pgu_one = pgu(test_examples, ranking_current, model, train_examples)
+
+            pgis.append(pgi_one)
+            pgus.append(pgu_one)
+
+            feature_name = 'ecfp_feature'
+            important_features = [30, 123, 10, 16, 81, 33]
+            important_features_simple = [f'{feature_name}_{i}' for i in important_features]
+            important_features_piecewise_interactions = [f'{feature_name}_{i}' for i in important_features] + [
+                f'{feature_name}_10 x {feature_name}_{j}' for j in important_features if j != 10]
+            important_feature_nonlinear_interactions = [f'{feature_name}_{i}' for i in important_features] + [
+                f'{feature_name}_30 x {feature_name}_123']
+
+            choices = {
+                'qm9_simple_linear6': important_features_simple,
+                'qm9_piecewise_linear_6': important_features_piecewise_interactions,
+                'qm9_nonlinear_6': important_feature_nonlinear_interactions
+            }
+
+            fa = feature_agreement(choices['qm9_simple_linear6'], ranking_current)
+            fas.append(fa)
+            if key == 'shapiq2':
+                fa_interactions = feature_agreement(choices[dataset_name], ranking_current)
+                fas_interactions.append(fa_interactions)
+
+        fa_mean = np.mean(fas)
+        fa_std = np.std(fas)
+        if key == 'shapiq2':
+            fa_interactions_mean = np.mean(fas_interactions)
+            fa_interactions_std = np.std(fas_interactions)
+        else:
+            fa_interactions_mean = None
+            fa_interactions_std = None
+
+
+        # --- 4. Aggregate metrics and package all results for returning ---
+        metrics = {
+            'pgi_mean': np.mean(pgis),
+            'pgu_mean': np.mean(pgus),
+            'pgi_std': np.std(pgis),
+            'pgu_std': np.std(pgus),
+            'fa_mean': fa_mean,
+            'fa_std': fa_std,
+            'fa_interactions_mean': fa_interactions_mean,
+            'fa_interactions_std': fa_interactions_std,
+        }
+        print(f"Finished processing: {key}")
+        # Return everything needed from this run
+        return key, {
+            'ranking': ranking,
+            'rankings_per_fold': rankings_per_fold,
+            'cf_validity': cf_validity,
+            'cf_similarity': cf_similarity,
+            'cf_similarity_std': cf_similarity_std,
+            'metrics': metrics
+        }
+
+    # --- Execute the parallel jobs ---
+    # `results_per_method` will be a list of tuples, e.g., [('shap', {...}), ('lime', {...})]
+    results_per_method = Parallel(n_jobs=6)(delayed(process_method)(key) for key in results_dict.keys())
+
+    # --- Post-process the results in the main thread ---
+    # Now, we safely populate the final dictionaries
+    ranking_dict = {}
+    ranking_per_fold_dict = {}
+    cf_similarity_dict = {}
+    cf_validity_dict = {}
+    metrics_dict = {}
+
+    for key, method_results in results_per_method:
+        ranking_dict[key] = method_results['ranking']
+        ranking_per_fold_dict[key] = method_results['rankings_per_fold']
+        metrics_dict[key] = method_results['metrics']
+
+        if method_results['cf_validity'] is not None:
+            cf_validity_dict[key] = method_results['cf_validity']
+            cf_similarity_dict[key] = (method_results['cf_similarity'], method_results['cf_similarity_std'])
+
+    # You can now use these fully populated dictionaries
+    return {
+        'rankings': ranking_dict,
+        'rankings_per_fold': ranking_per_fold_dict,
+        'metrics': metrics_dict,
+        'cf_validity': cf_validity_dict,
+        'cf_similarity': cf_similarity_dict
+    }
+
+
+if __name__ == "__main__":
+
+    datasets_names = {
+        'qm9_simple_linear6': [f'../results/gt_synthetic_data/qm9_simple_linear6/explanations/', '../results/gt_synthetic_data/qm9_simple_linear6/', 'target'],
+        'qm9_nonlinear_6': [f'../results/gt_synthetic_data/qm9_nonlinear_6/explanations/', '../results/gt_synthetic_data/qm9_nonlinear_6/', 'target'],
+        'qm9_piecewise_linear_6': [f'../results/gt_synthetic_data/qm9_piecewise_linear_6/explanations/', '../results/gt_synthetic_data/qm9_piecewise_linear_6/', 'target'],
+   }
+
+    results_dict = {
+        'lime': ('lime_results.pickle', lime_ranking),
+        'shap': ('shap_results.pickle', shap_ranking),
+        'shapiq1': ('shapiq1_results.pickle', shapiq_ranking),
+        'shapiq2': ('shapiq2_results.pickle', shapiq_ranking),
+        'meg': ('meg2_results.pickle', meg_ranking, meg_cf_percent),
+        'mmace': ('mmace_results.pickle', mmace_ranking, mmace_cf_percent),
+    }
+
+    # Run the experiment for each dataset
+    for dataset_name in datasets_names.keys():
+        results_dir, model_dir, target = datasets_names[dataset_name]
+        print(f"Processing dataset: {dataset_name}")
+        results = run_experiment_on_dataset(dataset_name, datasets_names, results_dict)
+        print(results)
+
+        # Optionally, compute aggregated ranking
+        aggregated_ranking, agg_metrics = compute_aggregated_ranking(results['rankings_per_fold'], datasets_names, dataset_name)
+        results['metrics'][aggregated_ranking] = agg_metrics
+        print(f"Aggregated ranking for {dataset_name}: {aggregated_ranking}")
+        print(results)
+
+        metrics_dict = results['metrics']
+        ranking_dict = results['rankings']
+        ranking_per_fold_dict = results['rankings_per_fold']
+        cf_validity_dict = results['cf_validity']
+        cf_similarity_dict = results['cf_similarity']
+
+        os.makedirs(os.path.join(results_dir, 'analysis'), exist_ok=True)
+        with open(os.path.join(results_dir, 'analysis', 'metrics_results.pickle'), 'wb') as f:
+            pickle.dump(metrics_dict, f)
+        with open(os.path.join(results_dir, 'analysis', 'ranking_results.pickle'), 'wb') as f:
+            pickle.dump(ranking_dict, f)
+        with open(os.path.join(results_dir, 'analysis', 'ranking_per_fold_results.pickle'), 'wb') as f:
+            pickle.dump(ranking_per_fold_dict, f)
+        with open(os.path.join(results_dir, 'analysis', 'cf_validity_results.pickle'), 'wb') as f:
+            pickle.dump(cf_validity_dict, f)
+        with open(os.path.join(results_dir, 'analysis', 'cf_similarity_results.pickle'), 'wb') as f:
+            pickle.dump(cf_similarity_dict, f)
+
