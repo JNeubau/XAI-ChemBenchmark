@@ -1,0 +1,9 @@
+target_column: 'target'
+data_path: '../data/synthetic_data/'
+dataset_name: 'qm9_simple_linear6'
+num_splits: 10
+num_bins: 10
+scale: True
+models_path: '../results/gt_synthetic_data/'
+configs_path: '../config/gt_synthetic_data/'
+save_path:  '../results/gt_synthetic_data/'

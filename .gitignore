@@ -337,7 +337,6 @@ config/Gretel1_AAAI/
 evaluated/*
 data/bardh_cache/*
 old_experiments/
-visualizations/*
 
 # videos
 .mp4
@@ -347,3 +346,6 @@ main_test.py
 da_test.py
 XAIFlow/analysis/data/*
 *.tex
+rfreg_feature*
+
+*.txt
