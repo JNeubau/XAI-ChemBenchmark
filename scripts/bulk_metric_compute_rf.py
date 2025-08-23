@@ -44,7 +44,7 @@ def aggregate_rankings_by_mean_position(list_of_rankings: list) -> list:
             positions.append(position)
         item_scores[item] = np.mean(positions)
     sorted_items = sorted(item_scores.keys(), key=lambda item: item_scores[item])
-    return sorted_items
+    return sorted_items, item_scores
 
 def compute_aggregated_ranking(ranking_per_fold_dict: dict, dataset_names, dataset_name):
     model_dir = dataset_names[dataset_name][1]
@@ -68,7 +68,7 @@ def compute_aggregated_ranking(ranking_per_fold_dict: dict, dataset_names, datas
             ranking_current = convert_term_ranking_to_feature_ranking(ranking_current)
             rankings.append(ranking_current)
 
-        aggregated_ranking = aggregate_rankings_by_mean_position(rankings)
+        aggregated_ranking, _ = aggregate_rankings_by_mean_position(rankings)
         _, pgi_one = pgi(test_examples, aggregated_ranking, model, train_examples)
         _, pgu_one = pgu(test_examples, aggregated_ranking, model, train_examples)
 
