@@ -1,4 +1,11 @@
 import numpy as np
+import sys
+import os
+
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if project_root not in sys.path:
+    sys.path.insert(1, project_root)
+    
 from src.analysis.processing import lime_ranking, shap_ranking, shapiq_ranking, meg_ranking, mmace_ranking, \
     meg_cf_percent, mmace_cf_percent
 from src.analysis.xai_eval import pgi, pgu
