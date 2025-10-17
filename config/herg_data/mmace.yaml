@@ -2,9 +2,9 @@ fingerprint_type: ['ecfp']
 fp_params:
   ecfp:
     radius: 2
-    size: 128
+    size: 1024
     count: True
 num_samples: 1000
 num_mutations: 2
-delta: 5.0
+delta: 0.5
 nmols: 25
