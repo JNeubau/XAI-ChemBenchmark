@@ -190,6 +190,8 @@ if __name__ == "__main__":
         'qm9_nonlinear_6': [f'../results/synthetic_data/qm9_nonlinear_6/explanations/', '../results/synthetic_data/qm9_nonlinear_6/', 'target'],
         'qm9_piecewise_linear_6': [f'../results/synthetic_data/qm9_piecewise_linear_6/explanations/', '../results/synthetic_data/qm9_piecewise_linear_6/', 'target'],
         'data_batteries_ecfp_descriptor': [f'../results/real_data/data_batteries_ecfp_descriptor/explanations/', '../results/real_data/data_batteries_ecfp_descriptor/', 'capacity_max'],
+        'data_herg_ecfp': [f'../results/herg_data/data_herg_ecfp/explanations/',
+                                           '../results/herg_data/data_herg_ecfp/', 'pic50'],
     }
 
     results_dict = {

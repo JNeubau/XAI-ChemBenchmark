@@ -1,4 +1,4 @@
-fingerprint_type: ['ecfp', 'descriptor']
+fingerprint_type: ['ecfp']
 fp_params:
   ecfp:
     radius: 2

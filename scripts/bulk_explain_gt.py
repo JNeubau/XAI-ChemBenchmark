@@ -130,72 +130,72 @@ if __name__ == "__main__":
 
     configs_path = config['configs_path']
 
-    # #LIME
-    # with open(os.path.join(configs_path, 'lime.yaml'), 'r') as f:
-    #     lime_config = yaml.safe_load(f)
-    # lime_piepline = LimePipeline(
-    #     X=X,
-    #     y=y,
-    #     z=z,
-    #     folds=folds,
-    # )
-    # results_lime = lime_piepline.xai_pipeline(model_path=model_path, **lime_config)
-    # save_results(results_lime, save_path, 'lime')
-    #
-    # #SHAP
-    # with open(os.path.join(configs_path, 'shap.yaml'), 'r') as f:
-    #     shap_config = yaml.safe_load(f)
-    # shap_piepline = ShapPipeline(
-    #     X=X,
-    #     y=y,
-    #     z=z,  # Pass the SMILES data
-    #     folds=folds,
-    # )
-    # results_shap = shap_piepline.xai_pipeline(model_path=model_path, **shap_config)
-    # save_results(results_shap, save_path, 'shap')
-    #
-    # #SHAPIQ-1
-    # with open(os.path.join(configs_path, 'shapiq1.yaml'), 'r') as f:
-    #     shapiq1_config = yaml.safe_load(f)
-    # shapiq1_piepline = ShapiqPipeline(
-    #     X=X,
-    #     y=y,
-    #     z=z,  # Pass the SMILES data
-    #     folds=folds,
-    # )
-    # results_shapiq1 = shapiq1_piepline.xai_pipeline(model_path=model_path, **shapiq1_config)
-    # save_results(results_shapiq1, save_path, 'shapiq1')
-    #
-    # #SHAPIQ-2
-    # with open(os.path.join(configs_path, 'shapiq2.yaml'), 'r') as f:
-    #     shapiq2_config = yaml.safe_load(f)
-    # shapiq2_piepline = ShapiqPipeline(
-    #     X=X,
-    #     y=y,
-    #     z=z,  # Pass the SMILES data
-    #     folds=folds,
-    # )
-    # results_shapiq2 = shapiq2_piepline.xai_pipeline(model_path=model_path, **shapiq2_config)
-    # save_results(results_shapiq2, save_path, 'shapiq2')
-    #
-    # #MMACE
-    # with open(os.path.join(configs_path, 'mmace.yaml'), 'r') as f:
-    #     mmace_config = yaml.safe_load(f)
-    # mmace_piepline = MMacePipeline(
-    #     X=X,
-    #     y=y,
-    #     z=z,  # Pass the SMILES data
-    #     folds=folds,
-    #     fingerprint_type=mmace_config['fingerprint_type'],
-    #     fp_params=mmace_config['fp_params'],
-    #     num_samples=mmace_config['num_samples'],
-    #     alphabet=mmace_config.get('alphabet', None),
-    #     num_mutations=mmace_config['num_mutations'],
-    #     delta=mmace_config['delta'],
-    #     nmols=mmace_config['nmols'],
-    # )
-    # results_mmace = mmace_piepline.xai_pipeline(model_path=model_path, **mmace_config)
-    # save_results(results_mmace, save_path, 'mmace')
+    #LIME
+    with open(os.path.join(configs_path, 'lime.yaml'), 'r') as f:
+        lime_config = yaml.safe_load(f)
+    lime_piepline = LimePipeline(
+        X=X,
+        y=y,
+        z=z,
+        folds=folds,
+    )
+    results_lime = lime_piepline.xai_pipeline(model_path=model_path, **lime_config)
+    save_results(results_lime, save_path, 'lime')
+
+    #SHAP
+    with open(os.path.join(configs_path, 'shap.yaml'), 'r') as f:
+        shap_config = yaml.safe_load(f)
+    shap_piepline = ShapPipeline(
+        X=X,
+        y=y,
+        z=z,  # Pass the SMILES data
+        folds=folds,
+    )
+    results_shap = shap_piepline.xai_pipeline(model_path=model_path, **shap_config)
+    save_results(results_shap, save_path, 'shap')
+
+    #SHAPIQ-1
+    with open(os.path.join(configs_path, 'shapiq1.yaml'), 'r') as f:
+        shapiq1_config = yaml.safe_load(f)
+    shapiq1_piepline = ShapiqPipeline(
+        X=X,
+        y=y,
+        z=z,  # Pass the SMILES data
+        folds=folds,
+    )
+    results_shapiq1 = shapiq1_piepline.xai_pipeline(model_path=model_path, **shapiq1_config)
+    save_results(results_shapiq1, save_path, 'shapiq1')
+
+    #SHAPIQ-2
+    with open(os.path.join(configs_path, 'shapiq2.yaml'), 'r') as f:
+        shapiq2_config = yaml.safe_load(f)
+    shapiq2_piepline = ShapiqPipeline(
+        X=X,
+        y=y,
+        z=z,  # Pass the SMILES data
+        folds=folds,
+    )
+    results_shapiq2 = shapiq2_piepline.xai_pipeline(model_path=model_path, **shapiq2_config)
+    save_results(results_shapiq2, save_path, 'shapiq2')
+
+    #MMACE
+    with open(os.path.join(configs_path, 'mmace.yaml'), 'r') as f:
+        mmace_config = yaml.safe_load(f)
+    mmace_piepline = MMacePipeline(
+        X=X,
+        y=y,
+        z=z,  # Pass the SMILES data
+        folds=folds,
+        fingerprint_type=mmace_config['fingerprint_type'],
+        fp_params=mmace_config['fp_params'],
+        num_samples=mmace_config['num_samples'],
+        alphabet=mmace_config.get('alphabet', None),
+        num_mutations=mmace_config['num_mutations'],
+        delta=mmace_config['delta'],
+        nmols=mmace_config['nmols'],
+    )
+    results_mmace = mmace_piepline.xai_pipeline(model_path=model_path, **mmace_config)
+    save_results(results_mmace, save_path, 'mmace')
 
     #MEG
     with open(os.path.join(configs_path, 'meg.yaml'), 'r') as f:

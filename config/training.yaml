@@ -7,6 +7,11 @@ real_dataset:
   data_path: '../data/real_data/'
   num_splits: 10
   num_bins: 10
+herg_dataset:
+  target_column: 'pic50'
+  data_path: '../data/herg_data/'
+  num_splits: 10
+  num_bins: 10
 synthetic_dataset:
   target_column: 'target'
   data_path: '../data/synthetic_data/'
