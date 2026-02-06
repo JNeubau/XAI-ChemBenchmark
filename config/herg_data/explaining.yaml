@@ -1,0 +1,8 @@
+target_column: 'pic50'
+data_path: '../data/herg_data/'
+dataset_name: 'data_herg_ecfp'
+num_splits: 10
+num_bins: 10
+models_path: '../results/herg_data/'
+configs_path: '../config/herg_data/'
+save_path:  '../results/herg_data/'
