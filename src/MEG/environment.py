@@ -219,7 +219,7 @@ class MoleculeEnvironment(ABC):
         }
         atom_addition = set()
         for i in bond_order:
-            for atom in atoms_with_free_valence[i]:
+            for atom in atoms_with_free_valence.get(i, []):
                 for element in atom_types:
                     if atom_valences[element] < i:
                         continue
