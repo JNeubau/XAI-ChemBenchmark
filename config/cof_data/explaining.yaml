@@ -1,0 +1,9 @@
+
+target_column: 'capacity_max'
+data_path: '../data/cof_data/'
+dataset_name: 'cof_ecfp_desc'
+num_splits: 10
+num_bins: 10
+models_path: '../results/cof_data/'
+configs_path: '../config/cof_data/'
+save_path:  '../results/cof_data/'

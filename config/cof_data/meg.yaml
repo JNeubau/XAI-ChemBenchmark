@@ -1,5 +1,5 @@
 base_path: '../meg_results'
-delta: 50.0
+delta: 76.6
 fingerprint_type: ['ecfp', 'descriptor']
 fp_params:
   ecfp:

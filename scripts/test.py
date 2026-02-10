@@ -89,7 +89,7 @@ if __name__ == '__main__':
     #     for i in range(len(c)):
     #         print(c[i], t[i])
 
-    with open('../config/real_data/meg.yaml', 'r') as f:
+    with open('../config/cof_data/meg.yaml', 'r') as f:
         config = yaml.safe_load(f)
     meg_pipeline = MegPipeline(
         X=X,
