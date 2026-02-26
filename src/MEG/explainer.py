@@ -60,6 +60,7 @@ class MegRegressionExplainer:
         episode = 0
         it = 0
 
+
         while episode < self.epochs:
             steps_left = self.agent_params['max_steps_per_episodes'] - environment.counter
             valid_actions = list(environment.get_valid_actions())
@@ -70,13 +71,12 @@ class MegRegressionExplainer:
                 episode += 1  # Count this as a completed episode
                 continue  # Skip to the next iteration
 
-            observations = np.vstack(
-                [
-                    np.append(self.action_encoder(action), steps_left)
-                    for action in valid_actions
-                ]
-            )
-            observations = torch.as_tensor(observations).float()
+            fps = [self.action_encoder(a) for a in valid_actions]
+            fps_arr = np.array(fps)
+            steps_arr = np.full((len(fps), 1), steps_left)
+            observations_np = np.hstack((fps_arr, steps_arr))
+            observations = torch.as_tensor(observations_np).float()
+
             a = agent.action_step(observations, eps)
             action = valid_actions[a]
 
@@ -88,20 +88,17 @@ class MegRegressionExplainer:
             )
             _, out, done = result
 
-            self.writer.add_scalar(f'{self.agent_params['exp_name']}/reward', out['reward'], it)
-            self.writer.add_scalar(f'{self.agent_params['exp_name']}/prediction', out['reward_pred'], it)
-            self.writer.add_scalar(f'{self.agent_params['exp_name']}/similarity', out['reward_sim'], it)
-
-            steps_left = self.agent_params['max_steps_per_episodes'] - environment.counter
+            # self.writer.add_scalar(f'{self.agent_params['exp_name']}/reward', out['reward'], it)
+            # self.writer.add_scalar(f'{self.agent_params['exp_name']}/prediction', out['reward_pred'], it)
+            # self.writer.add_scalar(f'{self.agent_params['exp_name']}/similarity', out['reward_sim'], it)
 
             valid_next_actions = list(environment.get_valid_actions())
+            steps_left_next = self.agent_params['max_steps_per_episodes'] - environment.counter
             if valid_next_actions:
-                action_embeddings = np.vstack(
-                    [
-                        np.append(self.action_encoder(action), steps_left)
-                        for action in valid_next_actions
-                    ]
-                )
+                next_fps = [self.action_encoder(a) for a in valid_next_actions]
+                next_fps_arr = np.array(next_fps)
+                next_steps_arr = np.full((len(next_fps), 1), steps_left_next)
+                action_embeddings = np.hstack((next_fps_arr, next_steps_arr))
             else:
                 # If no valid actions, create a dummy action embedding with zeros
                 # This allows training to continue but signals that no further actions are possible
@@ -129,7 +126,7 @@ class MegRegressionExplainer:
                 episode += 1
 
                 print(
-                    f'({sample}) Epoch {episode}> Reward = {out["reward"]:.4f} (pred: {out["reward_pred"]:.4f}, sim: {out["reward_sim"]:.4f})')
+                    f'({self.agent_params["sample"]})({sample}) Epoch {episode}> Reward = {out["reward"]:.4f} (pred: {out["reward_pred"]:.4f}, sim: {out["reward_sim"]:.4f})')
 
                 queue.insert({
                     'marker': 'cf',
@@ -141,6 +138,7 @@ class MegRegressionExplainer:
 
                 batch_losses = []
                 environment.initialize()
+                valid_actions = list(environment.get_valid_actions())
 
 
     def explain(self, model_to_explain: Any, smiles: str, sample: int) -> list:

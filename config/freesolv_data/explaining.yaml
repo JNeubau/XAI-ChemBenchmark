@@ -1,8 +1,0 @@
-target_column: 'target'
-data_path: '../data/freesolv_data/'
-dataset_name: 'freesolv_ecfp'
-num_splits: 10
-num_bins: 10
-models_path: '../results/freesolv_data/'
-configs_path: '../config/freesolv_data/'
-save_path:  '../results/freesolv_data/'

@@ -1,10 +1,13 @@
 import os
+
+import pickle
 import random
 from typing import Any
 
 import numpy as np
 import pandas as pd
 import torch
+from joblib import Parallel, delayed
 from torch.utils.tensorboard import SummaryWriter
 
 from src.MEG.explainer import MegRegressionExplainer
@@ -15,6 +18,7 @@ torch.manual_seed(42)
 random.seed(42)
 np.random.seed(42)
 torch.use_deterministic_algorithms(True)
+
 
 
 class MegPipeline(BaseXAIPipeline):
@@ -37,7 +41,7 @@ class MegPipeline(BaseXAIPipeline):
 
     def init_explainer(self, **kwargs) -> object:
         os.makedirs(f'{kwargs["base_path"]}/meg_explainer', exist_ok=True)
-        writer = SummaryWriter(f'{kwargs['base_path']}/meg_explainer')
+        writer = f"{kwargs['base_path']}/meg_explainer" #SummaryWriter(f'{kwargs['base_path']}/meg_explainer')
 
         y_train = kwargs['y_train'].to_numpy()
         y_train_median = np.median(y_train.flatten())
@@ -94,14 +98,29 @@ class MegPipeline(BaseXAIPipeline):
             'pred_original': [],
             'pred_counterfactual': []
         }
-        for i, smiles in enumerate(smiles_list):
+
+        def run_example(i, smiles):
+            import warnings
+            from rdkit import RDLogger
+            warnings.filterwarnings("ignore")
+            RDLogger.DisableLog('rdApp.*')
+
             results = explainer.explain(model, smiles, sample=i)
             processed_results = self.preprocess_results(results)
-            for k in processed_results:
-                values_fold[k].append(processed_results[k])
-        self.values['smiles'].append(smiles_list)
+            return processed_results, smiles
+
+        results_fold = Parallel(n_jobs=49)(delayed(run_example)(i, smiles) for i, smiles in enumerate(smiles_list))
+        results_cf = [c[0] for c in results_fold]
+        smiles_results = [c[1] for c in results_fold]
+        for r in results_cf:
+            for k in r:
+                values_fold[k].append(r[k])
+        self.values['smiles'].append(smiles_results)
         for k in values_fold:
             self.values[k].append(values_fold[k])
+
+        with open(f'{explainer.writer}/results.pickle', 'wb') as f:
+            pickle.dump(self.values, f)
 
     def init_values(self):
         self.values = {

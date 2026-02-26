@@ -105,6 +105,8 @@ class MoleculeEnvironment(ABC):
         self.max_bonds = 4
         self.action_counter = 1
 
+        self._valid_action_cache = {}
+
     def initialize(self) -> None:
         """Resets the MDP to its initial state."""
         self.state = self.init_instance
@@ -124,7 +126,7 @@ class MoleculeEnvironment(ABC):
                 return copy.deepcopy(self.valid_actions)
             state = self.state
 
-        self.valid_actions = self.enumerate_valid_actions(
+        valid_actions = self.enumerate_valid_actions(
             state,
             atom_types=self.atom_types,
             allow_removal=self.allow_removal,
@@ -132,6 +134,7 @@ class MoleculeEnvironment(ABC):
             allowed_ring_sizes=self.allowed_ring_sizes,
             allow_bonds_between_rings=self.allow_bonds_between_rings,
         )
+        self.valid_actions = valid_actions
         return copy.deepcopy(self.valid_actions)
 
     def enumerate_valid_actions(

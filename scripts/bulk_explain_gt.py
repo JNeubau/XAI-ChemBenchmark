@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 import yaml
 import joblib
-from sklearn.preprocessing import StandardScaler
 
 from src.predictive_model.utils import custom_data_kfold
 from src.xai_pipelines.lime_pipeline import LimePipeline
@@ -19,69 +18,61 @@ class GtModel:
     def __init__(self, dataset_name, feature_order, X_train):
         self.dataset_name = dataset_name
         self.feature_order = feature_order
-        self.selected_features_names = [30, 123, 10, 16, 81, 33]
+        self.selected_features_names = [726, 456, 893, 428]
         self.selected_features_positions = [self.feature_order[f'ecfp_feature_{i}'] for i in self.selected_features_names]
         self.choices = {
-            'qm9_simple_linear6': self.linear_function,
-            'qm9_piecewise_linear_6': self.piecewise_linear_function,
-            'qm9_nonlinear_6': self.nonlinear_function,
+            'herg_ecfp_linear': self.linear_function,
+            'herg_ecfp_piecewise': self.piecewise_linear_function,
+            'herg_ecfp_nonlinear': self.nonlinear_function,
         }
-        self.scaler = StandardScaler().fit(X_train.to_numpy())
         self.X_train = X_train
 
-    def linear_function(self, df, df_not_scaled):
-        f_30 = df[:, self.selected_features_positions[0]]
-        f_123 = df[:, self.selected_features_positions[1]]
-        f_10 = df[:, self.selected_features_positions[2]]
-        f_16 = df[:, self.selected_features_positions[3]]
-        f_81 = df[:, self.selected_features_positions[4]]
-        f_33 = df[:, self.selected_features_positions[5]]
-        target = 8.5 * f_30 + 10.5 * f_123 - 3.5 * f_10 + 3 * f_16 - 2.5 * f_81 + 5.5 * f_33 + 30
+    def linear_function(self, df):
+        f_726 = df[:, self.selected_features_positions[0]]
+        f_456 = df[:, self.selected_features_positions[1]]
+        f_893 = df[:, self.selected_features_positions[2]]
+        f_428 = df[:, self.selected_features_positions[3]]
+
+        target = 7.5 * f_726 + 5 * f_428 + 5.5 * f_893 - 1.5 * f_456
         return target
 
-    def piecewise_linear_function(self, df, df_not_scaled):
-        f_30 = df[:, self.selected_features_positions[0]]
-        f_123 = df[:, self.selected_features_positions[1]]
-        f_16 = df[:, self.selected_features_positions[3]]
-        f_81 = df[:, self.selected_features_positions[4]]
-        f_33 = df[:, self.selected_features_positions[5]]
-
-        f_10 = df_not_scaled[:, self.selected_features_positions[2]]
-        f_10 = f_10.round(0)
+    def piecewise_linear_function(self, df):
+        f_726 = df[:, self.selected_features_positions[0]]
+        f_456 = df[:, self.selected_features_positions[1]]
+        f_893 = df[:, self.selected_features_positions[2]]
+        f_428 = df[:, self.selected_features_positions[3]]
 
         conditions = [
-            f_10 < 1,
-            (f_10 >= 1) & (f_10 < 2),
-            f_10 >= 2
+            (f_893 <= 0),
+            (f_893 == 1),
+            (f_893 >= 2)
         ]
 
         choices = [
-            10.5 * f_30 + 6.5 * f_123 - 1.5 * f_81 + 30,
-            5 * f_30 + 13 * f_123 - 2.5 * f_16 + 30,
-            -1.5 * f_30 + 3.5 * f_123 + 15.5 * f_33 + 30
+            5.5 * f_726 + 1.5 * f_428,
+            1.5 * f_456 - 2.5 * f_726,
+            -1.5 * f_428
         ]
-        target = np.select(conditions, choices, default=10000)
+
+        target = np.select(conditions, choices, default=-1000.0)
         return target
 
-    def nonlinear_function(self, df, df_not_scaled):
-        f_30 = df[:, self.selected_features_positions[0]]
-        f_123 = df[:, self.selected_features_positions[1]]
-        f_10 = df[:, self.selected_features_positions[2]]
-        f_16 = df[:, self.selected_features_positions[3]]
-        f_81 = df[:, self.selected_features_positions[4]]
-        f_33 = df[:, self.selected_features_positions[5]]
+    def nonlinear_function(self, df):
+        f_726 = df[:, self.selected_features_positions[0]]
+        f_456 = df[:, self.selected_features_positions[1]]
+        f_893 = df[:, self.selected_features_positions[2]]
+        f_428 = df[:, self.selected_features_positions[3]]
 
-        component1 = -9.5 * f_10 + 2.5 * f_81 ** 2 - 3.5 * f_16
-        component2 = 7.5 * f_30 * f_123
-        component3 = 1.5 * f_33 ** 2 + 30
-        return component1 + component2 + component3
+        component1 = 4.5 * f_456 + 2.5 * f_893
+        component2 = 3 * f_726 * f_428
+        component3 = -1.5 * f_456 * f_726
+        target = component1 + component2 + component3
+        return target
 
     def predict(self, df):
-        df_scaled = self.scaler.transform(df)
         if isinstance(df, pd.DataFrame) or isinstance(df, pd.Series):
             df = df.to_numpy()
-            df_scaled = df_scaled.to_numpy()
-        return self.choices[self.dataset_name](df_scaled, df)
+        return self.choices[self.dataset_name](df)
 
 
 def save_results(results, save_path, method_name):
@@ -93,7 +84,7 @@ def save_results(results, save_path, method_name):
     print(f"Results saved to {os.path.join(save_path, f'{method_name}_results.pickle')}")
 
 if __name__ == "__main__":
-    explaining_config_path = '../config/gt_synthetic_data/explaining.yaml'
+    explaining_config_path = '../config/gt_herg_data_linear/explaining.yaml'
 
     with open(explaining_config_path, 'r') as f:
         config = yaml.safe_load(f)

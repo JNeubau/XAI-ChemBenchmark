@@ -1,0 +1,4 @@
+mode: 'regression'
+discretize_continuous: False
+random_state: 42
+verbose: True

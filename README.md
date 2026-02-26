@@ -21,5 +21,5 @@ This repository provides the tools to reproduce our findings and data used in th
 ## Getting Started
 This project requires Python 3.12. To install the exact dependencies and set up the environment, run the following command:
 ```bash
-uv sync uv.lock
+uv sync
 ```
