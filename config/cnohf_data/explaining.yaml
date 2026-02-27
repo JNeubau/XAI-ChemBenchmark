@@ -1,0 +1,8 @@
+target_column: 'detonation_velocity'
+data_path: '../data/cnohf_data/'
+dataset_name: 'cnohf_ecfp'
+num_splits: 10
+num_bins: 10
+models_path: '../results/cnohf_data/'
+configs_path: '../config/cnohf_data/'
+save_path:  '../results/cnohf_data/'

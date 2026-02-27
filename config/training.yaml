@@ -2,18 +2,34 @@ output_path: '../results/'
 train:
   model_type: 'RFReg'
   metrics:  ['smape', 'mape', 'rmse', 'pairwise_accuracy_score', 'ndcg_score']
-real_dataset:
-  target_column: 'capacity_max'
-  data_path: '../data/real_data/'
-  num_splits: 10
-  num_bins: 10
-herg_dataset:
-  target_column: 'pic50'
-  data_path: '../data/herg_data/'
-  num_splits: 10
-  num_bins: 10
-synthetic_dataset:
-  target_column: 'target'
-  data_path: '../data/synthetic_data/'
-  num_splits: 10
-  num_bins: 10
+data:
+  cof_dataset:
+    target_column: 'capacity_max'
+    data_path: '../data/cof_data/'
+    num_splits: 10
+    num_bins: 10
+  cnohf_data:
+    target_column: 'detonation_velocity'
+    data_path: '../data/cnohf_data/'
+    num_splits: 10
+    num_bins: 10
+  photoswitch_data:
+    target_column: 'e_isomer_pi_pi'
+    data_path: '../data/photoswitch_data/'
+    num_splits: 10
+    num_bins: 10
+  polymers_data:
+    target_column: 'Tg'
+    data_path: '../data/polymers_data/'
+    num_splits: 10
+    num_bins: 10
+  redox_data:
+    target_column: 'dGox'
+    data_path: '../data/redox_data/'
+    num_splits: 10
+    num_bins: 10
+  synthetic_data:
+    target_column: 'target'
+    data_path: '../data/herg_data/'
+    num_splits: 10
+    num_bins: 10

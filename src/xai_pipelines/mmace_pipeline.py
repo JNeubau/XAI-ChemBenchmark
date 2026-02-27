@@ -2,6 +2,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from joblib import Parallel, delayed
 from rdkit import Chem
 from sklearn.preprocessing import StandardScaler
 
@@ -47,8 +48,6 @@ class MMacePipeline(BaseXAIPipeline):
         }, y_train_median
 
     def explain_model(self, model: object, X_test: pd.DataFrame, explainer: Any, smiles_list: pd.Series):
-        samples_fold = []
-        cfs_fold = []
         explainer, transition_point = explainer
 
         def get_representation(x):
@@ -61,17 +60,16 @@ class MMacePipeline(BaseXAIPipeline):
             fps = get_representation(x)
             return model.predict(fps).flatten()[0]
 
-        for i, instance in X_test.iterrows():
+        def run_example(i, instance):
             smiles = smiles_list.iloc[i]
             print(f"Processing instance {i} with SMILES: {smiles}")
-            #try:
+            # try:
             samples = exmol.sample_space(
                 smiles,
                 local_predict_fn,
                 stoned_kwargs=explainer,
                 quiet=True,
                 batched=False, )
-            samples_fold.append(samples)
 
             # except Exception as e:
             #     print(f"An error occurred while sampling space: {e}")
@@ -84,11 +82,16 @@ class MMacePipeline(BaseXAIPipeline):
                 transition_point=transition_point,
                 filter_nondrug=False,
                 delta=self.delta,
-                nmols = self.nmols,
+                nmols=self.nmols,
             )
+            return cfs, smiles, samples
 
-            cfs_fold.append(cfs)
-        self.values['smiles'].append(smiles_list)
+        results_fold = Parallel(n_jobs=25)(delayed(run_example)(i, instance) for i, instance in X_test.iterrows())
+        cfs_fold = [c[0] for c in results_fold]
+        smiles_results = [c[1] for c in results_fold]
+        samples_fold = [c[2] for c in results_fold]
+
+        self.values['smiles'].append(smiles_results)
         self.values['counterfactuals_smiles'].append([[cf.smiles for cf in cfs] for cfs in cfs_fold])
         self.values['counterfactuals_similarity'].append([[cf.similarity for cf in cfs] for cfs in cfs_fold])
         self.values['counterfactuals_encoding'].append([[get_representation(cf.smiles) for cf in cfs] for cfs in cfs_fold])

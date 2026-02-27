@@ -1,0 +1,8 @@
+target_column: 'target'
+data_path: '../data/herg_data/'
+dataset_name: 'herg_ecfp_piecewise'
+num_splits: 10
+num_bins: 10
+models_path: '../results/synthetic_data/'
+configs_path: '../config/herg_data_piecewise/'
+save_path:  '../results/synthetic_data/'

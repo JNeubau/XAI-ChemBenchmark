@@ -2,6 +2,39 @@ from rdkit.Chem import AllChem
 from rdkit.Chem import DataStructs
 from rdkit.ML.Cluster import Butina
 
+from rdkit import Chem
+from rdkit.Chem import AllChem, DataStructs
+from rdkit.ML.Cluster import Butina
+
+
+def select_diverse_complex_subset(mol_list, num_to_select, similarity_cutoff=0.65):
+    """
+    Selects a diverse and complex subset of molecules using Butina clustering.
+    Complexity is defined as the number of set bits in the ECFP fingerprint.
+    """
+    fps = [AllChem.GetMorganFingerprintAsBitVect(m, 2, nBits=2048) for m in mol_list]
+    complexity_scores = [fp.GetNumOnBits() for fp in fps]
+
+    dists = []
+    nfps = len(fps)
+    for i in range(1, nfps):
+        sims = DataStructs.BulkTanimotoSimilarity(fps[i], fps[:i])
+        dists.extend([1 - x for x in sims])
+
+    clusters = Butina.ClusterData(dists, nfps, similarity_cutoff, isDistData=True)
+
+    sorted_clusters = sorted(clusters, key=len, reverse=True)
+
+    diverse_complex_indices = []
+    for cluster in sorted_clusters:
+        if len(diverse_complex_indices) >= num_to_select:
+            break
+
+        best_idx = max(cluster, key=lambda idx: complexity_scores[idx])
+        diverse_complex_indices.append(best_idx)
+
+    return diverse_complex_indices
+
 
 def select_diverse_subset_butina(mol_list, num_to_select, similarity_cutoff=0.65):
     """

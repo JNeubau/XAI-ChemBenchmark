@@ -1,0 +1,8 @@
+target_column: 'e_isomer_pi_pi'
+data_path: '../data/photoswitch_data/'
+dataset_name: 'photoswitch_ecfp'
+num_splits: 10
+num_bins: 10
+models_path: '../results/photoswitch_data/'
+configs_path: '../config/photoswitch_data/'
+save_path:  '../results/photoswitch_data/'

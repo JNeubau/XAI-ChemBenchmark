@@ -13,7 +13,7 @@ from src.xai_pipelines.shap_pipeline import ShapPipeline
 from src.xai_pipelines.shapiq_pipeline import ShapiqPipeline
 
 if __name__ == '__main__':
-    data_path = '../data/real_data/data_batteries_ecfp_descriptor.csv'
+    data_path = '../data/cof_data/data_batteries_ecfp_descriptor.csv'
     data = pd.read_csv(data_path)
     X = data.drop(columns=['smiles', 'capacity_max'])
     y = data[['capacity_max']]
@@ -89,7 +89,7 @@ if __name__ == '__main__':
     #     for i in range(len(c)):
     #         print(c[i], t[i])
 
-    with open('../config/real_data/meg.yaml', 'r') as f:
+    with open('../config/cof_data/meg.yaml', 'r') as f:
         config = yaml.safe_load(f)
     meg_pipeline = MegPipeline(
         X=X,

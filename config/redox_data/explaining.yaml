@@ -1,0 +1,8 @@
+target_column: 'dGox'
+data_path: '../data/redox_data/'
+dataset_name: 'redox_ecfp'
+num_splits: 10
+num_bins: 10
+models_path: '../results/redox_data/'
+configs_path: '../config/redox_data/'
+save_path:  '../results/redox_data/'

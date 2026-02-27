@@ -1,0 +1,8 @@
+target_column: 'Tg'
+data_path: '../data/polymers_data/'
+dataset_name: 'polymers_ecfp'
+num_splits: 10
+num_bins: 10
+models_path: '../results/polymers_data/'
+configs_path: '../config/polymers_data/'
+save_path:  '../results/polymers_data/'

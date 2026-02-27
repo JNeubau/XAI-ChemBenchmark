@@ -21,7 +21,7 @@ def save_results(results, save_path, method_name):
     print(f"Results saved to {os.path.join(save_path, f'{method_name}_results.pickle')}")
 
 if __name__ == "__main__":
-    explaining_config_path = '../config/synthetic_data/explaining.yaml'
+    explaining_config_path = '../config/photoswitch_data/explaining.yaml'
 
     with open(explaining_config_path, 'r') as f:
         config = yaml.safe_load(f)

@@ -2,6 +2,8 @@ import sys
 
 import numpy as np
 
+from src.ranking.mean import aggregate_rankings_by_mean_position
+from src.ranking.rra import aggregate_rankings_by_rra
 from scripts.bulk_explain_gt import GtModel
 from src.analysis.processing import lime_ranking, shap_ranking, shapiq_ranking, meg_ranking, mmace_ranking, \
     meg_cf_percent, mmace_cf_percent
@@ -11,10 +13,6 @@ import os
 import joblib
 from joblib import Parallel, delayed
 import pandas as pd
-from sklearn.preprocessing import StandardScaler
-
-
-
 
 def convert_term_ranking_to_feature_ranking(ranking_with_interactions: pd.DataFrame) -> list:
     """
@@ -35,38 +33,19 @@ def convert_term_ranking_to_feature_ranking(ranking_with_interactions: pd.DataFr
 
     return feature_to_best_rank
 
-def aggregate_rankings_by_mean_position(list_of_rankings: list) -> tuple:
-    if not list_of_rankings:
-        return []
-    all_items = set()
-    for ranking in list_of_rankings:
-        all_items.update(list(ranking.keys()))
-    item_scores = {}
-    for item in all_items:
-        positions = []
-        for ranking in list_of_rankings:
-            try:
-                position = ranking[item]
-            except:
-                position = len(ranking)
-            positions.append(position)
-        item_scores[item] = np.mean(positions)
-    sorted_items = sorted(item_scores.keys(), key=lambda item: item_scores[item])
-    return sorted_items, item_scores
-
-def compute_aggregated_ranking(ranking_per_fold_dict: dict, dataset_names, dataset_name):
+def compute_aggregated_ranking(ranking_per_fold_dict: dict, dataset_names, dataset_name, rank_type = 'mean_position'):
     model_dir = dataset_names[dataset_name][1]
     target = dataset_names[dataset_name][2]
     results_dir = dataset_names[dataset_name][0]
     pgis, pgus = [], []
+    rankings_per_fold = []
     fas = []
-    fas_interactions = []
 
     with open(os.path.join(results_dir, 'lime_results.pickle'), 'rb') as f:
         results = pickle.load(f)
 
     for i in range(len(ranking_per_fold_dict['lime'])):
-
+        print(rank_type, i)
         sys.modules['__main__'].GtModel = GtModel
 
         model = os.path.join(model_dir, f'model_{i}.joblib')
@@ -80,7 +59,11 @@ def compute_aggregated_ranking(ranking_per_fold_dict: dict, dataset_names, datas
             ranking_current = convert_term_ranking_to_feature_ranking(ranking_current)
             rankings.append(ranking_current)
 
-        aggregated_ranking, _ = aggregate_rankings_by_mean_position(rankings)
+        if rank_type == 'rra':
+            aggregated_ranking, _ = aggregate_rankings_by_rra(rankings)
+        else:
+            aggregated_ranking, _ = aggregate_rankings_by_mean_position(rankings)
+        rankings_per_fold.append(aggregated_ranking)
         _, pgi_one = pgi(test_examples, aggregated_ranking, model, train_examples)
         _, pgu_one = pgu(test_examples, aggregated_ranking, model, train_examples)
 
@@ -88,20 +71,20 @@ def compute_aggregated_ranking(ranking_per_fold_dict: dict, dataset_names, datas
         pgus.append(pgu_one)
 
         feature_name = 'ecfp_feature'
-        important_features = [30, 123, 10, 16, 81, 33]
+        important_features = [726, 456, 893, 428]
         important_features_simple = [f'{feature_name}_{i}' for i in important_features]
         important_features_piecewise_interactions = [f'{feature_name}_{i}' for i in important_features] + [
-            f'{feature_name}_10 x {feature_name}_{j}' for j in important_features if j != 10]
+            f'{feature_name}_893 x {feature_name}_{j}' for j in important_features if j != 893]
         important_feature_nonlinear_interactions = [f'{feature_name}_{i}' for i in important_features] + [
-            f'{feature_name}_30 x {feature_name}_123']
+            f'{feature_name}_726 x {feature_name}_428', f'{feature_name}_456 x {feature_name}_726']
 
         choices = {
-            'qm9_simple_linear6': important_features_simple,
-            'qm9_piecewise_linear_6': important_features_piecewise_interactions,
-            'qm9_nonlinear_6': important_feature_nonlinear_interactions
+            'linear': important_features_simple,
+            'piecewise': important_features_piecewise_interactions,
+            'nonlinear': important_feature_nonlinear_interactions
         }
 
-        fa = feature_agreement(choices['qm9_simple_linear6'], aggregated_ranking)
+        fa = feature_agreement(choices['linear'], aggregated_ranking)
         fas.append(fa)
 
     pgi_mean = np.mean(pgis)
@@ -110,14 +93,10 @@ def compute_aggregated_ranking(ranking_per_fold_dict: dict, dataset_names, datas
     pgu_std = np.std(pgus)
     fa_mean = np.mean(fas)
     fa_std = np.std(fas)
-    if key == 'shapiq2':
-        fa_interactions_mean = np.mean(fas_interactions)
-        fa_interactions_std = np.std(fas_interactions)
-    else:
-        fa_interactions_mean = None
-        fa_interactions_std = None
+    fa_interactions_mean = None
+    fa_interactions_std = None
 
-    return 'aggregated', {
+    return f'aggregated_{rank_type}', {
         'pgi_mean': pgi_mean,
         'pgu_mean': pgu_mean,
         'pgi_std': pgi_std,
@@ -126,7 +105,7 @@ def compute_aggregated_ranking(ranking_per_fold_dict: dict, dataset_names, datas
         'fa_std': fa_std,
         'fa_interactions_mean': fa_interactions_mean,
         'fa_interactions_std': fa_interactions_std,
-    }
+    }, rankings_per_fold
 
 
 def run_experiment_on_dataset(dataset_name, datasets_names, results_dict):
@@ -135,8 +114,6 @@ def run_experiment_on_dataset(dataset_name, datasets_names, results_dict):
     for multiple XAI methods in parallel.
     """
     results_dir, model_dir, target = datasets_names[dataset_name]
-
-
 
     def process_method(key):
         """
@@ -173,24 +150,26 @@ def run_experiment_on_dataset(dataset_name, datasets_names, results_dict):
             _, pgi_one = pgi(test_examples, ranking_current, model, train_examples)
             _, pgu_one = pgu(test_examples, ranking_current, model, train_examples)
 
+            print(pgi_one, pgu_one)
+
             pgis.append(pgi_one)
             pgus.append(pgu_one)
 
             feature_name = 'ecfp_feature'
-            important_features = [30, 123, 10, 16, 81, 33]
+            important_features = [726, 456, 893, 428]
             important_features_simple = [f'{feature_name}_{i}' for i in important_features]
             important_features_piecewise_interactions = [f'{feature_name}_{i}' for i in important_features] + [
-                f'{feature_name}_10 x {feature_name}_{j}' for j in important_features if j != 10]
+                f'{feature_name}_893 x {feature_name}_{j}' for j in important_features if j != 893]
             important_feature_nonlinear_interactions = [f'{feature_name}_{i}' for i in important_features] + [
-                f'{feature_name}_30 x {feature_name}_123']
+                f'{feature_name}_726 x {feature_name}_428', f'{feature_name}_456 x {feature_name}_726']
 
             choices = {
-                'qm9_simple_linear6': important_features_simple,
-                'qm9_piecewise_linear_6': important_features_piecewise_interactions,
-                'qm9_nonlinear_6': important_feature_nonlinear_interactions
+                'linear': important_features_simple,
+                'piecewise': important_features_piecewise_interactions,
+                'nonlinear': important_feature_nonlinear_interactions
             }
 
-            fa = feature_agreement(choices['qm9_simple_linear6'], ranking_current)
+            fa = feature_agreement(choices['linear'], ranking_current)
             fas.append(fa)
             if key == 'shapiq2':
                 fa_interactions = feature_agreement(choices[dataset_name], ranking_current)
@@ -205,7 +184,7 @@ def run_experiment_on_dataset(dataset_name, datasets_names, results_dict):
             fa_interactions_mean = None
             fa_interactions_std = None
 
-
+        print(np.mean(pgis), np.mean(pgus))
         # --- 4. Aggregate metrics and package all results for returning ---
         metrics = {
             'pgi_mean': np.mean(pgis),
@@ -262,9 +241,9 @@ def run_experiment_on_dataset(dataset_name, datasets_names, results_dict):
 if __name__ == "__main__":
 
     datasets_names = {
-        'qm9_simple_linear6': [f'../results/gt_synthetic_data/qm9_simple_linear6/explanations/', '../results/gt_synthetic_data/qm9_simple_linear6/', 'target'],
-        'qm9_nonlinear_6': [f'../results/gt_synthetic_data/qm9_nonlinear_6/explanations/', '../results/gt_synthetic_data/qm9_nonlinear_6/', 'target'],
-        'qm9_piecewise_linear_6': [f'../results/gt_synthetic_data/qm9_piecewise_linear_6/explanations/', '../results/gt_synthetic_data/qm9_piecewise_linear_6/', 'target'],
+        'linear': [f'../results/gt_synthetic_data/herg_ecfp_linear/explanations/', '../results/gt_synthetic_data/herg_ecfp_linear/', 'target'],
+        'piecewise': [f'../results/gt_synthetic_data/herg_ecfp_piecewise/explanations/', '../results/gt_synthetic_data/herg_ecfp_piecewise/', 'target'],
+        'nonlinear': [f'../results/gt_synthetic_data/herg_ecfp_nonlinear/explanations/', '../results/gt_synthetic_data/herg_ecfp_nonlinear/', 'target'],
    }
 
     results_dict = {
@@ -281,13 +260,36 @@ if __name__ == "__main__":
         results_dir, model_dir, target = datasets_names[dataset_name]
         print(f"Processing dataset: {dataset_name}")
         results = run_experiment_on_dataset(dataset_name, datasets_names, results_dict)
-        print(results)
+        print(results['metrics'])
 
-        # Optionally, compute aggregated ranking
-        aggregated_ranking, agg_metrics = compute_aggregated_ranking(results['rankings_per_fold'], datasets_names, dataset_name)
-        results['metrics'][aggregated_ranking] = agg_metrics
+        metrics_dict = results['metrics']
+        ranking_dict = results['rankings']
+        ranking_per_fold_dict = results['rankings_per_fold']
+        cf_validity_dict = results['cf_validity']
+        cf_similarity_dict = results['cf_similarity']
+        os.makedirs(os.path.join(results_dir, 'analysis'), exist_ok=True)
+        with open(os.path.join(results_dir, 'analysis', 'metrics_results.pickle'), 'wb') as f:
+            pickle.dump(metrics_dict, f)
+        with open(os.path.join(results_dir, 'analysis', 'ranking_results.pickle'), 'wb') as f:
+            pickle.dump(ranking_dict, f)
+        with open(os.path.join(results_dir, 'analysis', 'ranking_per_fold_results.pickle'), 'wb') as f:
+            pickle.dump(ranking_per_fold_dict, f)
+        with open(os.path.join(results_dir, 'analysis', 'cf_validity_results.pickle'), 'wb') as f:
+            pickle.dump(cf_validity_dict, f)
+        with open(os.path.join(results_dir, 'analysis', 'cf_similarity_results.pickle'), 'wb') as f:
+            pickle.dump(cf_similarity_dict, f)
+
+        aggregated_ranking_rra, agg_metrics_rra, agg_rankings_per_fold_rra = compute_aggregated_ranking(
+            results['rankings_per_fold'], datasets_names, dataset_name, rank_type='rra')
+        print(f"Aggregated ranking for {dataset_name}: {aggregated_ranking_rra}")
+        aggregated_ranking, agg_metrics, agg_rankings_per_fold = compute_aggregated_ranking(
+            results['rankings_per_fold'], datasets_names, dataset_name, rank_type='mean')
         print(f"Aggregated ranking for {dataset_name}: {aggregated_ranking}")
-        print(results)
+
+        results['metrics'][aggregated_ranking] = agg_metrics
+        results['rankings_per_fold'][aggregated_ranking] = agg_rankings_per_fold
+        results['metrics'][aggregated_ranking_rra] = agg_metrics_rra
+        results['rankings_per_fold'][aggregated_ranking_rra] = agg_rankings_per_fold_rra
 
         metrics_dict = results['metrics']
         ranking_dict = results['rankings']

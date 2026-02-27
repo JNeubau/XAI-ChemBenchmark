@@ -88,10 +88,10 @@ def meg_cf_percent(meg_results, target):
     all = 0
     similarities = []
     for i in range(len(counterfactual_reward)):
-        cf_r = np.array(counterfactual_reward[i]).flatten()
-        all += len(cf_r)
+        cf_r = np.array([item for sublist in counterfactual_reward[i] for item in sublist])
+        all += 25 * len(counterfactual_reward[i])
         real_cfs = np.sum(cf_r >= 1)
-        sim = np.array(meg_results['counterfactuals_similarity'][i]).flatten()
+        sim = np.array([item for sublist in meg_results['counterfactuals_similarity'][i] for item in sublist])
         sim = sim[cf_r >= 1]
         similarities += list(sim)
         counterfactuals += real_cfs
