@@ -1,13 +1,12 @@
 import numpy as np
+from joblib import Parallel, delayed
 from scipy.stats import spearmanr, skellam, weightedtau
 from sklearn.metrics import auc
-from joblib import Parallel, delayed
 
 
 def get_dataset_stats(training_examples):
     """Calculate once per fold, not once per perturbation."""
     continuous = ['mol_wt', 'o%', 'n%', 'c%']
-    # Filter to only what exists in the data
     existing_cont = [f for f in continuous if f in training_examples.columns]
     existing_count = [f for f in training_examples.columns if f not in existing_cont]
     all_cols = {f: i for i, f in enumerate(training_examples.columns)}
@@ -20,6 +19,7 @@ def get_dataset_stats(training_examples):
     }
     return stats
 
+
 def perturb(examples, features, stats, seed=42):
     rng = np.random.default_rng(seed)
     perturbed = examples.copy()
@@ -27,6 +27,7 @@ def perturb(examples, features, stats, seed=42):
     for idx in features:
         feat_name = stats['all_cols'][idx]
         if feat_name in stats['cont_stds']:
+            # This automatically generates an independent noise array of length N
             noise = rng.normal(0, stats['cont_stds'][feat_name], size=len(perturbed))
             perturbed[:, idx] += noise
         else:
@@ -34,7 +35,6 @@ def perturb(examples, features, stats, seed=42):
             noise = skellam.rvs(mu1=mu, mu2=mu, size=len(perturbed), random_state=rng)
             perturbed[:, idx] += noise
 
-        # Clipping logic (Vectorized)
         if '%' in feat_name:
             perturbed[:, idx] = np.clip(perturbed[:, idx], 0, 1)
         else:
@@ -43,92 +43,136 @@ def perturb(examples, features, stats, seed=42):
     return perturbed
 
 
-def calculate_max_diff(examples, model, stats, old_preds):
+def calculate_max_diff(examples, model, stats, old_preds, num_runs=25):
     all_features = [i for i, f in enumerate(stats['all_cols'])]
-    perturbed_all = perturb(examples, all_features, stats)
-    preds_all_perturbed = model.predict(perturbed_all)
-    max_diff = np.abs(preds_all_perturbed - old_preds).max()
+
+    # Create a batch of the same example 'num_runs' times
+    batch = np.repeat(examples, num_runs, axis=0)
+
+    # Perturb the entire batch at once. 'perturb' will add independent noise to each row.
+    perturbed_batch = perturb(batch, all_features, stats, seed=42)
+
+    # Predict the whole batch in one optimized C-level call
+    preds_all_perturbed = model.predict(perturbed_batch)
+
+    # Calculate max difference across the batch
+    max_diff = np.abs(preds_all_perturbed - old_preds[0]).max()
     return max_diff
 
 
-def pgi(examples, ranking, model, training_examples, len_max=None, num_runs=25):
-    examples_np = examples.to_numpy()
-    old_preds = model.predict(examples_np)
-    stats = get_dataset_stats(training_examples)
+def _evaluate_single_example_pgi(single_example_np, ranking, model, stats, old_pred, len_max, num_runs):
+    single_example_2d = single_example_np.reshape(1, -1)
+    old_pred_arr = np.array([old_pred])
 
     num_unique_features = [f.split('x') for f in ranking]
     num_unique_features = list(set([f.replace(' ', '') for sublist in num_unique_features for f in sublist]))
-    non_present = [f for f in training_examples.columns if f not in num_unique_features]
+    non_present = [f for f in stats['all_cols'] if f not in num_unique_features]
+
     calculate_non = False
     if len_max is None:
         calculate_non = True
         len_max = len(num_unique_features)
 
-    max_diff = calculate_max_diff(examples_np, model, stats, old_preds)
+    max_diff = calculate_max_diff(single_example_2d, model, stats, old_pred_arr, num_runs)
 
     schedule = []
-    stretch_counts = []  # How many times to repeat the result (for interaction terms)
+    stretch_counts = []
 
-    current_features_flat = set()
-    for k in range(1, len(ranking) + 1):
-        top_k_terms = ranking[:k]
-        term_to_split = [f.split(' x ') for f in top_k_terms]
-        flat_names = [f.replace(' ', '') for sublist in term_to_split for f in sublist]
-        unique_names = list(set(flat_names))
-        if len(unique_names) >= len_max:
-            break
-        if len(unique_names) == len(current_features_flat):
+    current_features_set = set()
+    current_unique_names = []
+
+    for term in ranking:
+        new_vars = [f.replace(' ', '') for f in term.split('x')]
+        new_unique_to_add = [v for v in new_vars if v not in current_features_set]
+        if not new_unique_to_add:
             continue
-        current_features_flat = set(unique_names)
-        schedule.append([stats['all_cols_dict'][name] for name in unique_names])
-        stretch_counts.append(len(term_to_split[-1]))
+        if len(current_features_set) + len(new_unique_to_add) >= len_max:
+            break
+        current_features_set.update(new_unique_to_add)
+        current_unique_names.extend(new_unique_to_add)
+        schedule.append([stats['all_cols_dict'][name] for name in current_unique_names])
+        stretch_counts.append(len(new_unique_to_add))
 
-    # Add non-present features to schedule
+
     if calculate_non:
-        # Start with all features from the ranking perturbed
         base_features = [stats['all_cols_dict'][name] for name in num_unique_features]
         for j in range(1, len(non_present) + 1):
             extra_features = [stats['all_cols_dict'][name] for name in non_present[:j]]
             schedule.append(base_features + extra_features)
             stretch_counts.append(1)
 
+    batch = np.repeat(single_example_2d, num_runs, axis=0)
 
-    def compute_results(seedi):
-        perturbed_all = perturb(examples_np.copy(), [i for i in range(len(stats['all_cols']))], stats, seed=seedi)
-        results = []
-        for i, feature_list in enumerate(schedule):
-            p_data = examples_np.copy()
-            p_data[:, feature_list] = perturbed_all[:, feature_list]
-            new_preds = model.predict(p_data)
-            diff = np.abs(new_preds - old_preds).mean()
-            for _ in range(stretch_counts[i]):
-                results.append(diff)
-        return results
+    # Generate all independent perturbations at once for the entire batch
+    perturbed_batch = perturb(batch.copy(), list(range(len(stats['all_cols']))), stats, seed=42)
 
-    results = Parallel(n_jobs=25)(delayed(compute_results)(i) for i in range(num_runs))
-    results = np.array(results)
-    results = np.mean(results, axis=0)
+    results = []
+    for i, feature_list in enumerate(schedule):
+        p_data = batch.copy()
+        # Swap in the perturbed features for the whole batch
+        p_data[:, feature_list] = perturbed_batch[:, feature_list]
+
+        # Single fast prediction on 25 rows
+        new_preds = model.predict(p_data)
+
+        # Calculate the mean difference over the 25 perturbed variants
+        mean_diff = np.abs(new_preds - old_pred).mean()
+
+        for _ in range(stretch_counts[i]):
+            results.append(mean_diff)
 
     auc_results = auc(np.arange(len(results)) / (len(results) - 1), results)
     auc_max = auc(np.arange(len(results)) / (len(results) - 1), [max_diff] * len(results))
-    return auc_results / auc_max, auc_results
+
+    return auc_results / auc_max, auc_results, auc_max
 
 
-def pgu(examples, ranking, model, training_examples, len_max=None, num_runs=25):
+def pgi(examples, rankings, model, training_examples, reference_list=None, len_max=None, num_runs=25, n_jobs=4):
+    """
+    n_jobs controls outer-loop parallelization. Set to 4 to run 4 examples concurrently.
+    """
     examples_np = examples.to_numpy()
     old_preds = model.predict(examples_np)
     stats = get_dataset_stats(training_examples)
 
+    # Helper function to process a single row so joblib can map it cleanly
+    def process_single_pgi(idx):
+        if reference_list is not None and reference_list[idx] is None:
+            return None, None, None
+        if rankings[idx] is None:
+            return None, None, None
+
+        ranking_features = rankings[idx]['features']
+        ratio, raw, amax = _evaluate_single_example_pgi(
+            examples_np[idx], ranking_features, model, stats, old_preds[idx], len_max, num_runs
+        )
+        return ratio, raw, amax
+
+    # Run the outer loop in parallel
+    results = Parallel(n_jobs=n_jobs)(
+        delayed(process_single_pgi)(idx) for idx in range(len(examples_np))
+    )
+
+    # Unpack the list of tuples back into three separate lists
+    auc_ratios, auc_raws, auc_maxes = zip(*results)
+
+    return list(auc_ratios), list(auc_raws), list(auc_maxes)
+
+
+def _evaluate_single_example_pgu(single_example_np, ranking, model, stats, old_pred, len_max, num_runs):
+    single_example_2d = single_example_np.reshape(1, -1)
+    old_pred_arr = np.array([old_pred])
+
     num_unique_features = [f.split('x') for f in ranking]
     num_unique_features = list(set([f.replace(' ', '') for sublist in num_unique_features for f in sublist]))
-    non_present = [f for f in training_examples.columns if f not in num_unique_features]
+    non_present = [f for f in stats['all_cols'] if f not in num_unique_features]
 
     if len_max is None:
         len_max = len(num_unique_features) + len(non_present)
     else:
         len_max = len(num_unique_features) + len(non_present) - len_max
 
-    max_diff = calculate_max_diff(examples_np, model, stats, old_preds)
+    max_diff = calculate_max_diff(single_example_2d, model, stats, old_pred_arr, num_runs)
 
     schedule = []
     stretch_counts = []
@@ -136,54 +180,111 @@ def pgu(examples, ranking, model, training_examples, len_max=None, num_runs=25):
     for j in range(1, len(features) + 1):
         schedule.append(features[:j])
         stretch_counts.append(1)
-    current_features_flat = set()
-    for k in range(1, len(ranking) + 1):
-        top_k_terms = ranking[-k:]
-        term_to_split = [f.split(' x ') for f in top_k_terms]
-        flat_names = [f.replace(' ', '') for sublist in term_to_split for f in sublist]
-        unique_names = list(set(flat_names))
 
-        if len(unique_names) + len(non_present) >= len_max:
-            break
-        if k > 1 and len(unique_names) == len(current_features_flat):
+    current_features_set = set()
+    current_unique_names = []
+
+    for term in reversed(ranking):
+        new_vars = [f.replace(' ', '') for f in term.split('x')]
+        new_unique_to_add = [v for v in new_vars if v not in current_features_set]
+        if not new_unique_to_add:
             continue
-        current_features_flat = set(unique_names)
-        schedule.append([stats['all_cols_dict'][name] for name in unique_names] + features)
-        stretch_counts.append(len(term_to_split[-1]))
+        if len(current_features_set) + len(new_unique_to_add) + len(non_present) >= len_max:
+            break
+        current_features_set.update(new_unique_to_add)
+        current_unique_names.extend(new_unique_to_add)
+        schedule.append([stats['all_cols_dict'][name] for name in current_unique_names] + features)
+        stretch_counts.append(len(new_unique_to_add))
 
-    def compute_results(seedi):
-        perturbed_all = perturb(examples_np.copy(), [i for i in range(len(stats['all_cols']))], stats, seed=seedi)
-        results = []
-        for i, feature_list in enumerate(schedule):
-            p_data = examples_np.copy()
-            p_data[:, feature_list] = perturbed_all[:, feature_list]
-            new_preds = model.predict(p_data)
-            diff = np.abs(new_preds - old_preds).mean()
-            for _ in range(stretch_counts[i]):
-                results.append(diff)
-        return results
+    # VECTORIZED COMPUTE
+    batch = np.repeat(single_example_2d, num_runs, axis=0)
+    perturbed_batch = perturb(batch.copy(), list(range(len(stats['all_cols']))), stats, seed=42)
 
-    results = Parallel(n_jobs=25)(delayed(compute_results)(i) for i in range(num_runs))
-    results = np.array(results)
-    results = np.mean(results, axis=0)
+    results = []
+    for i, feature_list in enumerate(schedule):
+        p_data = batch.copy()
+        p_data[:, feature_list] = perturbed_batch[:, feature_list]
 
-    auc_results = auc(np.arange(len(results)) / (len(results) - 1), results[::-1])
+        new_preds = model.predict(p_data)
+        mean_diff = np.abs(new_preds - old_pred).mean()
+
+        for _ in range(stretch_counts[i]):
+            results.append(mean_diff)
+
+    auc_results = auc(np.arange(len(results)) / (len(results) - 1), results)
     auc_max = auc(np.arange(len(results)) / (len(results) - 1), [max_diff] * len(results))
-    return auc_results / auc_max, auc_results
+
+    return auc_results / auc_max, auc_results, auc_max
 
 
-def feature_agreement(gt, ranking2):
-    percent = []
-    for k in range(len(gt), len(ranking2) + 1):
-        top_k2 = ranking2[:k]
-        metric = len(set(gt).intersection(set(top_k2))) / len(gt)
-        percent.append(metric)
-    not_in_ranking = len(set(gt) - set(ranking2))
-    for _ in range(not_in_ranking):
-        percent.append(0.0)
-    if len(percent) == 1:
-        return percent[0]
-    auc_results = auc(np.arange(len(percent)) / (len(percent) - 1), percent)
+def pgu(examples, rankings, model, training_examples, reference_list=None, len_max=None, num_runs=25, n_jobs=4):
+    """
+    n_jobs controls outer-loop parallelization. Set to 4 to run 4 examples concurrently.
+    """
+    examples_np = examples.to_numpy()
+    old_preds = model.predict(examples_np)
+    stats = get_dataset_stats(training_examples)
+
+    # Helper function to process a single row
+    def process_single_pgu(idx):
+        if reference_list is not None and reference_list[idx] is None:
+            return None, None, None
+        if rankings[idx] is None:
+            return None, None, None
+
+        ranking_features = rankings[idx]['features']
+        ratio, raw, amax = _evaluate_single_example_pgu(
+            examples_np[idx], ranking_features, model, stats, old_preds[idx], len_max, num_runs
+        )
+        return ratio, raw, amax
+
+    # Run the outer loop in parallel
+    results = Parallel(n_jobs=n_jobs)(
+        delayed(process_single_pgu)(idx) for idx in range(len(examples_np))
+    )
+
+    # Unpack the list of tuples back into three separate lists
+    auc_ratios, auc_raws, auc_maxes = zip(*results)
+
+    return list(auc_ratios), list(auc_raws), list(auc_maxes)
+
+
+def feature_agreement(gt, rankings, all_features, reference_list=None, remove_inter=False):
+    auc_results = []
+    for idx in range(len(rankings)):
+        ranking2 = rankings[idx]
+        if reference_list and reference_list[idx] is None:
+            auc_results.append(None)
+            continue
+        else:
+            if ranking2 is None:
+                auc_results.append(None)
+                continue
+        ranking2 = rankings[idx]['features']
+        percent = []
+        max_percent = 0.0
+        features_current = set()
+        for k in range(len(gt), len(ranking2) + 1):
+            top_k2 = ranking2[:k]
+            if remove_inter:
+                top_k2 = [part.replace(' ', '') for item in top_k2 for part in item.split('x')]
+                features_current.update(set(top_k2))
+            metric = len(set(gt).intersection(set(top_k2))) / len(gt)
+            percent.append(metric)
+            if max_percent < metric:
+                max_percent = metric
+        if remove_inter:
+            not_in_ranking = len(set(all_features) - features_current)
+            for _ in range(not_in_ranking):
+                percent.append(max_percent)
+        else:
+            not_in_ranking = len(set(gt) - set(ranking2))
+            for _ in range(not_in_ranking):
+                percent.append(max_percent)
+        if len(percent) == 1:
+            auc_results.append(percent[0])
+        else:
+            auc_results.append(auc(np.arange(len(percent)) / (len(percent) - 1), percent))
     return auc_results
 
 
@@ -201,4 +302,3 @@ def rank_correlation(ranking1: dict, ranking2: dict, k=None):
 
     correlation = spearmanr(ranks1, ranks2)
     return correlation
-

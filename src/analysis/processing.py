@@ -9,12 +9,20 @@ def shap_ranking(shap_results, target):
     features_names = shap_results['test_data'][0].drop(columns=[target]).columns
     shap_values = shap_results['shap_values']
     ranking_per_fold = []
+    ranking_per_instance = []
     for i in range(len(shap_values)):
+        ranking_instance_fold = []
         fold_ranking = []
         for sv in shap_values[i]:
             abs_ranking.append(np.abs(sv))
             fold_ranking.append(np.abs(sv))
 
+            instance_ranking = np.abs(sv)
+            instance_ranking = pd.DataFrame({'features': features_names, 'abs_ranking': instance_ranking})
+            instance_ranking = instance_ranking.sort_values(by='abs_ranking', ascending=False).reset_index(drop=True)
+            ranking_instance_fold.append(instance_ranking)
+
+        ranking_per_instance.append(ranking_instance_fold)
         fold_ranking = np.array(fold_ranking)
         fold_ranking = fold_ranking.mean(axis=0)
         fold_rank = pd.DataFrame({'features': features_names, 'abs_ranking': fold_ranking})
@@ -25,7 +33,7 @@ def shap_ranking(shap_results, target):
     abs_ranking = abs_ranking.mean(axis=0)
     abs_ranking = pd.DataFrame({'features': features_names, 'abs_ranking': abs_ranking})
     abs_ranking = abs_ranking.sort_values(by='abs_ranking', ascending=False).reset_index(drop=True)
-    return abs_ranking, ranking_per_fold
+    return abs_ranking, ranking_per_fold, ranking_per_instance
 
 
 def shapiq_ranking(shapiq_results, target):
@@ -34,12 +42,24 @@ def shapiq_ranking(shapiq_results, target):
     shapiq_values = shapiq_results['interactions']
     ranking_per_fold = []
     interaction_values = []
+    ranking_per_instance = []
     for i in range(len(shapiq_values)):
         fold_iv = []
+        ranking_instance_fold = []
         for iv in shapiq_values[i]:
             fold_iv.append(InteractionValues.from_dict(iv))
             interaction_values.append(InteractionValues.from_dict(iv))
 
+            instance_iv = InteractionValues.from_dict(iv)
+            instance_iv = abs(instance_iv)
+            inter_list = instance_iv.interaction_lookup.keys()
+            feature_labels = [format_labels(feature_tuple=iv, feature_mapping=feature_mapping) for iv in inter_list]
+            instance_ranking = pd.DataFrame({'features': feature_labels, 'abs_ranking': instance_iv.values})
+            instance_ranking = instance_ranking[~instance_ranking['features'].str.contains('Base Value')]
+            instance_ranking = instance_ranking.sort_values(by='abs_ranking', ascending=False).reset_index(drop=True)
+            ranking_instance_fold.append(instance_ranking)
+
+        ranking_per_instance.append(ranking_instance_fold)
         fold_iv = [abs(iv) for iv in fold_iv]
         fold_ranking = aggregate_interaction_values(fold_iv, "mean")
         interaction_list = fold_ranking.interaction_lookup.keys()
@@ -56,20 +76,30 @@ def shapiq_ranking(shapiq_results, target):
     abs_ranking = pd.DataFrame({'features': feature_labels, 'abs_ranking': abs_ranking.values})
     abs_ranking = abs_ranking[~abs_ranking['features'].str.contains('Base Value')]
     abs_ranking = abs_ranking.sort_values(by='abs_ranking', ascending=False).reset_index(drop=True)
-    return abs_ranking, ranking_per_fold
+    return abs_ranking, ranking_per_fold, ranking_per_instance
 
 
 def lime_ranking(lime_results, target):
     feature_names = lime_results['test_data'][0].drop(columns=[target]).columns
     abs_ranking = {f: [] for f in feature_names}
     ranking_per_fold = []
+    ranking_per_instance = []
     lime_values = lime_results['lime_values']
     for i in range(len(lime_values)):
+        ranking_instance_fold = []
         fold_ranking = {f: [] for f in feature_names}
         for lv in lime_values[i]:
+            instance_ranking = {}
             for entry in lv:
                 abs_ranking[entry[0]].append(np.abs(entry[1]))
                 fold_ranking[entry[0]].append(np.abs(entry[1]))
+                instance_ranking[entry[0]] = np.abs(entry[1])
+
+            instance_ranking = pd.DataFrame({'features': list(instance_ranking.keys()), 'abs_ranking': list(instance_ranking.values())})
+            instance_ranking = instance_ranking.sort_values(by='abs_ranking', ascending=False).reset_index(drop=True)
+            ranking_instance_fold.append(instance_ranking)
+
+        ranking_per_instance.append(ranking_instance_fold)
 
         fold_ranking = {f: np.mean(v) for f, v in fold_ranking.items()}
         fold_rank = pd.DataFrame({'features': list(fold_ranking.keys()), 'abs_ranking': list(fold_ranking.values())})
@@ -79,7 +109,7 @@ def lime_ranking(lime_results, target):
     abs_ranking = {f: np.mean(v) for f, v in abs_ranking.items()}
     abs_ranking = pd.DataFrame({'features': list(abs_ranking.keys()), 'abs_ranking': list(abs_ranking.values())})
     abs_ranking = abs_ranking.sort_values(by='abs_ranking', ascending=False).reset_index(drop=True)
-    return abs_ranking, ranking_per_fold
+    return abs_ranking, ranking_per_fold, ranking_per_instance
 
 
 def meg_cf_percent(meg_results, target):
@@ -103,13 +133,16 @@ def meg_ranking(meg_results, target):
     abs_ranking = {f: [] for f in feature_names}
 
     ranking_per_fold = []
+    ranking_per_instance = []
 
     for i in range(len(meg_results['test_data'])):
+        ranking_instance_fold = []
         fold_ranking = {f: [] for f in feature_names}
 
         for j in range(len(meg_results['test_data'][i])):
             example = meg_results['test_data'][i].iloc[j].drop(columns=[target]).values
             cfs = meg_results['counterfactuals_encoding'][i][j]
+            instance_ranking = {f: [] for f in feature_names}
             for n in range(len(cfs)):
                 cf = cfs[n].flatten()
                 is_cf = meg_results['counterfactuals_pred_reward'][i][j][n] >= 1
@@ -118,9 +151,21 @@ def meg_ranking(meg_results, target):
                         if example[k] != cf[k]:
                             abs_ranking[feature_names[k]].append(1)
                             fold_ranking[feature_names[k]].append(1)
+                            instance_ranking[feature_names[k]].append(1)
                         else:
                             abs_ranking[feature_names[k]].append(0)
                             fold_ranking[feature_names[k]].append(0)
+                            instance_ranking[feature_names[k]].append(0)
+
+            if len(instance_ranking[feature_names[0]]) != 0:
+                instance_ranking = {f: np.mean(v) for f, v in instance_ranking.items()}
+                instance_ranking = pd.DataFrame(
+                    {'features': list(instance_ranking.keys()), 'abs_ranking': list(instance_ranking.values())})
+                instance_ranking = instance_ranking.sort_values(by='abs_ranking', ascending=False).reset_index(drop=True)
+                ranking_instance_fold.append(instance_ranking)
+            else:
+                ranking_instance_fold.append(None)
+        ranking_per_instance.append(ranking_instance_fold)
 
         fold_ranking = {f: np.mean(v) for f, v in fold_ranking.items()}
         fold_rank = pd.DataFrame({'features': list(fold_ranking.keys()), 'abs_ranking': list(fold_ranking.values())})
@@ -130,7 +175,7 @@ def meg_ranking(meg_results, target):
     abs_ranking = {f: np.mean(v) for f, v in abs_ranking.items()}
     abs_ranking = pd.DataFrame({'features': list(abs_ranking.keys()), 'abs_ranking': list(abs_ranking.values())})
     abs_ranking = abs_ranking.sort_values(by='abs_ranking', ascending=False).reset_index(drop=True)
-    return abs_ranking, ranking_per_fold
+    return abs_ranking, ranking_per_fold, ranking_per_instance
 
 
 def mmace_cf_percent(mmace_results, target, min_diff=0):
@@ -159,22 +204,36 @@ def mmace_ranking(mmace_results, target):
     feature_names = mmace_results['test_data'][0].drop(columns=[target]).columns
     abs_ranking = {f: [] for f in feature_names}
     ranking_per_fold = []
-
+    ranking_per_instance = []
     for i in range(len(mmace_results['test_data'])):
         fold_ranking = {f: [] for f in feature_names}
-
+        ranking_instance_fold = []
         for j in range(len(mmace_results['test_data'][i])):
             example = mmace_results['test_data'][i].iloc[j].drop(columns=[target]).values
             cfs = mmace_results['counterfactuals_encoding'][i][j]
+            instance_ranking = {f: [] for f in feature_names}
             for n in range(len(cfs)):
                 cf = cfs[n].flatten()
                 for k in range(len(feature_names)):
                     if example[k] != cf[k]:
                         abs_ranking[feature_names[k]].append(1)
                         fold_ranking[feature_names[k]].append(1)
+                        instance_ranking[feature_names[k]].append(1)
                     else:
                         abs_ranking[feature_names[k]].append(0)
                         fold_ranking[feature_names[k]].append(0)
+                        instance_ranking[feature_names[k]].append(0)
+
+            if len(cfs) != 0:
+                instance_ranking = {f: np.mean(v) for f, v in instance_ranking.items()}
+                instance_ranking = pd.DataFrame(
+                    {'features': list(instance_ranking.keys()), 'abs_ranking': list(instance_ranking.values())})
+                instance_ranking = instance_ranking.sort_values(by='abs_ranking', ascending=False).reset_index(drop=True)
+                ranking_instance_fold.append(instance_ranking)
+            else:
+                ranking_instance_fold.append(None)
+        ranking_per_instance.append(ranking_instance_fold)
+
         fold_ranking = {f: np.mean(v) for f, v in fold_ranking.items()}
         fold_rank = pd.DataFrame({'features': list(fold_ranking.keys()), 'abs_ranking': list(fold_ranking.values())})
         fold_rank = fold_rank.sort_values(by='abs_ranking', ascending=False).reset_index(drop=True)
@@ -183,4 +242,4 @@ def mmace_ranking(mmace_results, target):
     abs_ranking = {f: np.mean(v) for f, v in abs_ranking.items()}
     abs_ranking = pd.DataFrame({'features': list(abs_ranking.keys()), 'abs_ranking': list(abs_ranking.values())})
     abs_ranking = abs_ranking.sort_values(by='abs_ranking', ascending=False).reset_index(drop=True)
-    return abs_ranking, ranking_per_fold
+    return abs_ranking, ranking_per_fold, ranking_per_instance
