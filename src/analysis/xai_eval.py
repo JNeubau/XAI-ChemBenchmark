@@ -69,19 +69,20 @@ def pgi(examples, ranking, model, training_examples, len_max=None, num_runs=25):
     schedule = []
     stretch_counts = []  # How many times to repeat the result (for interaction terms)
 
-    current_features_flat = set()
-    for k in range(1, len(ranking) + 1):
-        top_k_terms = ranking[:k]
-        term_to_split = [f.split(' x ') for f in top_k_terms]
-        flat_names = [f.replace(' ', '') for sublist in term_to_split for f in sublist]
-        unique_names = list(set(flat_names))
-        if len(unique_names) >= len_max:
-            break
-        if len(unique_names) == len(current_features_flat):
+    current_features_set = set()
+    current_unique_names = []
+
+    for term in ranking:
+        new_vars = [f.replace(' ', '') for f in term.split('x')]
+        new_unique_to_add = [v for v in new_vars if v not in current_features_set]
+        if not new_unique_to_add:
             continue
-        current_features_flat = set(unique_names)
-        schedule.append([stats['all_cols_dict'][name] for name in unique_names])
-        stretch_counts.append(len(term_to_split[-1]))
+        if len(current_features_set) + len(new_unique_to_add) >= len_max:
+            break
+        current_features_set.update(new_unique_to_add)
+        current_unique_names.extend(new_unique_to_add)
+        schedule.append([stats['all_cols_dict'][name] for name in current_unique_names])
+        stretch_counts.append(len(new_unique_to_add))
 
     # Add non-present features to schedule
     if calculate_non:
@@ -136,20 +137,31 @@ def pgu(examples, ranking, model, training_examples, len_max=None, num_runs=25):
     for j in range(1, len(features) + 1):
         schedule.append(features[:j])
         stretch_counts.append(1)
-    current_features_flat = set()
-    for k in range(1, len(ranking) + 1):
-        top_k_terms = ranking[-k:]
-        term_to_split = [f.split(' x ') for f in top_k_terms]
-        flat_names = [f.replace(' ', '') for sublist in term_to_split for f in sublist]
-        unique_names = list(set(flat_names))
 
-        if len(unique_names) + len(non_present) >= len_max:
-            break
-        if k > 1 and len(unique_names) == len(current_features_flat):
+    current_features_set = set()
+    current_unique_names = []
+
+    ranking_rev = []
+    seen_in_forward = set()
+
+    for term in ranking:
+        new_vars = [f.strip() for f in term.split('x')]
+        # Keep only features we haven't seen in a higher-ranked position
+        new_unique_to_add = [v for v in new_vars if v not in seen_in_forward]
+
+        ranking_rev.append(new_unique_to_add)
+        seen_in_forward.update(new_unique_to_add)
+
+    for term in reversed(ranking_rev):
+        new_unique_to_add = [v for v in term if v not in current_features_set]
+        if not new_unique_to_add:
             continue
-        current_features_flat = set(unique_names)
-        schedule.append([stats['all_cols_dict'][name] for name in unique_names] + features)
-        stretch_counts.append(len(term_to_split[-1]))
+        if len(current_features_set) + len(new_unique_to_add) + len(non_present) >= len_max:
+            break
+        current_features_set.update(new_unique_to_add)
+        current_unique_names.extend(new_unique_to_add)
+        schedule.append([stats['all_cols_dict'][name] for name in current_unique_names] + features)
+        stretch_counts.append(len(new_unique_to_add))
 
     def compute_results(seedi):
         perturbed_all = perturb(examples_np.copy(), [i for i in range(len(stats['all_cols']))], stats, seed=seedi)
@@ -172,15 +184,33 @@ def pgu(examples, ranking, model, training_examples, len_max=None, num_runs=25):
     return auc_results / auc_max, auc_results
 
 
-def feature_agreement(gt, ranking2):
+def feature_agreement(gt, ranking2, all_features, removex=True):
     percent = []
+    max_percent = 0.0
+    features_current = set()
+
     for k in range(len(gt), len(ranking2) + 1):
-        top_k2 = ranking2[:k]
+        top_k2_all = ranking2[:k]
+        if removex:
+            top_k2 = []
+            for item in top_k2_all:
+                    parts = item.split('x')
+                    parts = [p.replace(' ', '') for p in parts]
+
+                    if set(parts).issubset(set(gt)):
+                        top_k2.extend(parts)
+        else:
+            top_k2 = top_k2_all
+        features_current.update(set(top_k2))
         metric = len(set(gt).intersection(set(top_k2))) / len(gt)
         percent.append(metric)
-    not_in_ranking = len(set(gt) - set(ranking2))
+        if max_percent < metric:
+            max_percent = metric
+        if len(set(features_current)) == len(set(all_features)):
+            break
+    not_in_ranking = len(set(all_features) - features_current)
     for _ in range(not_in_ranking):
-        percent.append(0.0)
+        percent.append(max_percent)
     if len(percent) == 1:
         return percent[0]
     auc_results = auc(np.arange(len(percent)) / (len(percent) - 1), percent)

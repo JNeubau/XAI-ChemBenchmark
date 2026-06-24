@@ -1,4 +1,5 @@
 import sys
+sys.path.insert(0, '/home/aprzybylowska/XAI-ChemBenchmark')
 
 import numpy as np
 
@@ -84,7 +85,7 @@ def compute_aggregated_ranking(ranking_per_fold_dict: dict, dataset_names, datas
             'nonlinear': important_feature_nonlinear_interactions
         }
 
-        fa = feature_agreement(choices['linear'], aggregated_ranking)
+        fa = feature_agreement(choices['linear'], aggregated_ranking, list(test_examples.columns))
         fas.append(fa)
 
     pgi_mean = np.mean(pgis)
@@ -169,10 +170,10 @@ def run_experiment_on_dataset(dataset_name, datasets_names, results_dict):
                 'nonlinear': important_feature_nonlinear_interactions
             }
 
-            fa = feature_agreement(choices['linear'], ranking_current)
+            fa = feature_agreement(choices['linear'], ranking_current, list(test_examples.columns))
             fas.append(fa)
             if key == 'shapiq2':
-                fa_interactions = feature_agreement(choices[dataset_name], ranking_current)
+                fa_interactions = feature_agreement(choices[dataset_name], ranking_current, list(test_examples.columns), removex=False)
                 fas_interactions.append(fa_interactions)
 
         fa_mean = np.mean(fas)
@@ -267,16 +268,16 @@ if __name__ == "__main__":
         ranking_per_fold_dict = results['rankings_per_fold']
         cf_validity_dict = results['cf_validity']
         cf_similarity_dict = results['cf_similarity']
-        os.makedirs(os.path.join(results_dir, 'analysis'), exist_ok=True)
-        with open(os.path.join(results_dir, 'analysis', 'metrics_results.pickle'), 'wb') as f:
+        os.makedirs(os.path.join(results_dir, 'analysis4'), exist_ok=True)
+        with open(os.path.join(results_dir, 'analysis4', 'metrics_results.pickle'), 'wb') as f:
             pickle.dump(metrics_dict, f)
-        with open(os.path.join(results_dir, 'analysis', 'ranking_results.pickle'), 'wb') as f:
+        with open(os.path.join(results_dir, 'analysis4', 'ranking_results.pickle'), 'wb') as f:
             pickle.dump(ranking_dict, f)
-        with open(os.path.join(results_dir, 'analysis', 'ranking_per_fold_results.pickle'), 'wb') as f:
+        with open(os.path.join(results_dir, 'analysis4', 'ranking_per_fold_results.pickle'), 'wb') as f:
             pickle.dump(ranking_per_fold_dict, f)
-        with open(os.path.join(results_dir, 'analysis', 'cf_validity_results.pickle'), 'wb') as f:
+        with open(os.path.join(results_dir, 'analysis4', 'cf_validity_results.pickle'), 'wb') as f:
             pickle.dump(cf_validity_dict, f)
-        with open(os.path.join(results_dir, 'analysis', 'cf_similarity_results.pickle'), 'wb') as f:
+        with open(os.path.join(results_dir, 'analysis4', 'cf_similarity_results.pickle'), 'wb') as f:
             pickle.dump(cf_similarity_dict, f)
 
         aggregated_ranking_rra, agg_metrics_rra, agg_rankings_per_fold_rra = compute_aggregated_ranking(
@@ -297,15 +298,17 @@ if __name__ == "__main__":
         cf_validity_dict = results['cf_validity']
         cf_similarity_dict = results['cf_similarity']
 
-        os.makedirs(os.path.join(results_dir, 'analysis'), exist_ok=True)
-        with open(os.path.join(results_dir, 'analysis', 'metrics_results.pickle'), 'wb') as f:
+        os.makedirs(os.path.join(results_dir, 'analysis4'), exist_ok=True)
+        with open(os.path.join(results_dir, 'analysis4', 'metrics_results.pickle'), 'wb') as f:
             pickle.dump(metrics_dict, f)
-        with open(os.path.join(results_dir, 'analysis', 'ranking_results.pickle'), 'wb') as f:
+        with open(os.path.join(results_dir, 'analysis4', 'ranking_results.pickle'), 'wb') as f:
             pickle.dump(ranking_dict, f)
-        with open(os.path.join(results_dir, 'analysis', 'ranking_per_fold_results.pickle'), 'wb') as f:
+        with open(os.path.join(results_dir, 'analysis4', 'ranking_per_fold_results.pickle'), 'wb') as f:
             pickle.dump(ranking_per_fold_dict, f)
-        with open(os.path.join(results_dir, 'analysis', 'cf_validity_results.pickle'), 'wb') as f:
+        with open(os.path.join(results_dir, 'analysis4', 'cf_validity_results.pickle'), 'wb') as f:
             pickle.dump(cf_validity_dict, f)
-        with open(os.path.join(results_dir, 'analysis', 'cf_similarity_results.pickle'), 'wb') as f:
+        with open(os.path.join(results_dir, 'analysis4', 'cf_similarity_results.pickle'), 'wb') as f:
             pickle.dump(cf_similarity_dict, f)
+
+    print('the end')
 
