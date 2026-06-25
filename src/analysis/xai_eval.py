@@ -184,9 +184,18 @@ def _evaluate_single_example_pgu(single_example_np, ranking, model, stats, old_p
     current_features_set = set()
     current_unique_names = []
 
-    for term in reversed(ranking):
-        new_vars = [f.replace(' ', '') for f in term.split('x')]
-        new_unique_to_add = [v for v in new_vars if v not in current_features_set]
+    ranking_rev = []
+    seen_in_forward = set()
+    for term in ranking:
+        new_vars = [f.strip() for f in term.split('x')]
+        # Keep only features we haven't seen in a higher-ranked position
+        new_unique_to_add = [v for v in new_vars if v not in seen_in_forward]
+
+        ranking_rev.append(new_unique_to_add)
+        seen_in_forward.update(new_unique_to_add)
+
+    for term in reversed(ranking_rev):
+        new_unique_to_add = [v for v in term if v not in current_features_set]
         if not new_unique_to_add:
             continue
         if len(current_features_set) + len(new_unique_to_add) + len(non_present) >= len_max:
@@ -265,22 +274,28 @@ def feature_agreement(gt, rankings, all_features, reference_list=None, remove_in
         max_percent = 0.0
         features_current = set()
         for k in range(len(gt), len(ranking2) + 1):
-            top_k2 = ranking2[:k]
+            top_k2_all = ranking2[:k]
             if remove_inter:
-                top_k2 = [part.replace(' ', '') for item in top_k2 for part in item.split('x')]
-                features_current.update(set(top_k2))
+                top_k2 = []
+                for item in top_k2_all:
+                    parts = item.split('x')
+                    parts = [p.replace(' ', '') for p in parts]
+
+                    if set(parts).issubset(set(gt)):
+                        top_k2.extend(parts)
+            else:
+                top_k2 = top_k2_all
+            features_current.update(set(top_k2))
             metric = len(set(gt).intersection(set(top_k2))) / len(gt)
             percent.append(metric)
             if max_percent < metric:
                 max_percent = metric
-        if remove_inter:
-            not_in_ranking = len(set(all_features) - features_current)
-            for _ in range(not_in_ranking):
-                percent.append(max_percent)
-        else:
-            not_in_ranking = len(set(gt) - set(ranking2))
-            for _ in range(not_in_ranking):
-                percent.append(max_percent)
+            if remove_inter:
+                if len(set(features_current)) == len(set(all_features)):
+                    break
+        not_in_ranking = len(set(all_features) - features_current)
+        for _ in range(not_in_ranking):
+            percent.append(max_percent)
         if len(percent) == 1:
             auc_results.append(percent[0])
         else:
