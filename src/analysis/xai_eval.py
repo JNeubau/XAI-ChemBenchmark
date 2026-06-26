@@ -189,16 +189,19 @@ def feature_agreement(gt, ranking2, all_features, removex=True):
     max_percent = 0.0
     features_current = set()
 
+    if not removex:
+        print(gt, ranking2[:len(gt) + 1])
+
     for k in range(len(gt), len(ranking2) + 1):
         top_k2_all = ranking2[:k]
         if removex:
             top_k2 = []
             for item in top_k2_all:
-                    parts = item.split('x')
-                    parts = [p.replace(' ', '') for p in parts]
+                parts = item.split('x')
+                parts = [p.replace(' ', '') for p in parts]
 
-                    if set(parts).issubset(set(gt)):
-                        top_k2.extend(parts)
+                if set(parts).issubset(set(gt)):
+                    top_k2.extend(parts)
         else:
             top_k2 = top_k2_all
         features_current.update(set(top_k2))
@@ -206,11 +209,17 @@ def feature_agreement(gt, ranking2, all_features, removex=True):
         percent.append(metric)
         if max_percent < metric:
             max_percent = metric
-        if len(set(features_current)) == len(set(all_features)):
-            break
-    not_in_ranking = len(set(all_features) - features_current)
-    for _ in range(not_in_ranking):
-        percent.append(max_percent)
+        if removex:
+            if len(set(features_current)) == len(set(all_features)):
+                break
+    if removex:
+        not_in_ranking = len(set(all_features) - features_current)
+        for _ in range(not_in_ranking):
+            percent.append(max_percent)
+    else:
+        not_in_ranking = len(set(gt) - features_current)
+        for _ in range(not_in_ranking):
+            percent.append(max_percent)
     if len(percent) == 1:
         return percent[0]
     auc_results = auc(np.arange(len(percent)) / (len(percent) - 1), percent)

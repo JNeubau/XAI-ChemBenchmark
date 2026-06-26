@@ -1,5 +1,4 @@
 import sys
-sys.path.insert(0, '/home/aprzybylowska/XAI-ChemBenchmark')
 
 import numpy as np
 
@@ -180,13 +179,13 @@ def run_experiment_on_dataset(dataset_name, datasets_names, results_dict):
 if __name__ == "__main__":
 
     datasets_names = {
-        #'cnohf_ecfp': ['../results/cnohf_data/cnohf_ecfp/explanations/', '../results/cnohf_data/cnohf_ecfp/', 'detonation_velocity'],
-        #'cof_ecfp_descriptor': ['../results/cof_data/cof_ecfp_descriptor/explanations/', '../results/cof_data/cof_ecfp_descriptor/', 'capacity_max'],
-        #'photoswitch_ecfp': ['../results/photoswitch_data/photoswitch_ecfp/explanations/', '../results/photoswitch_data/photoswitch_ecfp/', 'e_isomer_pi_pi'],
-        #'polymers_ecfp': ['../results/polymers_data/polymers_ecfp/explanations/', '../results/polymers_data/polymers_ecfp/', 'Tg'],
-        #'redox_ecfp': ['../results/redox_data/redox_ecfp/explanations/', '../results/redox_data/redox_ecfp/', 'dGox'],
-        #'herg_ecfp_linear': ['../results/synthetic_data/herg_ecfp_linear/explanations/', '../results/synthetic_data/herg_ecfp_linear/', 'target'],
-        #'herg_ecfp_nonlinear': ['../results/synthetic_data/herg_ecfp_nonlinear/explanations/', '../results/synthetic_data/herg_ecfp_nonlinear/', 'target'],
+        'cnohf_ecfp': ['../results/cnohf_data/cnohf_ecfp/explanations/', '../results/cnohf_data/cnohf_ecfp/', 'detonation_velocity'],
+        'cof_ecfp_descriptor': ['../results/cof_data/cof_ecfp_descriptor/explanations/', '../results/cof_data/cof_ecfp_descriptor/', 'capacity_max'],
+        'photoswitch_ecfp': ['../results/photoswitch_data/photoswitch_ecfp/explanations/', '../results/photoswitch_data/photoswitch_ecfp/', 'e_isomer_pi_pi'],
+        'polymers_ecfp': ['../results/polymers_data/polymers_ecfp/explanations/', '../results/polymers_data/polymers_ecfp/', 'Tg'],
+        'redox_ecfp': ['../results/redox_data/redox_ecfp/explanations/', '../results/redox_data/redox_ecfp/', 'dGox'],
+        'herg_ecfp_linear': ['../results/synthetic_data/herg_ecfp_linear/explanations/', '../results/synthetic_data/herg_ecfp_linear/', 'target'],
+        'herg_ecfp_nonlinear': ['../results/synthetic_data/herg_ecfp_nonlinear/explanations/', '../results/synthetic_data/herg_ecfp_nonlinear/', 'target'],
         'herg_ecfp_piecewise': ['../results/synthetic_data/herg_ecfp_piecewise/explanations/', '../results/synthetic_data/herg_ecfp_piecewise/', 'target'],
     }
 
@@ -211,16 +210,16 @@ if __name__ == "__main__":
         ranking_per_fold_dict = results['rankings_per_fold']
         cf_validity_dict = results['cf_validity']
         cf_similarity_dict = results['cf_similarity']
-        os.makedirs(os.path.join(results_dir, 'analysis4'), exist_ok=True)
-        with open(os.path.join(results_dir, 'analysis4', 'metrics_results.pickle'), 'wb') as f:
+        os.makedirs(os.path.join(results_dir, 'analysis_global'), exist_ok=True)
+        with open(os.path.join(results_dir, 'analysis_global', 'metrics_results.pickle'), 'wb') as f:
             pickle.dump(metrics_dict, f)
-        with open(os.path.join(results_dir, 'analysis4', 'ranking_results.pickle'), 'wb') as f:
+        with open(os.path.join(results_dir, 'analysis_global', 'ranking_results.pickle'), 'wb') as f:
             pickle.dump(ranking_dict, f)
-        with open(os.path.join(results_dir, 'analysis4', 'ranking_per_fold_results.pickle'), 'wb') as f:
+        with open(os.path.join(results_dir, 'analysis_global', 'ranking_per_fold_results.pickle'), 'wb') as f:
             pickle.dump(ranking_per_fold_dict, f)
-        with open(os.path.join(results_dir, 'analysis4', 'cf_validity_results.pickle'), 'wb') as f:
+        with open(os.path.join(results_dir, 'analysis_global', 'cf_validity_results.pickle'), 'wb') as f:
             pickle.dump(cf_validity_dict, f)
-        with open(os.path.join(results_dir, 'analysis4', 'cf_similarity_results.pickle'), 'wb') as f:
+        with open(os.path.join(results_dir, 'analysis_global', 'cf_similarity_results.pickle'), 'wb') as f:
             pickle.dump(cf_similarity_dict, f)
 
         aggregated_ranking_rra, agg_metrics_rra, agg_rankings_per_fold_rra = compute_aggregated_ranking(
@@ -241,16 +240,16 @@ if __name__ == "__main__":
         cf_validity_dict = results['cf_validity']
         cf_similarity_dict = results['cf_similarity']
 
-        os.makedirs(os.path.join(results_dir, 'analysis4'), exist_ok=True)
-        with open(os.path.join(results_dir, 'analysis4', 'metrics_results.pickle'), 'wb') as f:
+        os.makedirs(os.path.join(results_dir, 'analysis_global'), exist_ok=True)
+        with open(os.path.join(results_dir, 'analysis_global', 'metrics_results.pickle'), 'wb') as f:
             pickle.dump(metrics_dict, f)
-        with open(os.path.join(results_dir, 'analysis4', 'ranking_results.pickle'), 'wb') as f:
+        with open(os.path.join(results_dir, 'analysis_global', 'ranking_results.pickle'), 'wb') as f:
             pickle.dump(ranking_dict, f)
-        with open(os.path.join(results_dir, 'analysis4', 'ranking_per_fold_results.pickle'), 'wb') as f:
+        with open(os.path.join(results_dir, 'analysis_global', 'ranking_per_fold_results.pickle'), 'wb') as f:
             pickle.dump(ranking_per_fold_dict, f)
-        with open(os.path.join(results_dir, 'analysis4', 'cf_validity_results.pickle'), 'wb') as f:
+        with open(os.path.join(results_dir, 'analysis_global', 'cf_validity_results.pickle'), 'wb') as f:
             pickle.dump(cf_validity_dict, f)
-        with open(os.path.join(results_dir, 'analysis4', 'cf_similarity_results.pickle'), 'wb') as f:
+        with open(os.path.join(results_dir, 'analysis_global', 'cf_similarity_results.pickle'), 'wb') as f:
             pickle.dump(cf_similarity_dict, f)
 
         print('the end')

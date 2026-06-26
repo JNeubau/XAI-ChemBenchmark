@@ -1,5 +1,4 @@
 import sys
-sys.path.insert(0, '/home/aprzybylowska/XAI-ChemBenchmark')
 
 import numpy as np
 
@@ -75,9 +74,9 @@ def compute_aggregated_ranking(ranking_per_fold_dict: dict, dataset_names, datas
         important_features = [726, 456, 893, 428]
         important_features_simple = [f'{feature_name}_{i}' for i in important_features]
         important_features_piecewise_interactions = [f'{feature_name}_{i}' for i in important_features] + [
-            f'{feature_name}_893 x {feature_name}_{j}' for j in important_features if j != 893]
+            f'{feature_name}_{j} x {feature_name}_893' for j in important_features if j != 893]
         important_feature_nonlinear_interactions = [f'{feature_name}_{i}' for i in important_features] + [
-            f'{feature_name}_726 x {feature_name}_428', f'{feature_name}_456 x {feature_name}_726']
+            f'{feature_name}_428 x {feature_name}_726', f'{feature_name}_456 x {feature_name}_726']
 
         choices = {
             'linear': important_features_simple,
@@ -160,9 +159,9 @@ def run_experiment_on_dataset(dataset_name, datasets_names, results_dict):
             important_features = [726, 456, 893, 428]
             important_features_simple = [f'{feature_name}_{i}' for i in important_features]
             important_features_piecewise_interactions = [f'{feature_name}_{i}' for i in important_features] + [
-                f'{feature_name}_893 x {feature_name}_{j}' for j in important_features if j != 893]
+                f'{feature_name}_{j} x {feature_name}_893' for j in important_features if j != 893]
             important_feature_nonlinear_interactions = [f'{feature_name}_{i}' for i in important_features] + [
-                f'{feature_name}_726 x {feature_name}_428', f'{feature_name}_456 x {feature_name}_726']
+                f'{feature_name}_428 x {feature_name}_726', f'{feature_name}_456 x {feature_name}_726']
 
             choices = {
                 'linear': important_features_simple,
@@ -242,7 +241,7 @@ def run_experiment_on_dataset(dataset_name, datasets_names, results_dict):
 if __name__ == "__main__":
 
     datasets_names = {
-        'linear': [f'../results/gt_synthetic_data/herg_ecfp_linear/explanations/', '../results/gt_synthetic_data/herg_ecfp_linear/', 'target'],
+        #'linear': [f'../results/gt_synthetic_data/herg_ecfp_linear/explanations/', '../results/gt_synthetic_data/herg_ecfp_linear/', 'target'],
         'piecewise': [f'../results/gt_synthetic_data/herg_ecfp_piecewise/explanations/', '../results/gt_synthetic_data/herg_ecfp_piecewise/', 'target'],
         'nonlinear': [f'../results/gt_synthetic_data/herg_ecfp_nonlinear/explanations/', '../results/gt_synthetic_data/herg_ecfp_nonlinear/', 'target'],
    }
@@ -268,16 +267,16 @@ if __name__ == "__main__":
         ranking_per_fold_dict = results['rankings_per_fold']
         cf_validity_dict = results['cf_validity']
         cf_similarity_dict = results['cf_similarity']
-        os.makedirs(os.path.join(results_dir, 'analysis4'), exist_ok=True)
-        with open(os.path.join(results_dir, 'analysis4', 'metrics_results.pickle'), 'wb') as f:
+        os.makedirs(os.path.join(results_dir, 'analysis_global'), exist_ok=True)
+        with open(os.path.join(results_dir, 'analysis_global', 'metrics_results.pickle'), 'wb') as f:
             pickle.dump(metrics_dict, f)
-        with open(os.path.join(results_dir, 'analysis4', 'ranking_results.pickle'), 'wb') as f:
+        with open(os.path.join(results_dir, 'analysis_global', 'ranking_results.pickle'), 'wb') as f:
             pickle.dump(ranking_dict, f)
-        with open(os.path.join(results_dir, 'analysis4', 'ranking_per_fold_results.pickle'), 'wb') as f:
+        with open(os.path.join(results_dir, 'analysis_global', 'ranking_per_fold_results.pickle'), 'wb') as f:
             pickle.dump(ranking_per_fold_dict, f)
-        with open(os.path.join(results_dir, 'analysis4', 'cf_validity_results.pickle'), 'wb') as f:
+        with open(os.path.join(results_dir, 'analysis_global', 'cf_validity_results.pickle'), 'wb') as f:
             pickle.dump(cf_validity_dict, f)
-        with open(os.path.join(results_dir, 'analysis4', 'cf_similarity_results.pickle'), 'wb') as f:
+        with open(os.path.join(results_dir, 'analysis_global', 'cf_similarity_results.pickle'), 'wb') as f:
             pickle.dump(cf_similarity_dict, f)
 
         aggregated_ranking_rra, agg_metrics_rra, agg_rankings_per_fold_rra = compute_aggregated_ranking(
@@ -298,16 +297,16 @@ if __name__ == "__main__":
         cf_validity_dict = results['cf_validity']
         cf_similarity_dict = results['cf_similarity']
 
-        os.makedirs(os.path.join(results_dir, 'analysis4'), exist_ok=True)
-        with open(os.path.join(results_dir, 'analysis4', 'metrics_results.pickle'), 'wb') as f:
+        os.makedirs(os.path.join(results_dir, 'analysis_global'), exist_ok=True)
+        with open(os.path.join(results_dir, 'analysis_global', 'metrics_results.pickle'), 'wb') as f:
             pickle.dump(metrics_dict, f)
-        with open(os.path.join(results_dir, 'analysis4', 'ranking_results.pickle'), 'wb') as f:
+        with open(os.path.join(results_dir, 'analysis_global', 'ranking_results.pickle'), 'wb') as f:
             pickle.dump(ranking_dict, f)
-        with open(os.path.join(results_dir, 'analysis4', 'ranking_per_fold_results.pickle'), 'wb') as f:
+        with open(os.path.join(results_dir, 'analysis_global', 'ranking_per_fold_results.pickle'), 'wb') as f:
             pickle.dump(ranking_per_fold_dict, f)
-        with open(os.path.join(results_dir, 'analysis4', 'cf_validity_results.pickle'), 'wb') as f:
+        with open(os.path.join(results_dir, 'analysis_global', 'cf_validity_results.pickle'), 'wb') as f:
             pickle.dump(cf_validity_dict, f)
-        with open(os.path.join(results_dir, 'analysis4', 'cf_similarity_results.pickle'), 'wb') as f:
+        with open(os.path.join(results_dir, 'analysis_global', 'cf_similarity_results.pickle'), 'wb') as f:
             pickle.dump(cf_similarity_dict, f)
 
     print('the end')
