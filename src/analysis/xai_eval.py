@@ -293,9 +293,14 @@ def feature_agreement(gt, rankings, all_features, reference_list=None, remove_in
             if remove_inter:
                 if len(set(features_current)) == len(set(all_features)):
                     break
-        not_in_ranking = len(set(all_features) - features_current)
-        for _ in range(not_in_ranking):
-            percent.append(max_percent)
+        if remove_inter:
+            not_in_ranking = len(set(all_features) - features_current)
+            for _ in range(not_in_ranking):
+                percent.append(max_percent)
+        else:
+            not_in_ranking = len(set(gt) - features_current)
+            for _ in range(not_in_ranking):
+                percent.append(max_percent)
         if len(percent) == 1:
             auc_results.append(percent[0])
         else:
