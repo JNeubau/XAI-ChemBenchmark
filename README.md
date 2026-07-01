@@ -23,3 +23,7 @@ This project requires Python 3.12. To install the exact dependencies and set up 
 ```bash
 uv sync
 ```
+
+## Branches
+- global_analysis: scripts for per-fold evaluation from the paper
+- local_analysis: scripts for local (instance-level) evaluation from the paper
