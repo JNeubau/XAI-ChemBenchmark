@@ -1,5 +1,4 @@
 import sys
-sys.path.insert(0, '/home/aprzybylowska/XAI-ChemBenchmark')
 
 import numpy as np
 
@@ -310,6 +309,7 @@ if __name__ == "__main__":
         ranking_per_fold_dict = results['rankings_per_fold']
         cf_validity_dict = results['cf_validity']
         cf_similarity_dict = results['cf_similarity']
+        ranking_per_instance_dict = results['rankings_per_instance']
 
         os.makedirs(os.path.join(results_dir, analysis_output_dir), exist_ok=True)
         with open(os.path.join(results_dir, analysis_output_dir, 'metrics_results.pickle'), 'wb') as f:
@@ -324,4 +324,6 @@ if __name__ == "__main__":
             pickle.dump(cf_similarity_dict, f)
         with open(os.path.join(results_dir, analysis_output_dir, 'reference_lists.pickle'), 'wb') as f:
             pickle.dump(reference_list, f)
+        with open(os.path.join(results_dir, analysis_output_dir, 'rankings_per_instance_results.pickle'), 'wb') as f:
+            pickle.dump(ranking_per_instance_dict, f)
 

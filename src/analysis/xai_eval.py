@@ -1,3 +1,5 @@
+import bisect
+
 import numpy as np
 from joblib import Parallel, delayed
 from scipy.stats import spearmanr, skellam, weightedtau
@@ -311,6 +313,18 @@ def feature_agreement(gt, rankings, all_features, reference_list=None, remove_in
 def rank_correlation(ranking1: dict, ranking2: dict, k=None):
     r1 = {feature: rank for feature, rank in ranking1.items() if rank <= k} if k is not None else ranking1
     r2 = {feature: rank for feature, rank in ranking2.items() if rank <= k} if k is not None else ranking2
+
+    if len(set(r1.values())) == 1 and k is not None:
+        next_r = sorted(list(ranking1.values()))
+        id = bisect.bisect_right(next_r, k)
+        value = next_r[id]
+        r1 = {feature: rank for feature, rank in ranking1.items() if rank <= value}
+    if len(set(r2.values())) == 1 and k is not None:
+        next_r = sorted(list(ranking2.values()))
+        id = bisect.bisect_right(next_r, k)
+        value = next_r[id]
+        r2 = {feature: rank for feature, rank in ranking2.items() if rank <= value}
+
 
     all_features = set(r1.keys()) | set(r2.keys())
 

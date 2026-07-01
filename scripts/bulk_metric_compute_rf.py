@@ -1,7 +1,6 @@
 import numpy as np
 
 import sys
-sys.path.insert(0, '/home/aprzybylowska/XAI-ChemBenchmark')
 
 from src.ranking.mean import aggregate_rankings_by_mean_position
 from src.ranking.rra import aggregate_rankings_by_rra
@@ -229,9 +228,9 @@ if __name__ == "__main__":
         results_dir, model_dir, target = datasets_names[dataset_name]
         print(f"Processing dataset: {dataset_name}")
         results = run_experiment_on_dataset(dataset_name, datasets_names, results_dict)
-        print(results['metrics'])
+        #print(results['metrics'])
 
-        analysis_output_dir = 'analysis3'
+        analysis_output_dir = 'analysis_local'
 
         metrics_dict = results['metrics']
         ranking_dict = results['rankings']
@@ -266,11 +265,12 @@ if __name__ == "__main__":
         results['metrics'][aggregated_ranking_rra] = agg_metrics_rra
         results['rankings_per_instance'][aggregated_ranking_rra] = agg_rankings_per_fold_rra
 
-        metrics_dict = results['metrics']
+        #metrics_dict = results['metrics']
         ranking_dict = results['rankings']
         ranking_per_fold_dict = results['rankings_per_fold']
         cf_validity_dict = results['cf_validity']
         cf_similarity_dict = results['cf_similarity']
+        ranking_per_instance_dict = results['rankings_per_instance']
 
         os.makedirs(os.path.join(results_dir, analysis_output_dir), exist_ok=True)
         with open(os.path.join(results_dir, analysis_output_dir, 'metrics_results.pickle'), 'wb') as f:
@@ -285,3 +285,5 @@ if __name__ == "__main__":
             pickle.dump(cf_similarity_dict, f)
         with open(os.path.join(results_dir, analysis_output_dir, 'reference_lists.pickle'), 'wb') as f:
             pickle.dump(reference_list, f)
+        with open(os.path.join(results_dir, analysis_output_dir, 'rankings_per_instance_results.pickle'), 'wb') as f:
+            pickle.dump(ranking_per_instance_dict, f)
