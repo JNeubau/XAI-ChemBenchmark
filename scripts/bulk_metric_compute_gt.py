@@ -67,8 +67,8 @@ def compute_aggregated_ranking(ranking_per_fold_dict: dict, dataset_names, datas
         _, pgi_one = pgi(test_examples, aggregated_ranking, model, train_examples)
         _, pgu_one = pgu(test_examples, aggregated_ranking, model, train_examples)
 
-        pgis.append(pgi_one)
-        pgus.append(pgu_one)
+        pgis.extend(pgi_one)
+        pgus.extend(pgu_one)
 
         feature_name = 'ecfp_feature'
         important_features = [726, 456, 893, 428]
@@ -152,8 +152,8 @@ def run_experiment_on_dataset(dataset_name, datasets_names, results_dict):
 
             print(pgi_one, pgu_one)
 
-            pgis.append(pgi_one)
-            pgus.append(pgu_one)
+            pgis.extend(pgi_one)
+            pgus.extend(pgu_one)
 
             feature_name = 'ecfp_feature'
             important_features = [726, 456, 893, 428]
@@ -241,7 +241,7 @@ def run_experiment_on_dataset(dataset_name, datasets_names, results_dict):
 if __name__ == "__main__":
 
     datasets_names = {
-        #'linear': [f'../results/gt_synthetic_data/herg_ecfp_linear/explanations/', '../results/gt_synthetic_data/herg_ecfp_linear/', 'target'],
+        'linear': [f'../results/gt_synthetic_data/herg_ecfp_linear/explanations/', '../results/gt_synthetic_data/herg_ecfp_linear/', 'target'],
         'piecewise': [f'../results/gt_synthetic_data/herg_ecfp_piecewise/explanations/', '../results/gt_synthetic_data/herg_ecfp_piecewise/', 'target'],
         'nonlinear': [f'../results/gt_synthetic_data/herg_ecfp_nonlinear/explanations/', '../results/gt_synthetic_data/herg_ecfp_nonlinear/', 'target'],
    }

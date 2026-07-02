@@ -101,18 +101,20 @@ def pgi(examples, ranking, model, training_examples, len_max=None, num_runs=25):
             p_data = examples_np.copy()
             p_data[:, feature_list] = perturbed_all[:, feature_list]
             new_preds = model.predict(p_data)
-            diff = np.abs(new_preds - old_preds).mean()
+            diff = np.abs(new_preds - old_preds)
             for _ in range(stretch_counts[i]):
                 results.append(diff)
         return results
 
     results = Parallel(n_jobs=25)(delayed(compute_results)(i) for i in range(num_runs))
     results = np.array(results)
-    results = np.mean(results, axis=0)
-
-    auc_results = auc(np.arange(len(results)) / (len(results) - 1), results)
-    auc_max = auc(np.arange(len(results)) / (len(results) - 1), [max_diff] * len(results))
-    return auc_results / auc_max, auc_results
+    mean_diff_per_step = np.mean(results, axis=0)
+    instance_curves = mean_diff_per_step.T
+    num_steps = instance_curves.shape[1]
+    x_axis = np.arange(num_steps) / (num_steps - 1)
+    individual_aucs = np.array([auc(x_axis, curve) for curve in instance_curves])
+    auc_max = auc(x_axis, [max_diff] * len(x_axis))
+    return auc_max, individual_aucs
 
 
 def pgu(examples, ranking, model, training_examples, len_max=None, num_runs=25):
@@ -170,18 +172,21 @@ def pgu(examples, ranking, model, training_examples, len_max=None, num_runs=25):
             p_data = examples_np.copy()
             p_data[:, feature_list] = perturbed_all[:, feature_list]
             new_preds = model.predict(p_data)
-            diff = np.abs(new_preds - old_preds).mean()
+            diff = np.abs(new_preds - old_preds)
             for _ in range(stretch_counts[i]):
                 results.append(diff)
         return results
 
     results = Parallel(n_jobs=25)(delayed(compute_results)(i) for i in range(num_runs))
     results = np.array(results)
-    results = np.mean(results, axis=0)
-
-    auc_results = auc(np.arange(len(results)) / (len(results) - 1), results[::-1])
-    auc_max = auc(np.arange(len(results)) / (len(results) - 1), [max_diff] * len(results))
-    return auc_results / auc_max, auc_results
+    # results = np.mean(results, axis=0)
+    mean_diff_per_step = np.mean(results, axis=0)
+    instance_curves = mean_diff_per_step.T
+    num_steps = instance_curves.shape[1]
+    x_axis = np.arange(num_steps) / (num_steps - 1)
+    individual_aucs = np.array([auc(x_axis, curve) for curve in instance_curves])
+    auc_max = auc(x_axis, [max_diff] * len(x_axis))
+    return auc_max, individual_aucs
 
 
 def feature_agreement(gt, ranking2, all_features, removex=True):
